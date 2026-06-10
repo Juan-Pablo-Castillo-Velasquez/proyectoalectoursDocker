@@ -1,5 +1,23 @@
 # 📚 Documentación API AlecTours
 
+# RESTRICCIONES DEL SISTEMA ALECTOURS
+
+#### Restricción 1: Acceso condicionado a la verificación de correo
+Un usuario registrado no podrá iniciar sesión ni acceder a funcionalidades protegidas hasta que haya verificado su dirección de correo electrónico mediante el enlace de activación enviado por el sistema.
+
+#### Restricción 2: Gestión exclusiva por roles autorizados
+Solo los usuarios con rol de Agente de Viajes podrán consultar catálogos de servicios turísticos, construir itinerarios, generar cotizaciones y gestionar reservas. Los clientes únicamente podrán acceder a las funcionalidades definidas para su perfil.
+
+#### Restricción 3: Disponibilidad obligatoria antes de reservar
+El sistema no permitirá confirmar una reserva ni generar una cotización final si alguno de los servicios incluidos (vuelos, hoteles, transportes o actividades) no cuenta con disponibilidad vigente al momento de la validación.
+
+#### Restricción 4: Fechas coherentes en todos los procesos de viaje
+No se podrán registrar búsquedas, itinerarios o reservas con fechas inconsistentes. Las fechas de salida o inicio deben ser iguales o posteriores a la fecha actual, y las fechas de finalización deben ser posteriores a las fechas de inicio correspondientes.
+
+#### Restricción 5: Protección obligatoria de información sensible
+Las contraseñas, tokens, credenciales y demás datos sensibles nunca podrán almacenarse ni transmitirse en texto plano. Toda la información crítica deberá protegerse mediante mecanismos de cifrado, hashing y gestión segura de credenciales definidos por la arquitectura del sistema.
+
+
 **Base URL:** `http://localhost:8000`
 
 ---
