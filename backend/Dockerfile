@@ -16,7 +16,7 @@ COPY . .
 
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
 
 # ---------- Dev stage: con --reload, para docker-compose local ----------
 FROM base AS dev
