@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-
+from app.routes.promociones_route import router as promociones_router
 from app.routes.auth_route import router as auth_router
 from app.routes.hotel_route import router as hotel_router
 from app.routes.cliente_route import router as cliente_router
@@ -65,6 +65,7 @@ app.include_router(hotel_router)
 app.include_router(cliente_router)
 app.include_router(reserva_router)
 app.include_router(preferencias_router)
+app.include_router(promociones_router)
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
