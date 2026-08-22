@@ -1,4 +1,4 @@
-﻿# ---------- Base stage: dependencias comunes ----------
+# ---------- Base stage: dependencias comunes ----------
 FROM python:3.12-slim AS base
 
 WORKDIR /app
@@ -14,9 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "-c", "sed -i 's/\\r$//' /app/entrypoint.sh && exec /bin/sh /app/entrypoint.sh \"$@\"", "--"]
 
 # ---------- Dev stage: con --reload, para docker-compose local ----------
 FROM base AS dev
