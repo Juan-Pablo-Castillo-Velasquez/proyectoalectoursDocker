@@ -70,41 +70,45 @@ export default function OffersHighlight() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     {offers.map((o, i) => (
                         <motion.div
-                            key={o.title}
+                            key={o.id}
                             initial={{ opacity: 0, y: 20 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true, margin: "-60px" }}
                             transition={{ delay: i * 0.1, duration: 0.5 }}
-                            className="group relative h-64 rounded-2xl overflow-hidden cursor-pointer"
                         >
-                            <img
-                                src={o.img}
-                                alt={o.title}
-                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                            <Link
+                                to={`/hotel/${o.id}`}
+                                className="group relative h-64 rounded-2xl overflow-hidden cursor-pointer block"
+                            >
+                                <img
+                                    src={o.img}
+                                    alt={o.title}
+                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
 
-                            <span className="absolute top-4 left-4 px-2.5 py-1 rounded-md bg-[var(--chart-2)] text-[#513b12] text-[11px] font-black shadow-sm">
-                                {o.discount}
-                            </span>
+                                <span className="absolute top-4 left-4 px-2.5 py-1 rounded-md bg-[var(--chart-2)] text-[#513b12] text-[11px] font-black shadow-sm">
+                                    {o.discount}
+                                </span>
 
-                            <div className="absolute bottom-4 left-4 right-4 text-white">
-                                <h3
-                                    className="text-lg mb-0.5 font-bold"
-                                    style={{ fontFamily: "'Fraunces', serif" }}
-                                >
-                                    {o.title}
-                                </h3>
-                                <p className="text-white/75 text-xs mb-2">{o.tag}</p>
-                                <p className="text-sm">
-                                    Desde <b className="text-[var(--chart-2)]">${o.price}</b>
-                                    {o.oldPrice && (
-                                        <span className="line-through text-white/50 text-xs ml-2">
-                                            ${o.oldPrice}
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
+                                <div className="absolute bottom-4 left-4 right-4 text-white">
+                                    <h3
+                                        className="text-lg mb-0.5 font-bold"
+                                        style={{ fontFamily: "'Fraunces', serif" }}
+                                    >
+                                        {o.title}
+                                    </h3>
+                                    <p className="text-white/75 text-xs mb-2">{o.tag}</p>
+                                    <p className="text-sm">
+                                        Desde <b className="text-[var(--chart-2)]">${o.price}</b>
+                                        {o.oldPrice && (
+                                            <span className="line-through text-white/50 text-xs ml-2">
+                                                ${o.oldPrice}
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                            </Link>
                         </motion.div>
                     ))}
                 </div>

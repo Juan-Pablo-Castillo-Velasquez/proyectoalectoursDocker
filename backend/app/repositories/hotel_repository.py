@@ -31,6 +31,27 @@ class HotelRepository:
         return resultados
 
     @staticmethod
+    def get_seleccion_casa(db: Session, limit: int = 4, offset: int = 3):
+        """Siguiente tanda de hoteles después de los destacados (evita repetir)."""
+        resultados = (
+            db.query(
+                Hotel.id_hotel,
+                Hotel.nombre_hotel,
+                Hotel.ciudad,
+                Hotel.pais,
+                Hotel.calificacion,
+                func.min(Habitacion.precio_noche).label("precio_desde"),
+            )
+            .join(Habitacion, Habitacion.id_hotel == Hotel.id_hotel)
+            .group_by(Hotel.id_hotel, Hotel.nombre_hotel, Hotel.ciudad, Hotel.pais, Hotel.calificacion)
+            .order_by(Hotel.calificacion.desc(), func.min(Habitacion.precio_noche).asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return resultados
+
+    @staticmethod
     def get_by_id(db: Session, hotel_id: int):
         return db.query(Hotel).filter(Hotel.id_hotel == hotel_id).first()
 

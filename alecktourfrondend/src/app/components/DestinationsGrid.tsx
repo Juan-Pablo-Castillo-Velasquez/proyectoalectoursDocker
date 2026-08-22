@@ -1,40 +1,8 @@
 import { ArrowUpRight, Sparkles, Star } from "lucide-react";
 import { motion } from "motion/react";
-
-const destinations = [
-    {
-        name: "Cartagena de Indias",
-        tag: "Hotel boutique colonial",
-        img: "https://images.unsplash.com/photo-1583531352515-8884af319dc1?q=80&w=1400&auto=format&fit=crop",
-        rating: 4.8,
-        price: "458.300",
-        nights: "3 noches · 2 adultos",
-    },
-    {
-        name: "San Andrés",
-        tag: "Todo incluido frente al mar",
-        img: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=1400&auto=format&fit=crop",
-        rating: 4.6,
-        price: "1.302.875",
-        nights: "5 noches · 2 adultos",
-    },
-    {
-        name: "Eje Cafetero",
-        tag: "Finca con vista a las montañas",
-        img: "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?q=80&w=1400&auto=format&fit=crop",
-        rating: 4.9,
-        price: "786.941",
-        nights: "4 noches · 2 adultos",
-    },
-    {
-        name: "Santa Marta",
-        tag: "Resort con acceso a playa privada",
-        img: "https://images.unsplash.com/photo-1590523278191-995cbcda646b?q=80&w=1400&auto=format&fit=crop",
-        rating: 4.7,
-        price: "453.354",
-        nights: "3 noches · 2 adultos",
-    },
-];
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
+import { DestinoSeleccion, destinoService } from "../services/destino.service";
 
 const cardVariants = {
     hidden: { opacity: 0, y: 24 },
@@ -46,6 +14,31 @@ const cardVariants = {
 };
 
 export default function DestinationsGrid() {
+    const [destinations, setDestinations] = useState<DestinoSeleccion[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let activo = true;
+
+        destinoService
+            .getSeleccionCasa()
+            .then((data) => {
+                if (activo) setDestinations(data);
+            })
+            .catch((err) => {
+                console.error("Error cargando selección de la casa:", err);
+            })
+            .finally(() => {
+                if (activo) setLoading(false);
+            });
+
+        return () => {
+            activo = false;
+        };
+    }, []);
+
+    if (!loading && destinations.length === 0) return null;
+
     return (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 bg-background transition-colors duration-300 overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
@@ -115,54 +108,65 @@ export default function DestinationsGrid() {
 
                 {/* --- SECCIÓN DERECHA: Cuadrícula de Tarjetas (2x2) --- */}
                 <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-6 mt-10 lg:mt-0">
-                    {destinations.map((d, i) => (
-                        <motion.article
-                            key={d.name}
-                            custom={i}
-                            variants={cardVariants}
-                            initial="hidden"
-                            whileInView="visible"
-                            viewport={{ once: true, margin: "-60px" }}
-                            whileHover={{ y: -6 }}
-                            className="group bg-card text-card-foreground rounded-3xl overflow-hidden border border-border cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col"
-                        >
-                            <div className="relative h-48 overflow-hidden shrink-0">
-                                <img
-                                    src={d.img}
-                                    alt={d.name}
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                    {loading ? (
+                        [0, 1, 2, 3].map((i) => (
+                            <div
+                                key={i}
+                                className="h-72 rounded-3xl bg-muted animate-pulse"
+                            />
+                        ))
+                    ) : (
+                        destinations.map((d, i) => (
+                            <motion.article
+                                key={d.id}
+                                custom={i}
+                                variants={cardVariants}
+                                initial="hidden"
+                                whileInView="visible"
+                                viewport={{ once: true, margin: "-60px" }}
+                                whileHover={{ y: -6 }}
+                                className="group bg-card text-card-foreground rounded-3xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col"
+                            >
+                                <Link to={`/hotel/${d.id}`} className="flex flex-col flex-1 cursor-pointer">
+                                    <div className="relative h-48 overflow-hidden shrink-0">
+                                        <img
+                                            src={d.img}
+                                            alt={d.name}
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
 
-                                <div className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-sm">
-                                    <ArrowUpRight className="w-4 h-4 text-primary" />
-                                </div>
+                                        <div className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-sm">
+                                            <ArrowUpRight className="w-4 h-4 text-primary" />
+                                        </div>
 
-                                <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-background/95 backdrop-blur px-2.5 py-1 rounded-full shadow-sm">
-                                    <Star className="w-3.5 h-3.5 fill-[var(--chart-2)] text-[var(--chart-2)]" />
-                                    <span className="text-xs font-semibold text-foreground">{d.rating}</span>
-                                </div>
-                            </div>
-
-                            <div className="p-5 flex flex-col flex-1">
-                                <h3 className="text-foreground font-semibold text-[17px] mb-1">{d.name}</h3>
-                                <p className="text-muted-foreground text-sm mb-4">{d.tag}</p>
-
-                                <div className="flex items-end justify-between pt-4 border-t border-border mt-auto">
-                                    <div>
-                                        <p className="text-[11px] text-muted-foreground mb-0.5">{d.nights}</p>
-                                        <p className="text-primary font-bold text-lg leading-none">
-                                            ${d.price}
-                                            <span className="text-muted-foreground text-xs font-normal"> COP</span>
-                                        </p>
+                                        <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-background/95 backdrop-blur px-2.5 py-1 rounded-full shadow-sm">
+                                            <Star className="w-3.5 h-3.5 fill-[var(--chart-2)] text-[var(--chart-2)]" />
+                                            <span className="text-xs font-semibold text-foreground">{d.rating}</span>
+                                        </div>
                                     </div>
-                                    <span className="text-[var(--chart-2)] text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                        Ver más
-                                    </span>
-                                </div>
-                            </div>
-                        </motion.article>
-                    ))}
+
+                                    <div className="p-5 flex flex-col flex-1">
+                                        <h3 className="text-foreground font-semibold text-[17px] mb-1">{d.name}</h3>
+                                        <p className="text-muted-foreground text-sm mb-4">{d.tag}</p>
+
+                                        <div className="flex items-end justify-between pt-4 border-t border-border mt-auto">
+                                            <div>
+                                                <p className="text-[11px] text-muted-foreground mb-0.5">{d.nights}</p>
+                                                <p className="text-primary font-bold text-lg leading-none">
+                                                    ${d.price}
+                                                    <span className="text-muted-foreground text-xs font-normal"> COP</span>
+                                                </p>
+                                            </div>
+                                            <span className="text-[var(--chart-2)] text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                                Ver más
+                                            </span>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </motion.article>
+                        ))
+                    )}
                 </div>
 
             </div>
