@@ -527,7 +527,16 @@ ON usuarios(username);
 
 CREATE INDEX IF NOT EXISTS idx_usuarios_correo
 ON usuarios(correo_electronico);
-
+CREATE TABLE IF NOT EXISTS resenas (
+    id_resena SERIAL PRIMARY KEY,
+    id_reserva INT NOT NULL REFERENCES reservas(id_reserva) ON DELETE CASCADE,
+    id_cliente INT NOT NULL REFERENCES clientes(id_cliente) ON DELETE CASCADE,
+    id_hotel INT NOT NULL REFERENCES hoteles(id_hotel) ON DELETE CASCADE,
+    calificacion INT NOT NULL CHECK (calificacion >= 1 AND calificacion <= 5),
+    comentario TEXT NOT NULL,
+    foto_url VARCHAR(500),
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 INSERT INTO roles (nombre_rol)
 VALUES

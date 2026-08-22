@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { FormEvent, useState } from "react";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { contactoService } from "../services/contacto.service";
 
 export default function Contact() {
   const [nombre, setNombre] = useState("");
@@ -11,21 +12,29 @@ export default function Contact() {
   const [mensaje, setMensaje] = useState("");
   const [enviado, setEnviado] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
-    // Simulación de envío al backend de AlecTours
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await contactoService.enviar({ nombre, correo, asunto, mensaje });
       setEnviado(true);
       // Limpiar formulario
       setNombre("");
       setCorreo("");
       setAsunto("");
       setMensaje("");
-    }, 1800);
+    } catch (err) {
+      console.error("Error enviando contacto:", err);
+      setError(
+        "No pudimos enviar tu mensaje. Intenta de nuevo en unos minutos.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -44,7 +53,9 @@ export default function Contact() {
               Ponte en Contacto
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              ¿Planeando tu próxima escapada o necesitas asistencia con un paquete personalizado? Nuestro equipo experto está a un mensaje de distancia.
+              ¿Planeando tu próxima escapada o necesitas asistencia con un
+              paquete personalizado? Nuestro equipo experto está a un mensaje de
+              distancia.
             </p>
           </motion.div>
 
@@ -76,7 +87,9 @@ export default function Contact() {
                       <p className="text-card-foreground font-medium text-sm mt-0.5">
                         Av. El Dorado #68b-45, Edificio C
                       </p>
-                      <p className="text-muted-foreground text-sm">Bogotá, Colombia</p>
+                      <p className="text-muted-foreground text-sm">
+                        Bogotá, Colombia
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -178,6 +191,12 @@ export default function Contact() {
                         />
                       </div>
 
+                      {error && (
+                        <p className="text-sm text-red-500 text-center">
+                          {error}
+                        </p>
+                      )}
+
                       {/* Botón de Envío Animado - Identidad AlecTours */}
                       <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -207,7 +226,11 @@ export default function Contact() {
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 200,
+                          damping: 15,
+                        }}
                         className="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6"
                       >
                         <CheckCircle2 className="w-12 h-12" />
@@ -216,7 +239,9 @@ export default function Contact() {
                         ¡Mensaje enviado con éxito!
                       </h3>
                       <p className="text-muted-foreground max-w-md mx-auto mb-8">
-                        Gracias por escribirnos. Hemos registrado tu solicitud en el sistema de AlecTours y un asesor te responderá al correo electrónico en menos de 2 horas.
+                        Gracias por escribirnos. Hemos registrado tu solicitud
+                        en el sistema de AlecTours y un asesor te responderá al
+                        correo electrónico en menos de 2 horas.
                       </p>
                       <motion.button
                         whileHover={{ scale: 1.05 }}

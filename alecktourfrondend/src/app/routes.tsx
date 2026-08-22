@@ -4,6 +4,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import RootLayout from "./layouts/RootLayout";
 import AdminDashboard from "./pages/Admindashboard";
 import Benefits from "./pages/Benefits";
+import BlogComunidad from "./pages/BlogComunidad";
 import Checkout from "./pages/Checkout";
 import Confirmation from "./pages/Confirmation";
 import Contact from "./pages/Contact";
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: "/package/:id", Component: PackageDetail },
       { path: "/login", Component: LoginRedirect },
       { path: "/register", Component: RegisterRedirect },
+      { path: "/blog", Component: BlogComunidad },
       { path: "/checkout/:id", Component: Checkout },
       { path: "/confirmation", Component: Confirmation },
       { path: "/benefits", Component: Benefits },
