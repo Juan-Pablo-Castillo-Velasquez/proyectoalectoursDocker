@@ -76,3 +76,45 @@ class ResenaRepository:
             .filter(Resena.id_hotel == id_hotel)
             .first()
         )
+
+    @staticmethod
+    def get_destacadas(db: Session, limit: int = 6):
+        """
+        Mejores reseñas para mostrar en el home: prioriza calificación alta
+        y luego las más recientes. Solo trae 4-5 estrellas para que la
+        sección de testimonios se vea consistente.
+        """
+        return (
+            db.query(Resena)
+            .options(joinedload(Resena.cliente), joinedload(Resena.hotel))
+            .filter(Resena.calificacion >= 4)
+            .order_by(Resena.calificacion.desc(), Resena.fecha_creacion.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def get_promedio_global(db: Session):
+        return (
+            db.query(
+                func.avg(Resena.calificacion).label("promedio"),
+                func.count(Resena.id_resena).label("total"),
+            )
+            .first()
+        )
+
+    @staticmethod
+    def get_all(db: Session, skip: int = 0, limit: int = 12):
+        """Todas las reseñas (cualquier calificación), para la página pública /testimonios."""
+        return (
+            db.query(Resena)
+            .options(joinedload(Resena.cliente), joinedload(Resena.hotel))
+            .order_by(Resena.fecha_creacion.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def count_all(db: Session) -> int:
+        return db.query(func.count(Resena.id_resena)).scalar() or 0

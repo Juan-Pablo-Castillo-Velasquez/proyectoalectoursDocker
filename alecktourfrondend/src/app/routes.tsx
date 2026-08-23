@@ -4,7 +4,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import RootLayout from "./layouts/RootLayout";
 import AdminDashboard from "./pages/Admindashboard";
 import Benefits from "./pages/Benefits";
-import BlogComunidad from "./pages/BlogComunidad";
+
 import Checkout from "./pages/Checkout";
 import Confirmation from "./pages/Confirmation";
 import Contact from "./pages/Contact";
@@ -20,6 +20,7 @@ import Profile from "./pages/Profile";
 import Reservas from "./pages/Reservas";
 import ResetPassword from "./pages/ResetPassword";
 import SearchResults from "./pages/SearchResults";
+import Testimonios from "./pages/Testimonios";
 import TravelInfo from "./pages/TravelInfo";
 import VerifyEmail from "./pages/VerifyEmail";
 export const router = createBrowserRouter([
@@ -31,7 +32,6 @@ export const router = createBrowserRouter([
       { path: "/package/:id", Component: PackageDetail },
       { path: "/login", Component: LoginRedirect },
       { path: "/register", Component: RegisterRedirect },
-      { path: "/blog", Component: BlogComunidad },
       { path: "/checkout/:id", Component: Checkout },
       { path: "/confirmation", Component: Confirmation },
       { path: "/benefits", Component: Benefits },
@@ -41,6 +41,7 @@ export const router = createBrowserRouter([
       { path: "/verify", Component: VerifyEmail },
       { path: "/faq", Component: FAQ },
       { path: "/contact", Component: Contact },
+      { path: "/testimonios", Component: Testimonios },
       { path: "/reset-password", Component: ResetPassword },
       { path: "*", Component: NotFound },
 

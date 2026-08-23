@@ -77,3 +77,69 @@ export async function apiFetch<T>(
 
   return response.json() as Promise<T>;
 }
+
+// ─── Reseñas ───────────────────────────────────────────────────────────────
+export interface ResenaDestacada {
+  id: number;
+  name: string;
+  location: string;
+  quote: string;
+  rating: number;
+  trip: string;
+  avatar: string;
+  fecha?: string;
+}
+
+export interface ResenasDestacadasResponse {
+  promedio: number;
+  total: number;
+  resenas: ResenaDestacada[];
+}
+
+// Top 6 reseñas (4-5★), cacheadas en backend — usado en el home.
+export async function apiGetResenasDestacadas(): Promise<ResenasDestacadasResponse> {
+  return apiFetch<ResenasDestacadasResponse>("/resenas/destacadas");
+}
+
+export interface ResenasListResponse {
+  total: number;
+  promedio: number;
+  resenas: ResenaDestacada[];
+}
+
+// Listado paginado de TODAS las reseñas — usado en la página /testimonios.
+export async function apiGetResenas(
+  skip = 0,
+  limit = 12,
+): Promise<ResenasListResponse> {
+  return apiFetch<ResenasListResponse>(`/resenas?skip=${skip}&limit=${limit}`);
+}
+
+export interface ResenaCreateInput {
+  id_reserva: number;
+  calificacion: number;
+  comentario: string;
+  foto_url?: string;
+}
+
+export interface ResenaCreateResponse {
+  id_resena: number;
+  id_reserva: number;
+  id_hotel: number;
+  calificacion: number;
+  comentario: string;
+  foto_url?: string | null;
+  fecha_creacion: string;
+  nombre_cliente?: string | null;
+}
+
+// Requiere sesión iniciada (Authorization: Bearer). El backend valida que la
+// reserva sea del cliente autenticado y que no tenga ya una reseña.
+export async function apiCrearResena(
+  data: ResenaCreateInput,
+): Promise<ResenaCreateResponse> {
+  return apiFetch<ResenaCreateResponse>("/resenas", {
+    method: "POST",
+    body: data,
+  });
+}

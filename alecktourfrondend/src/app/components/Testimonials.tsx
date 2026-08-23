@@ -1,17 +1,31 @@
 import {
-    ArrowRight,
-    Heart,
-    MapPin,
-    PlaneTakeoff,
-    Quote,
-    ShieldCheck,
-    Star,
-    Users,
+  ArrowRight,
+  Heart,
+  MapPin,
+  PlaneTakeoff,
+  Quote,
+  ShieldCheck,
+  Star,
+  Users,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-const testimonials = [
+import { apiGetResenasDestacadas, ResenaDestacada } from "../api/v1/api";
+
+interface Testimonio {
+  name: string;
+  location: string;
+  quote: string;
+  rating: number;
+  avatar: string;
+  trip: string;
+}
+
+// Fallback: se muestra mientras carga la data real, o si el backend
+// todavía no tiene reseñas (proyecto nuevo / base de datos vacía).
+const testimonialsFallback: Testimonio[] = [
   {
     name: "Laura Gómez",
     location: "Cartagena, Colombia",
@@ -44,7 +58,48 @@ const testimonials = [
   },
 ];
 
+function mapResena(r: ResenaDestacada): Testimonio {
+  return {
+    name: r.name,
+    location: r.location || "Colombia",
+    quote: r.quote,
+    rating: r.rating,
+    avatar: r.avatar,
+    trip: r.trip,
+  };
+}
+
 export default function Testimonials() {
+  const [testimonials, setTestimonials] =
+    useState<Testimonio[]>(testimonialsFallback);
+  const [ratingPromedio, setRatingPromedio] = useState<number>(4.9);
+  const [totalResenas, setTotalResenas] = useState<number | null>(null);
+
+  useEffect(() => {
+    let activo = true;
+
+    apiGetResenasDestacadas()
+      .then((data) => {
+        if (!activo) return;
+
+        // Solo reemplazamos el fallback si el backend realmente trajo reseñas.
+        if (data.resenas && data.resenas.length > 0) {
+          setTestimonials(data.resenas.slice(0, 3).map(mapResena));
+        }
+        if (data.promedio) setRatingPromedio(data.promedio);
+        if (typeof data.total === "number") setTotalResenas(data.total);
+      })
+      .catch((err) => {
+        // Si falla (backend caído, sin conexión, etc.) simplemente nos
+        // quedamos con el fallback — la sección nunca se ve rota o vacía.
+        console.error("No se pudieron cargar las reseñas destacadas:", err);
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, []);
+
   return (
     <section className="relative overflow-hidden bg-background py-20 md:py-24 transition-colors duration-300">
       {/* Decoración de fondo */}
@@ -101,10 +156,14 @@ export default function Testimonials() {
                 ))}
               </div>
 
-              <p className="text-foreground font-bold text-sm">4.9 / 5.0</p>
+              <p className="text-foreground font-bold text-sm">
+                {ratingPromedio.toFixed(1)} / 5.0
+              </p>
 
               <p className="text-muted-foreground text-[11px]">
-                Opiniones verificadas
+                {totalResenas !== null
+                  ? `${totalResenas} opiniones verificadas`
+                  : "Opiniones verificadas"}
               </p>
             </div>
           </div>
@@ -116,7 +175,7 @@ export default function Testimonials() {
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-5">
             {testimonials.map((t, i) => (
               <motion.article
-                key={t.name}
+                key={`${t.name}-${i}`}
                 initial={{ opacity: 0, y: 25 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
@@ -234,9 +293,9 @@ export default function Testimonials() {
             <div className="relative">
               <div className="flex items-center gap-2 mb-5">
                 <div className="flex -space-x-2">
-                  {testimonials.map((t) => (
+                  {testimonials.map((t, i) => (
                     <div
-                      key={t.name}
+                      key={`${t.name}-avatar-${i}`}
                       className="w-7 h-7 rounded-full border-2 border-[#5E1730] bg-cover bg-center"
                       style={{
                         backgroundImage: `url(${t.avatar})`,
@@ -248,12 +307,15 @@ export default function Testimonials() {
                   </div>
                 </div>
                 <span className="text-white/80 text-[10px] font-medium">
-                  +2.500 viajeros felices
+                  {totalResenas !== null && totalResenas > 0
+                    ? `+${totalResenas} viajeros felices`
+                    : "+2.500 viajeros felices"}
                 </span>
               </div>
 
+              {/* Ahora lleva a la página de reseñas (antes iba a /contact) */}
               <Link
-                to="/contact"
+                to="/testimonios"
                 className="group flex items-center justify-between w-full px-4 py-3.5 rounded-xl bg-white text-primary text-sm font-bold transition-all hover:bg-[#C9A227] hover:text-[#5E1730] shadow-md"
               >
                 <span>Quiero cotizar mi viaje</span>
