@@ -1,5 +1,5 @@
 import { ChevronRight, Plane } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { forwardRef } from "react";
 import ComprobantePDF from "../ComprobantePDF";
 import { ClienteResponse } from "../../../services/cliente.service";
@@ -8,8 +8,7 @@ import { fmt, getEstadoViaje, nights } from "./utils";
 
 interface Props {
   reserva: any;
-  expanded: boolean;
-  onToggleExpand: () => void;
+  onVerDetalle: () => void;
   clienteData: ClienteResponse | null;
   /** motivo ya enviado en esta sesión (si lo hay) — viene del estado `solicitadas` del padre */
   solicitudMotivo?: string;
@@ -22,8 +21,7 @@ interface Props {
 const ReservaCard = forwardRef<HTMLDivElement, Props>(function ReservaCard(
   {
     reserva,
-    expanded,
-    onToggleExpand,
+    onVerDetalle,
     clienteData,
     solicitudMotivo,
     onSolicitarCancelacion,
@@ -155,54 +153,14 @@ const ReservaCard = forwardRef<HTMLDivElement, Props>(function ReservaCard(
           </div>
 
           <button
-            onClick={onToggleExpand}
+            onClick={onVerDetalle}
             className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors py-1.5 cursor-pointer"
           >
-            <span>
-              {expanded ? "Ocultar especificaciones" : "Ver especificaciones"}
-            </span>
-            <ChevronRight
-              className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
-            />
+            <span>Ver especificaciones</span>
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
-
-      {/* Desglose expandible */}
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: "auto" }}
-            exit={{ height: 0 }}
-            className="overflow-hidden border-t border-border bg-muted/20"
-          >
-            <div className="p-4 sm:p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90">
-                    Alojamiento & Logística
-                  </h4>
-                  <p className="text-muted-foreground">
-                    Detalles del itinerario hotelero, locaciones de check-in y
-                    asignaciones de cupos incluidos dentro de la tarifa.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90">
-                    Políticas de Modificación
-                  </h4>
-                  <p className="text-muted-foreground">
-                    Toda alteración en las fechas de estancia o variaciones en
-                    el número de pasajeros declarados debe tramitarse con 5
-                    días hábiles de anticipación.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 });

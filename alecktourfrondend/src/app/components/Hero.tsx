@@ -159,7 +159,7 @@ export default function Hero() {
               Explorar destinos
             </a>
 
-            <a
+            {/* <a
               href="#como-funciona"
               className="
                                 inline-flex
@@ -182,7 +182,7 @@ export default function Hero() {
             >
               <PlayCircle className="w-4 h-4" />
               Cómo funciona
-            </a>
+            </a> */}
           </div>
 
           {/* Viajeros */}

@@ -14,6 +14,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { BASE_URL } from "../api/v1/api";
 import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import LoginModal from "./LoginModal";
@@ -548,13 +549,22 @@ export default function Navbar() {
                       flex items-center justify-center
                       group-hover:bg-primary
                       transition-colors
+                      overflow-hidden
                     ">
-                      <User className="
-                        w-3.5 h-3.5
-                        text-primary
-                        group-hover:text-primary-foreground
-                        transition-colors
-                      " />
+                      {usuario?.foto_perfil ? (
+                        <img
+                          src={`${BASE_URL}${usuario.foto_perfil}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="
+                          w-3.5 h-3.5
+                          text-primary
+                          group-hover:text-primary-foreground
+                          transition-colors
+                        " />
+                      )}
                     </div>
 
                     <div className="leading-tight max-w-[120px]">
@@ -815,8 +825,17 @@ export default function Navbar() {
                           rounded-lg
                           bg-primary-foreground/15
                           flex items-center justify-center
+                          overflow-hidden
                         ">
-                          <User className="w-4 h-4" />
+                          {usuario?.foto_perfil ? (
+                            <img
+                              src={`${BASE_URL}${usuario.foto_perfil}`}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-4 h-4" />
+                          )}
                         </div>
 
                         <div className="flex flex-col items-start leading-tight">

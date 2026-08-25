@@ -112,6 +112,7 @@ class ReservaResponse(BaseModel):
     fecha_fin: date
     numero_personas: int
     estado: str
+    precio_total: float = 0
 
     class Config:
         from_attributes = True
@@ -151,11 +152,43 @@ class PagoResponse(BaseModel):
         from_attributes = True
 
 
+class AsesorResponse(BaseModel):
+    """Datos mínimos del empleado asignado a la reserva (sin cédula ni
+    fecha de contratación — esto lo ve el cliente en el popup de su reserva)."""
+    id_empleado: int
+    nombre: str
+    apellido: str
+    correo_electronico: Optional[str] = None
+    celular: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PagarRequest(BaseModel):
+    id_metodo_pago: int
+    tipo_pago: str = "completo"
+
+    @field_validator("tipo_pago")
+    @classmethod
+    def validate_tipo_pago(cls, v):
+        if v not in ("completo", "parcial"):
+            raise ValueError("tipo_pago debe ser: completo o parcial")
+        return v
+
+
+class PagarResponse(BaseModel):
+    pago: PagoResponse
+    reserva: ReservaResponse
+
+
 class ReservaDetailResponse(ReservaResponse):
     paquete: Optional[PaqueteResponse] = None
     pagos: List[PagoResponse] = []
     # OJO: el modelo SQLAlchemy llama a esta relación "reserva_habitaciones", por eso el alias.
     habitaciones: List[HabitacionReservaResponse] = Field(default=[], validation_alias="reserva_habitaciones")
+    empleado: Optional[AsesorResponse] = None
+    canal_origen: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -9,6 +9,7 @@ import FiltroBar from "./FiltroBar";
 import MetricasResumen from "./MetricasResumen";
 import ModalCancelacion from "./ModalCancelacion";
 import ModalResena from "./ModalResena";
+import ModalReservaDetalle from "./ModalReservaDetalle";
 import ReservaCard from "./ReservaCard";
 import SectionHeader from "./SectionHeader";
 import { fmt, getEstadoViaje, parseFechaLocal } from "./utils";
@@ -16,20 +17,17 @@ import { fmt, getEstadoViaje, parseFechaLocal } from "./utils";
 interface Props {
   reservas: any[];
   loading: boolean;
-  reservaExpandida: number | null;
-  setReservaExpandida: (id: number | null) => void;
   clienteData: ClienteResponse | null;
 }
 
 export default function TabReservas({
   reservas,
   loading,
-  reservaExpandida,
-  setReservaExpandida,
   clienteData,
 }: Props) {
   const [modalReserva, setModalReserva] = useState<any | null>(null);
   const [modalResena, setModalResena] = useState<any | null>(null);
+  const [detalleReservaId, setDetalleReservaId] = useState<number | null>(null);
   const [solicitadas, setSolicitadas] = useState<Record<number, string>>({});
   const [filtro, setFiltro] = useState<FiltroEstado>("todas");
   const [busqueda, setBusqueda] = useState("");
@@ -123,6 +121,15 @@ export default function TabReservas({
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {detalleReservaId !== null && (
+          <ModalReservaDetalle
+            reservaId={detalleReservaId}
+            onClose={() => setDetalleReservaId(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header General */}
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight text-white">
@@ -212,14 +219,7 @@ export default function TabReservas({
                     <ReservaCard
                       key={reserva.id_reserva}
                       reserva={reserva}
-                      expanded={reservaExpandida === reserva.id_reserva}
-                      onToggleExpand={() =>
-                        setReservaExpandida(
-                          reservaExpandida === reserva.id_reserva
-                            ? null
-                            : reserva.id_reserva,
-                        )
-                      }
+                      onVerDetalle={() => setDetalleReservaId(reserva.id_reserva)}
                       clienteData={clienteData}
                       solicitudMotivo={solicitadas[reserva.id_reserva]}
                       onSolicitarCancelacion={() => setModalReserva(reserva)}

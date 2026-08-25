@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
 
     verificado BOOLEAN DEFAULT FALSE,
 
+    foto_perfil VARCHAR(255),
+
     ultimo_login TIMESTAMP,
 
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -665,17 +667,29 @@ INSERT INTO empleados (nombre, apellido, cedula, correo_electronico, celular, di
 ('Héctor', 'Peña', '2000999000', 'hector.pena@alektours.com', '3109999999', 'Calle 9 # 9-9', 'Medellín', 'Colombia', '1989-07-22', '2020-09-05'),
 ('Paola', 'Cruz', '2000000111', 'paola.cruz@alektours.com', '3100000000', 'Calle 10 # 10-10', 'Bogotá', 'Colombia', '1991-03-18', '2022-04-01');
 
+-- Contraseña real para todos los usuarios semilla de abajo: Cliente1234!
+-- (hash bcrypt generado con la misma función que usa el backend, app.core.security.hash_password)
 INSERT INTO usuarios (username, correo_electronico, password_hash, id_cliente, id_empleado, verificado) VALUES
-('juanp', 'juan.perez@email.com', 'hash12345', 1, NULL, TRUE),
-('mariag', 'maria.gomez@email.com', 'hash12345', 2, NULL, TRUE),
-('carlosl', 'carlos.lopez@email.com', 'hash12345', 3, NULL, FALSE),
-('anam', 'ana.martinez@email.com', 'hash12345', 4, NULL, TRUE),
-('luisr', 'luis.rodriguez@email.com', 'hash12345', 5, NULL, TRUE),
-('andresc', 'andres.castro@alektours.com', 'hash12345', NULL, 1, TRUE),
-('camilav', 'camila.vargas@alektours.com', 'hash12345', NULL, 2, TRUE),
-('javierr', 'javier.rojas@alektours.com', 'hash12345', NULL, 3, TRUE),
-('nataliam', 'natalia.molina@alektours.com', 'hash12345', NULL, 4, TRUE),
-('felipeg', 'felipe.guzman@alektours.com', 'hash12345', NULL, 5, TRUE);
+('juanp', 'juan.perez@email.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', 1, NULL, TRUE),
+('mariag', 'maria.gomez@email.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', 2, NULL, TRUE),
+('carlosl', 'carlos.lopez@email.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', 3, NULL, FALSE),
+('anam', 'ana.martinez@email.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', 4, NULL, TRUE),
+('luisr', 'luis.rodriguez@email.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', 5, NULL, TRUE),
+('andresc', 'andres.castro@alektours.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', NULL, 1, TRUE),
+('camilav', 'camila.vargas@alektours.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', NULL, 2, TRUE),
+('javierr', 'javier.rojas@alektours.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', NULL, 3, TRUE),
+('nataliam', 'natalia.molina@alektours.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', NULL, 4, TRUE),
+('felipeg', 'felipe.guzman@alektours.com', '$2b$12$x7WABj1Ze4HuICVZwatKv.OIIRDSGvH0lrnI39i8fP2ZT.WN9cxKC', NULL, 5, TRUE),
+-- Admin de prueba por defecto. Contraseña real: Admin1234!
+('admin', 'admin@alektours.com', '$2b$12$f2DaXti0iugxsf45u9humuEPGOHR6LT6zkfBKC8k75NtcRPeBcLPO', NULL, NULL, TRUE);
+
+-- Roles para los usuarios semilla de arriba (antes no tenían ninguno, por
+-- lo que ningún ProtectedRoute/require_admin los reconocía correctamente).
+-- id_rol: 1=admin, 2=cliente, 3=empleado (ver seed de `roles` más arriba).
+INSERT INTO usuarios_roles (id_usuario, id_rol) VALUES
+(1, 2), (2, 2), (3, 2), (4, 2), (5, 2),   -- clientes
+(6, 3), (7, 3), (8, 3), (9, 3), (10, 3),  -- empleados
+(11, 1);                                  -- admin de prueba
 
 INSERT INTO sesiones_usuario (id_usuario, refresh_token, direccion_ip, user_agent, fecha_expiracion) VALUES
 (1, 'token_abc1', '192.168.1.1', 'Mozilla/5.0 Windows', '2026-12-31 23:59:59'),

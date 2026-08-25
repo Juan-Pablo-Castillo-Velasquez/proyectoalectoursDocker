@@ -33,6 +33,7 @@ export interface ReservaDetail {
   fecha_fin: string;
   numero_personas: number;
   estado: string;
+  precio_total?: number;
   paquete?: {
     id_paquete: number;
     nombre_paquete: string;
@@ -47,6 +48,24 @@ export interface ReservaDetail {
     };
   };
   pagos?: PagoResponse[];
+  empleado?: {
+    id_empleado: number;
+    nombre: string;
+    apellido: string;
+    correo_electronico?: string | null;
+    celular?: string | null;
+  } | null;
+  canal_origen?: string | null;
+}
+
+export interface PagarRequest {
+  id_metodo_pago: number;
+  tipo_pago: 'completo' | 'parcial';
+}
+
+export interface PagarResponse {
+  pago: PagoResponse;
+  reserva: ReservaResponse;
 }
 
 export const reservaService = {
@@ -67,6 +86,10 @@ export const reservaService = {
   delete: (id: number) =>
     apiFetch<{ message: string }>(`/reservas/${id}`, { method: 'DELETE' }),
 
+  // El backend calcula y valida el monto real (habitaciones + servicios de la
+  // reserva) — nunca se manda un monto calculado en el navegador.
+  pagar: (id: number, data: PagarRequest) =>
+    apiFetch<PagarResponse>(`/reservas/${id}/pagar`, { method: 'POST', body: data }),
 
   updateEstado: (id: number, estado: string) =>
     apiFetch<ReservaResponse>(`/reservas/${id}`, {

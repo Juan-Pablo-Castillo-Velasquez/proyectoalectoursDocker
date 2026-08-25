@@ -74,6 +74,13 @@ class Reserva(Base):
     historial_reservas = relationship("HistorialReserva", back_populates="reserva", cascade="all, delete-orphan")
     solicitudes_cancelacion = relationship("SolicitudCancelacion", back_populates="reserva", cascade="all, delete-orphan")
 
+    @property
+    def precio_total(self) -> float:
+        """Total real de la reserva: suma de habitaciones + servicios acordados en BD."""
+        total = sum((rh.precio_acordado or 0) for rh in self.reserva_habitaciones)
+        total += sum((rs.precio_acordado or 0) for rs in self.reserva_servicios)
+        return float(total)
+
 
 class ReservaHabitacion(Base):
     __tablename__ = "reserva_habitaciones"

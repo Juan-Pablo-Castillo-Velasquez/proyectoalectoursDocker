@@ -365,6 +365,8 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                             onChange={handleChange}
                                                             onBlur={handleBlur}
                                                             placeholder="Correo electrónico (será tu usuario)"
+                                                            autoComplete="email"
+                                                            inputMode="email"
                                                             required
                                                             className={inputBase("correo_electronico")}
                                                         />
@@ -389,6 +391,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                                 onChange={handleChange}
                                                                 onBlur={handleBlur}
                                                                 placeholder="Contraseña"
+                                                                autoComplete="new-password"
                                                                 required
                                                                 className={inputBase("password") + " pr-10"}
                                                             />
@@ -411,6 +414,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                                 onChange={handleChange}
                                                                 onBlur={handleBlur}
                                                                 placeholder="Confirmar"
+                                                                autoComplete="new-password"
                                                                 required
                                                                 className={inputBase("confirmPassword") + " pr-10"}
                                                             />
@@ -435,12 +439,12 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                         <Field icon={<User className="w-4 h-4" />}>
                                                             <input type="text" name="nombre" value={formData.nombre}
                                                                 onChange={handleChange} onBlur={handleBlur}
-                                                                placeholder="Nombre" required className={inputBase("nombre")} />
+                                                                placeholder="Nombre" autoComplete="given-name" required className={inputBase("nombre")} />
                                                         </Field>
                                                         <Field icon={<User className="w-4 h-4" />}>
                                                             <input type="text" name="apellido" value={formData.apellido}
                                                                 onChange={handleChange} onBlur={handleBlur}
-                                                                placeholder="Apellido" required className={inputBase("apellido")} />
+                                                                placeholder="Apellido" autoComplete="family-name" required className={inputBase("apellido")} />
                                                         </Field>
                                                     </div>
 
@@ -454,7 +458,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                         <Field icon={<Phone className="w-4 h-4" />} error={fieldError("celular")}>
                                                             <input type="tel" name="celular" value={formData.celular}
                                                                 onChange={handleChange} onBlur={handleBlur}
-                                                                placeholder="Celular" inputMode="numeric"
+                                                                placeholder="Celular" inputMode="numeric" autoComplete="tel"
                                                                 className={inputBase("celular")} />
                                                         </Field>
                                                     </div>
@@ -491,6 +495,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                     <Field icon={<MapPin className="w-4 h-4" />}>
                                                         <input type="text" name="direccion" value={formData.direccion}
                                                             onChange={handleChange} placeholder="Dirección (opcional)"
+                                                            autoComplete="street-address"
                                                             className={inputBase("direccion")} />
                                                     </Field>
                                                 </div>

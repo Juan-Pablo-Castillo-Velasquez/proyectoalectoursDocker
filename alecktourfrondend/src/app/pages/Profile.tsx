@@ -19,7 +19,6 @@ export default function Profile() {
   const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(null);
   const [clienteData, setClienteData] = useState<ClienteResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reservaExpandida, setReservaExpandida] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) { navigate("/login"); return; }
@@ -84,8 +83,6 @@ export default function Profile() {
                   <TabReservas
                     reservas={reservas}
                     loading={loading}
-                    reservaExpandida={reservaExpandida}
-                    setReservaExpandida={setReservaExpandida}
                     clienteData={clienteData}
                   />
                 </motion.div>
@@ -98,7 +95,7 @@ export default function Profile() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <TabPreferencias preferencias={preferencias} />
+                  <TabPreferencias preferencias={preferencias} idCliente={usuario?.id_cliente} />
                 </motion.div>
               )}
               {activeTab === "cuenta" && (
@@ -109,7 +106,7 @@ export default function Profile() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <TabCuenta clienteData={clienteData} />
+                  <TabCuenta clienteData={clienteData} onClienteActualizado={setClienteData} />
                 </motion.div>
               )}
             </AnimatePresence>

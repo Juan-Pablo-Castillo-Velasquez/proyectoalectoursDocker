@@ -1,17 +1,4 @@
-export const nights = (a: string, b: string) =>
-  Math.max(
-    1,
-    Math.ceil((new Date(b).getTime() - new Date(a).getTime()) / 86400000),
-  );
-
-export const fmt = (d: string, opts?: Intl.DateTimeFormatOptions) =>
-  new Date(d).toLocaleDateString(
-    "es-CO",
-    opts ?? { day: "numeric", month: "short", year: "numeric" },
-  );
-
-
-  /**
+/**
  * Parsea "YYYY-MM-DD" (o timestamps ISO) en horario LOCAL para evitar
  * el desfase de timezone que producía new Date(string) al interpretar
  * la fecha como UTC.
@@ -23,6 +10,20 @@ export function parseFechaLocal(fecha: string): Date {
   if (!y || !m || !d) return new Date(fecha);
   return new Date(y, m - 1, d);
 }
+
+export const nights = (a: string, b: string) =>
+  Math.max(
+    1,
+    Math.ceil(
+      (parseFechaLocal(b).getTime() - parseFechaLocal(a).getTime()) / 86400000,
+    ),
+  );
+
+export const fmt = (d: string, opts?: Intl.DateTimeFormatOptions) =>
+  parseFechaLocal(d).toLocaleDateString(
+    "es-CO",
+    opts ?? { day: "numeric", month: "short", year: "numeric" },
+  );
 
 export type EstadoViaje = "futuro" | "hoy" | "en_curso" | "finalizado";
 

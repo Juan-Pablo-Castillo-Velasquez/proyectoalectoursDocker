@@ -48,6 +48,15 @@ export default function Checkout() {
   const [metodoPago, setMetodoPago] = useState<number>(1);
   const [paymentOption, setPaymentOption] = useState<'full' | 'partial'>('full');
 
+  // ── Simulación realista del método de pago (nunca se envía al backend:
+  //    el backend solo recibe id_metodo_pago y tipo_pago, ver handleSubmit) ──
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardName, setCardName] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [securityPin, setSecurityPin] = useState('');
+  const DEMO_PIN = '1234';
+
   // Precio real de la habitación elegida (viene de la BD, no inventado)
   const precioPorNoche = habitacion?.precio_noche ?? 0;
   const nights = fechaInicio && fechaFin
@@ -55,6 +64,37 @@ export default function Checkout() {
     : 1;
   const totalPrice = precioPorNoche * nights;
   const paymentAmount = paymentOption === 'full' ? totalPrice : totalPrice * 0.5;
+
+  const metodoSeleccionado = metodos.find((m) => m.id_metodo === metodoPago);
+  const esTarjeta = /tarjeta/i.test(metodoSeleccionado?.nombre_metodo ?? '');
+
+  const formatCardNumber = (v: string) =>
+    v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
+
+  const formatExpiry = (v: string) => {
+    const digits = v.replace(/\D/g, '').slice(0, 4);
+    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+  };
+
+  const expiryValida = (() => {
+    const match = /^(\d{2})\/(\d{2})$/.exec(cardExpiry);
+    if (!match) return false;
+    const mes = parseInt(match[1], 10);
+    const anio = 2000 + parseInt(match[2], 10);
+    if (mes < 1 || mes > 12) return false;
+    const ahora = new Date();
+    const finMes = new Date(anio, mes, 0);
+    return finMes >= new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+  })();
+
+  const tarjetaValida =
+    !esTarjeta ||
+    (cardNumber.replace(/\s/g, '').length === 16 &&
+      cardName.trim().length > 2 &&
+      expiryValida &&
+      cardCvv.length >= 3);
+
+  const pinValido = securityPin === DEMO_PIN;
 
   useEffect(() => {
     if (!isAuthenticated) { navigate('/login'); return; }
@@ -126,6 +166,14 @@ export default function Checkout() {
       toast.error('No hay una habitación válida seleccionada.');
       return;
     }
+    if (esTarjeta && !tarjetaValida) {
+      toast.error('Revisa los datos de tu tarjeta: número, nombre, vencimiento y CVV.');
+      return;
+    }
+    if (!pinValido) {
+      toast.error('PIN de seguridad incorrecto. En este entorno de prueba es 1234.');
+      return;
+    }
 
     setIsProcessing(true);
     toast.loading('Verificando disponibilidad y creando reserva...', { id: 'checkout' });
@@ -150,13 +198,11 @@ export default function Checkout() {
 
       toast.loading('Procesando pago...', { id: 'checkout' });
 
-      // 2. Crear pago
-      const referencia = `REF-${Date.now()}`;
-      await pagoService.create({
-        id_reserva: reserva.id_reserva,
+      // 2. Registrar el pago — el backend calcula y valida el monto real
+      //    (habitaciones/servicios de la reserva) y confirma la reserva.
+      const { pago, reserva: reservaConfirmada } = await reservaService.pagar(reserva.id_reserva, {
         id_metodo_pago: metodoPago,
-        monto: paymentAmount,
-        referencia,
+        tipo_pago: paymentOption === 'full' ? 'completo' : 'parcial',
       });
 
       toast.success('¡Reserva confirmada!', { id: 'checkout' });
@@ -164,14 +210,14 @@ export default function Checkout() {
       setTimeout(() => {
         navigate('/confirmation', {
           state: {
-            reserva,
+            reserva: reservaConfirmada,
             hotel,
             habitacion,
             people,
             totalPrice,
-            paymentAmount,
+            paymentAmount: pago.monto,
             paymentOption,
-            referencia,
+            referencia: pago.referencia,
           },
         });
       }, 500);
@@ -630,6 +676,93 @@ export default function Checkout() {
                     </div>
                   </div>
 
+                  {/* Datos de la tarjeta (solo si el método elegido es tarjeta) */}
+                  <AnimatePresence>
+                    {esTarjeta && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
+                          <div className="flex items-center gap-3 mb-5">
+                            <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
+                              <CreditCard className="w-4 h-4 text-primary" />
+                            </div>
+                            <h2 className="text-lg font-medium text-foreground">Datos de la tarjeta</h2>
+                          </div>
+
+                          {/* Tarjeta visual */}
+                          <div className="relative w-full max-w-sm mx-auto sm:mx-0 mb-6 rounded-2xl p-5 text-white shadow-lg"
+                            style={{ background: 'linear-gradient(135deg, var(--primary) 0%, #2E2E2E 100%)' }}>
+                            <div className="flex justify-between items-start mb-8">
+                              <div className="w-10 h-7 rounded bg-white/20" />
+                              <span className="text-xs font-semibold tracking-widest opacity-80">
+                                {metodoSeleccionado?.nombre_metodo}
+                              </span>
+                            </div>
+                            <p className="text-lg tracking-[0.2em] font-mono mb-4">
+                              {cardNumber || '•••• •••• •••• ••••'}
+                            </p>
+                            <div className="flex justify-between text-xs opacity-90">
+                              <span className="uppercase truncate max-w-[60%]">{cardName || 'NOMBRE DEL TITULAR'}</span>
+                              <span>{cardExpiry || 'MM/YY'}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Número de tarjeta</label>
+                              <input
+                                type="text" inputMode="numeric" placeholder="0000 0000 0000 0000"
+                                value={cardNumber}
+                                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                                maxLength={19}
+                                className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nombre del titular</label>
+                              <input
+                                type="text" placeholder="Como aparece en la tarjeta"
+                                value={cardName}
+                                onChange={(e) => setCardName(e.target.value.toUpperCase())}
+                                className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Vencimiento</label>
+                                <input
+                                  type="text" inputMode="numeric" placeholder="MM/YY"
+                                  value={cardExpiry}
+                                  onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                                  maxLength={5}
+                                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">CVV</label>
+                                <input
+                                  type="password" inputMode="numeric" placeholder="•••"
+                                  value={cardCvv}
+                                  onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                  maxLength={4}
+                                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-4 flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                            Datos de prueba: no se procesa ni se guarda ningún cobro real.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {/* Fraccionamiento de Pago */}
                   <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
                     <div className="flex items-center gap-3 mb-6">
@@ -681,6 +814,26 @@ export default function Checkout() {
                     </div>
                   </div>
 
+                  {/* PIN de seguridad */}
+                  <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
+                        <Lock className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-medium text-foreground">Confirma con tu PIN de seguridad</h2>
+                        <p className="text-xs text-muted-foreground">Entorno de prueba: tu PIN es <span className="font-mono font-bold">1234</span></p>
+                      </div>
+                    </div>
+                    <input
+                      type="password" inputMode="numeric" placeholder="••••"
+                      value={securityPin}
+                      onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      maxLength={4}
+                      className="w-full max-w-[160px] px-4 py-3 rounded-xl border border-border bg-input-background text-foreground text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                    />
+                  </div>
+
                   {/* Badge SSL */}
                   <div className="flex items-center gap-3 p-4 bg-green-500/5 rounded-xl border border-green-500/10 transition-colors">
                     <Shield className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -712,7 +865,7 @@ export default function Checkout() {
                 </button>
               ) : (
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                  type="submit" disabled={isProcessing}
+                  type="submit" disabled={isProcessing || (esTarjeta && !tarjetaValida) || !pinValido}
                   className="min-w-[220px] py-3.5 px-6 bg-primary text-primary-foreground text-sm font-semibold rounded-xl border border-transparent shadow-md hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden">
                   <span className="relative flex items-center justify-center gap-2.5">
                     {isProcessing ? 'Garantizando transacciones...' : (

@@ -1,60 +1,17 @@
 import {
   Calendar,
   MapPin,
-  PlaneTakeoff,
   Search,
   ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { destinoService, DestinoSugerencia } from "../services/destino.service";
 
 type TripType = "oneway" | "roundtrip" | "multi";
-
-const DESTINATIONS = [
-  {
-    name: "Cartagena",
-    country: "Colombia",
-    type: "Ciudad",
-  },
-  {
-    name: "Santa Marta",
-    country: "Colombia",
-    type: "Ciudad",
-  },
-  {
-    name: "Medellín",
-    country: "Colombia",
-    type: "Ciudad",
-  },
-  {
-    name: "Bogotá",
-    country: "Colombia",
-    type: "Ciudad",
-  },
-  {
-    name: "Cali",
-    country: "Colombia",
-    type: "Ciudad",
-  },
-  {
-    name: "San Andrés",
-    country: "Colombia",
-    type: "Destino",
-  },
-  {
-    name: "Barranquilla",
-    country: "Colombia",
-    type: "Ciudad",
-  },
-  {
-    name: "Colombia",
-    country: "Colombia",
-    type: "País",
-  },
-];
 
 export default function SearchBar() {
   const navigate = useNavigate();
@@ -66,20 +23,20 @@ export default function SearchBar() {
   const [people, setPeople] = useState("1");
   const [tripType, setTripType] = useState<TripType>("roundtrip");
   const [showDestinations, setShowDestinations] = useState(false);
+  const [filteredDestinations, setFilteredDestinations] = useState<DestinoSugerencia[]>([]);
 
-  const filteredDestinations = useMemo(() => {
-    const search = destination.trim().toLowerCase();
-
-    if (!search) {
-      return DESTINATIONS.slice(0, 5);
-    }
-
-    return DESTINATIONS.filter(
-      (destination) =>
-        destination.name.toLowerCase().includes(search) ||
-        destination.country.toLowerCase().includes(search)
-    ).slice(0, 6);
-  }, [destination]);
+  // Autocompletado real contra la base de datos (con debounce para no
+  // disparar una petición en cada tecla).
+  useEffect(() => {
+    if (!showDestinations) return;
+    const timeout = setTimeout(() => {
+      destinoService
+        .getSugerencias(destination.trim(), 6)
+        .then(setFilteredDestinations)
+        .catch(() => setFilteredDestinations([]));
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [destination, showDestinations]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,26 +161,22 @@ export default function SearchBar() {
                   <div className="py-1.5">
                     {filteredDestinations.map((item) => (
                       <button
-                        key={`${item.name}-${item.type}`}
+                        key={item.id_destino}
                         type="button"
-                        onClick={() => selectDestination(item.name)}
+                        onClick={() => selectDestination(item.nombre_destino)}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[#7B1E3A]/5 transition-colors"
                       >
                         <div className="w-8 h-8 rounded-lg bg-[#7B1E3A]/8 flex items-center justify-center shrink-0">
-                          {item.type === "País" ? (
-                            <PlaneTakeoff className="w-3.5 h-3.5 text-[#7B1E3A]" />
-                          ) : (
-                            <MapPin className="w-3.5 h-3.5 text-[#7B1E3A]" />
-                          )}
+                          <MapPin className="w-3.5 h-3.5 text-[#7B1E3A]" />
                         </div>
 
                         <div className="min-w-0">
                           <p className="text-[12px] font-bold text-gray-800 truncate">
-                            {item.name}
+                            {item.nombre_destino}
                           </p>
 
                           <p className="text-[10px] text-gray-400">
-                            {item.type} · {item.country}
+                            {[item.ciudad, item.pais].filter(Boolean).join(" · ")}
                           </p>
                         </div>
                       </button>

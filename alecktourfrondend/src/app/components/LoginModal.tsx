@@ -12,6 +12,8 @@ interface LoginModalProps {
     onSwitchToRegister?: () => void;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalProps) {
     const navigate = useNavigate();
     const { login } = useAuth();
@@ -19,6 +21,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
     const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({ username: "", password: "" });
     const [formError, setFormError] = useState("");
+    const [emailTouched, setEmailTouched] = useState(false);
 
     // Estado para mostrar bienvenida con rol
     const [welcomeInfo, setWelcomeInfo] = useState<{ username: string; isAdmin: boolean } | null>(null);
@@ -29,9 +32,10 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
     const [forgotMsg, setForgotMsg] = useState("");
     const [forgotLoading, setForgotLoading] = useState(false);
 
+    const emailValid = EMAIL_REGEX.test(formData.username.trim());
     const isFormValid = useMemo(
-        () => formData.username.trim().length > 0 && formData.password.length > 0,
-        [formData]
+        () => emailValid && formData.password.length > 0,
+        [formData, emailValid]
     );
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,20 +194,35 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
 
                                             <form onSubmit={handleSubmit} className="space-y-4">
                                                 <div>
-                                                    <label className="block text-sm font-medium text-foreground mb-1.5">Correo electronico</label>
+                                                    <label className="block text-sm font-medium text-foreground mb-1.5">Correo electrónico</label>
                                                     <div className="relative">
-                                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                                                         <input
                                                             type="email"
                                                             name="username"
                                                             value={formData.username}
                                                             onChange={handleChange}
+                                                            onBlur={() => setEmailTouched(true)}
                                                             placeholder="alek@example.com"
+                                                            autoComplete="email"
+                                                            inputMode="email"
                                                             required
                                                             // FIX 1: autoFocus eliminado para evitar el scroll
-                                                            className="w-full pl-12 pr-4 py-3 bg-input-background border border-border rounded-md text-sm focus:ring-2 focus:ring-ring focus:border-transparent outline-none text-foreground transition-shadow placeholder:text-muted-foreground"
+                                                            className={`w-full pl-12 pr-4 py-3 bg-input-background border rounded-md text-sm focus:ring-2 focus:border-transparent outline-none text-foreground transition-shadow placeholder:text-muted-foreground ${emailTouched && formData.username && !emailValid
+                                                                ? "border-destructive focus:ring-destructive/30"
+                                                                : "border-border focus:ring-ring"
+                                                                }`}
                                                         />
                                                     </div>
+                                                    {emailTouched && formData.username && !emailValid && (
+                                                        <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-1.5">
+                                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                            Ingresa un correo electrónico válido (con @)
+                                                        </p>
+                                                    )}
+                                                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                                                        Inicia sesión con el correo de tu cuenta, no con tu nombre de usuario.
+                                                    </p>
                                                 </div>
 
                                                 <div>
@@ -225,6 +244,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                             value={formData.password}
                                                             onChange={handleChange}
                                                             placeholder="••••••••"
+                                                            autoComplete="current-password"
                                                             required
                                                             className="w-full pl-12 pr-12 py-3 bg-input-background border border-border rounded-md text-sm focus:ring-2 focus:ring-ring focus:border-transparent outline-none text-foreground transition-shadow placeholder:text-muted-foreground"
                                                         />

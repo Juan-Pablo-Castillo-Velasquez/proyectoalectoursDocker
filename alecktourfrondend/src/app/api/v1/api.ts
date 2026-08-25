@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8000";
+export const BASE_URL = "http://localhost:8000";
 const API_PREFIX = "/api";
 
 interface FetchOptions extends RequestInit {
@@ -48,8 +48,9 @@ export async function apiFetch<T>(
     ? `${BASE_URL}${endpoint}`
     : `${BASE_URL}${API_PREFIX}${endpoint}`;
 
-  // Serializar body a JSON si es un objeto
-  if (options.body && typeof options.body === "object") {
+  // Serializar body a JSON si es un objeto plano (FormData se deja intacta:
+  // el navegador debe fijar su propio Content-Type con el boundary del multipart)
+  if (options.body && typeof options.body === "object" && !(options.body instanceof FormData)) {
     options.body = JSON.stringify(options.body);
     options.headers = {
       "Content-Type": "application/json",

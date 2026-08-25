@@ -11,6 +11,7 @@ import {
   Star,
   User
 } from "lucide-react";
+import { BASE_URL } from "../../api/v1/api";
 const tabs = [
   { id: "reservas", label: "Mis Reservas", icon: Calendar },
   { id: "preferencias", label: "Preferencias", icon: Heart },
@@ -43,10 +44,18 @@ export default function ProfileSidebar({ usuario, clienteData, reservas, activeT
       <div className="px-5 pb-5">
         {/* Avatar Integrado */}
         <div className="-mt-10 mb-3 flex justify-center">
-          <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center ring-4 ring-background shadow-md border border-border">
-            <div className="w-full h-full m-1 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-              <User className="w-9 h-9" />
-            </div>
+          <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center ring-4 ring-background shadow-md border border-border overflow-hidden">
+            {usuario?.foto_perfil ? (
+              <img
+                src={`${BASE_URL}${usuario.foto_perfil}`}
+                alt="Foto de perfil"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full m-1 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                <User className="w-9 h-9" />
+              </div>
+            )}
           </div>
         </div>
 

@@ -11,6 +11,7 @@ interface Usuario {
   user_id?: number;
   id_cliente?: number;
   roles?: string[];
+  foto_perfil?: string | null;
 }
 
 interface AuthContextType {
@@ -18,6 +19,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string, usuario: Usuario) => void;
   logout: () => void;
+  updateUsuario: (partial: Partial<Usuario>) => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isEmpleado: boolean;
@@ -76,6 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("usuario", JSON.stringify(usuarioFinal));
   }
 
+  function updateUsuario(partial: Partial<Usuario>) {
+    setUsuario((prev) => {
+      if (!prev) return prev;
+      const actualizado = { ...prev, ...partial };
+      localStorage.setItem("usuario", JSON.stringify(actualizado));
+      return actualizado;
+    });
+  }
+
   function logout() {
     setToken(null);
     setUsuario(null);
@@ -94,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         login,
         logout,
+        updateUsuario,
         isAuthenticated: !!token,
         isAdmin,
         isEmpleado,

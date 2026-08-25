@@ -1,6 +1,8 @@
 import logging
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
@@ -23,6 +25,9 @@ from app.routes.preferencias_route import router as preferencias_router
 from app.routes.promociones_route import router as promociones_router
 from app.routes.resena_route import router as resena_route
 from app.routes.reserva_route import router as reserva_router
+from app.routes.usuario_route import router as usuario_router, roles_router
+from app.routes.destino_route import router as destino_router
+from app.routes.servicio_route import router as servicio_router
 
 # ============================================================================
 # CONFIGURACIÓN LOGGING
@@ -109,6 +114,18 @@ app.include_router(preferencias_router)
 app.include_router(promociones_router)
 app.include_router(contacto_router)
 app.include_router(resena_route)
+app.include_router(usuario_router)
+app.include_router(roles_router)
+app.include_router(destino_router)
+app.include_router(servicio_router)
+
+# ============================================================================
+# ARCHIVOS ESTÁTICOS (fotos de perfil, etc.)
+# ============================================================================
+
+_UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
+os.makedirs(os.path.join(_UPLOADS_DIR, "perfiles"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 # ============================================================================
 # ENDPOINTS

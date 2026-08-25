@@ -1,3 +1,4 @@
+import uuid
 from app.services.reserva_detail_service import ReservaDetailService
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -11,11 +12,16 @@ from app.schemas.reserva_schema import (
     PaqueteCreate, PaqueteUpdate, PaqueteResponse,
     ReservaCreate, ReservaUpdate, ReservaResponse, ReservaDetailResponse,
     PagoCreate, PagoUpdate, PagoResponse,
-    MetodoPagoCreate, MetodoPagoResponse
+    MetodoPagoCreate, MetodoPagoResponse,
+    PagarRequest, PagarResponse,
+)
+from app.schemas.reserva_detail import (
+    ReservaHabitacionDetail, ReservaServicioDetail, ReservaHistorialDetail,
 )
 from app.repositories.reserva_repository import (
     PaqueteRepository, ReservaRepository, PagoRepository, MetodoPagoRepository
 )
+from app.models.reserva_model import Pago, MetodoPago, HistorialReserva
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 
@@ -116,19 +122,19 @@ def get_reservas_estado(
 # ⚠️ IMPORTANTE: estos tres endpoints específicos van ANTES de /reservas/{reserva_id}
 # para que FastAPI no los confunda con el parámetro dinámico
 
-@router.get("/reservas/{reserva_id}/habitaciones")
+@router.get("/reservas/{reserva_id}/habitaciones", response_model=list[ReservaHabitacionDetail])
 def get_habitaciones_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene habitaciones asociadas a una reserva"""
     return ReservaDetailService.get_habitaciones(db, reserva_id)
 
 
-@router.get("/reservas/{reserva_id}/servicios")
+@router.get("/reservas/{reserva_id}/servicios", response_model=list[ReservaServicioDetail])
 def get_servicios_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene servicios asociados a una reserva"""
     return ReservaDetailService.get_servicios(db, reserva_id)
 
 
-@router.get("/reservas/{reserva_id}/historial")
+@router.get("/reservas/{reserva_id}/historial", response_model=list[ReservaHistorialDetail])
 def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene historial de cambios de una reserva"""
     return ReservaDetailService.get_historial(db, reserva_id)
@@ -165,6 +171,63 @@ def create_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reservas/{reserva_id}/pagar", response_model=PagarResponse)
+def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get_db)):
+    """
+    Registra el pago de una reserva (simulado: sin pasarela real, pero
+    confiable). El monto SIEMPRE se calcula en el backend a partir del
+    precio real de habitaciones/servicios ya guardados en la reserva —
+    nunca se acepta un monto propuesto por el cliente. Al pagar, la
+    reserva pasa de 'pendiente' a 'confirmada' y queda historial del cambio.
+    """
+    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    if reserva.estado != "pendiente":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Esta reserva ya está en estado '{reserva.estado}', no se puede pagar de nuevo",
+        )
+
+    metodo = db.query(MetodoPago).filter(MetodoPago.id_metodo == data.id_metodo_pago).first()
+    if not metodo:
+        raise HTTPException(status_code=404, detail="Método de pago no encontrado")
+
+    total = reserva.precio_total
+    if total <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Esta reserva no tiene habitaciones ni servicios asociados, no hay nada que cobrar",
+        )
+    monto = total if data.tipo_pago == "completo" else round(total * 0.5, 2)
+
+    pago = Pago(
+        id_reserva=reserva_id,
+        id_metodo_pago=data.id_metodo_pago,
+        monto=monto,
+        referencia=f"PAY-{uuid.uuid4().hex[:10].upper()}",
+        estado="pagado",
+    )
+    db.add(pago)
+
+    estado_anterior = reserva.estado
+    reserva.estado = "confirmada"
+
+    db.add(HistorialReserva(
+        id_reserva=reserva_id,
+        estado_anterior=estado_anterior,
+        estado_nuevo="confirmada",
+        comentarios=f"Pago {data.tipo_pago} registrado (simulado) por ${monto:,.0f}",
+    ))
+
+    db.commit()
+    db.refresh(pago)
+    db.refresh(reserva)
+
+    return PagarResponse(pago=pago, reserva=reserva)
 
 
 @router.put("/reservas/{reserva_id}", response_model=ReservaResponse)

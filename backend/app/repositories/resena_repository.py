@@ -81,13 +81,13 @@ class ResenaRepository:
     def get_destacadas(db: Session, limit: int = 6):
         """
         Mejores reseñas para mostrar en el home: prioriza calificación alta
-        y luego las más recientes. Solo trae 4-5 estrellas para que la
-        sección de testimonios se vea consistente.
+        y luego las más recientes. Trae reseñas reales de cualquier
+        calificación (el fallback hardcodeado del frontend solo se usa
+        cuando no hay ninguna reseña en absoluto).
         """
         return (
             db.query(Resena)
             .options(joinedload(Resena.cliente), joinedload(Resena.hotel))
-            .filter(Resena.calificacion >= 4)
             .order_by(Resena.calificacion.desc(), Resena.fecha_creacion.desc())
             .limit(limit)
             .all()
