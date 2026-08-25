@@ -538,6 +538,47 @@ CREATE TABLE IF NOT EXISTS resenas (
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
+CREATE TABLE IF NOT EXISTS solicitudes_cancelacion (
+    id_solicitud SERIAL PRIMARY KEY,
+    id_reserva INTEGER NOT NULL,
+    id_cliente INTEGER NOT NULL,
+ 
+    motivo VARCHAR(100) NOT NULL,
+    motivo_detalle TEXT,
+ 
+    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente'
+        CHECK (estado IN ('pendiente', 'aprobada', 'rechazada')),
+ 
+    fecha_solicitud TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_resolucion TIMESTAMP,
+    id_empleado_resolutor INTEGER,
+    comentario_resolucion TEXT,
+ 
+    FOREIGN KEY (id_reserva)
+        REFERENCES reservas(id_reserva)
+        ON DELETE CASCADE,
+    FOREIGN KEY (id_cliente)
+        REFERENCES clientes(id_cliente)
+        ON DELETE CASCADE,
+    FOREIGN KEY (id_empleado_resolutor)
+        REFERENCES empleados(id_empleado)
+        ON DELETE SET NULL
+);
+ 
+-- Evita que un cliente mande dos solicitudes "pendiente" para la misma
+-- reserva (el botón del frontend ya se oculta tras enviar, pero esto
+-- protege la integridad a nivel de BD por si acaso).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitud_cancelacion_pendiente_unica
+    ON solicitudes_cancelacion (id_reserva)
+    WHERE estado = 'pendiente';
+ 
+CREATE INDEX IF NOT EXISTS idx_solicitudes_cancelacion_cliente
+    ON solicitudes_cancelacion(id_cliente);
+ 
+CREATE INDEX IF NOT EXISTS idx_solicitudes_cancelacion_estado
+    ON solicitudes_cancelacion(estado);
+
 INSERT INTO roles (nombre_rol)
 VALUES
 ('admin'),

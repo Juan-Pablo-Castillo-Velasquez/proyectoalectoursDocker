@@ -72,6 +72,7 @@ class Reserva(Base):
     reserva_servicios = relationship("ReservaServicio", back_populates="reserva", cascade="all, delete-orphan")
     pagos = relationship("Pago", back_populates="reserva")
     historial_reservas = relationship("HistorialReserva", back_populates="reserva", cascade="all, delete-orphan")
+    solicitudes_cancelacion = relationship("SolicitudCancelacion", back_populates="reserva", cascade="all, delete-orphan")
 
 
 class ReservaHabitacion(Base):
@@ -141,3 +142,35 @@ class HistorialReserva(Base):
 
     reserva = relationship("Reserva", back_populates="historial_reservas")
     empleado_responsable = relationship("Empleado", back_populates="historial_reservas")
+
+
+class SolicitudCancelacion(Base):
+    """
+    Solicitud de cancelación enviada por el cliente desde el modal
+    'Solicitar cancelación'. Queda en estado 'pendiente' hasta que
+    un asesor/admin la evalúa y la aprueba o rechaza.
+    """
+    __tablename__ = "solicitudes_cancelacion"
+
+    id_solicitud = Column(Integer, primary_key=True, index=True)
+    id_reserva = Column(Integer, ForeignKey("reservas.id_reserva", ondelete="CASCADE"), nullable=False)
+    id_cliente = Column(Integer, ForeignKey("clientes.id_cliente", ondelete="CASCADE"), nullable=False)
+
+    motivo = Column(String(100), nullable=False)
+    motivo_detalle = Column(Text)
+
+    estado = Column(
+        String(20),
+        CheckConstraint("estado IN ('pendiente', 'aprobada', 'rechazada')"),
+        nullable=False,
+        default="pendiente",
+    )
+
+    fecha_solicitud = Column(TIMESTAMP, server_default=func.now())
+    fecha_resolucion = Column(TIMESTAMP)
+    id_empleado_resolutor = Column(Integer, ForeignKey("empleados.id_empleado", ondelete="SET NULL"))
+    comentario_resolucion = Column(Text)
+
+    reserva = relationship("Reserva", back_populates="solicitudes_cancelacion")
+    cliente = relationship("Cliente")
+    empleado_resolutor = relationship("Empleado")
