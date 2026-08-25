@@ -11,7 +11,6 @@ import {
   Star,
   User
 } from "lucide-react";
-
 const tabs = [
   { id: "reservas", label: "Mis Reservas", icon: Calendar },
   { id: "preferencias", label: "Preferencias", icon: Heart },

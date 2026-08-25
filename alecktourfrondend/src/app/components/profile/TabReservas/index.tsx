@@ -11,7 +11,7 @@ import ModalCancelacion from "./ModalCancelacion";
 import ModalResena from "./ModalResena";
 import ReservaCard from "./ReservaCard";
 import SectionHeader from "./SectionHeader";
-import { fmt } from "./utils";
+import { fmt, getEstadoViaje, parseFechaLocal } from "./utils";
 
 interface Props {
   reservas: any[];
@@ -37,28 +37,41 @@ export default function TabReservas({
   const handleCancelacionConfirmada = (id: number, motivo: string) =>
     setSolicitadas((prev) => ({ ...prev, [id]: motivo }));
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const hoy = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
+  // "proxima" ahora incluye viajes que ya empezaron pero no han terminado
+  // (antes se descartaban en cuanto pasaba el check-in).
   const proxima = useMemo(
     () =>
       reservas
         .filter(
-          (r) => r.estado !== "cancelada" && new Date(r.fecha_inicio) >= hoy,
+          (r) =>
+            r.estado !== "cancelada" &&
+            parseFechaLocal(r.fecha_fin).getTime() >= hoy.getTime(),
         )
         .sort(
           (a, b) =>
-            new Date(a.fecha_inicio).getTime() -
-            new Date(b.fecha_inicio).getTime(),
+            parseFechaLocal(a.fecha_inicio).getTime() -
+            parseFechaLocal(b.fecha_inicio).getTime(),
         )[0],
-    [reservas],
+    [reservas, hoy],
   );
 
   const diasRestantes = proxima
     ? Math.ceil(
-        (new Date(proxima.fecha_inicio).getTime() - hoy.getTime()) / 86400000,
+        (parseFechaLocal(proxima.fecha_inicio).getTime() - hoy.getTime()) /
+          86400000,
       )
     : null;
+
+  const estadoViajeProxima = proxima
+    ? getEstadoViaje(proxima.fecha_inicio, proxima.fecha_fin, hoy)
+    : null;
+  console.log("fecha_inicio raw:", proxima?.fecha_inicio, "| hoy:", hoy);
 
   const counts: Record<FiltroEstado, number> = useMemo(
     () => ({
@@ -148,7 +161,7 @@ export default function TabReservas({
         <div className="space-y-8">
           <MetricasResumen counts={counts} />
 
-          {proxima && diasRestantes !== null && (
+          {proxima && diasRestantes !== null && estadoViajeProxima && (
             <section>
               <SectionHeader
                 title="Cronograma más cercano"
@@ -158,6 +171,7 @@ export default function TabReservas({
               <CalendarioViaje
                 proxima={proxima}
                 diasRestantes={diasRestantes}
+                estadoViaje={estadoViajeProxima}
               />
             </section>
           )}
@@ -169,13 +183,17 @@ export default function TabReservas({
               icon={Calendar}
             />
 
-            <FiltroBar
-              filtro={filtro}
-              setFiltro={setFiltro}
-              busqueda={busqueda}
-              setBusqueda={setBusqueda}
-              counts={counts}
-            />
+            {/* Con pocas reservas, el buscador y los filtros son ruido:
+                solo se muestran cuando aportan valor real de filtrado. */}
+            {reservas.length >= 3 && (
+              <FiltroBar
+                filtro={filtro}
+                setFiltro={setFiltro}
+                busqueda={busqueda}
+                setBusqueda={setBusqueda}
+                counts={counts}
+              />
+            )}
 
             {reservasFiltradas.length === 0 ? (
               <div className="bg-card text-card-foreground border border-border rounded-xl p-8 text-center">
@@ -206,6 +224,7 @@ export default function TabReservas({
                       solicitudMotivo={solicitadas[reserva.id_reserva]}
                       onSolicitarCancelacion={() => setModalReserva(reserva)}
                       onDejarResena={() => setModalResena(reserva)}
+                      hoy={hoy}
                     />
                   ))}
                 </AnimatePresence>

@@ -1,9 +1,10 @@
 import { ChevronRight, Plane } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { forwardRef } from "react";
 import ComprobantePDF from "../ComprobantePDF";
 import { ClienteResponse } from "../../../services/cliente.service";
 import { estadoConfig } from "./constants";
-import { fmt, nights } from "./utils";
+import { fmt, getEstadoViaje, nights } from "./utils";
 
 interface Props {
   reserva: any;
@@ -14,17 +15,23 @@ interface Props {
   solicitudMotivo?: string;
   onSolicitarCancelacion: () => void;
   onDejarResena: () => void;
+  /** fecha de referencia "hoy" (medianoche local), viene del padre */
+  hoy: Date;
 }
 
-export default function ReservaCard({
-  reserva,
-  expanded,
-  onToggleExpand,
-  clienteData,
-  solicitudMotivo,
-  onSolicitarCancelacion,
-  onDejarResena,
-}: Props) {
+const ReservaCard = forwardRef<HTMLDivElement, Props>(function ReservaCard(
+  {
+    reserva,
+    expanded,
+    onToggleExpand,
+    clienteData,
+    solicitudMotivo,
+    onSolicitarCancelacion,
+    onDejarResena,
+    hoy,
+  },
+  ref,
+) {
   const estadoMostrar = solicitudMotivo
     ? "cancelacion_solicitada"
     : reserva.estado;
@@ -36,8 +43,19 @@ export default function ReservaCard({
     reserva.estado === "cancelacion_solicitada" ||
     reserva.estado === "cancelada";
 
+  // Estado real del viaje según fechas (independiente del campo `estado`
+  // del backend, que puede no actualizarse automáticamente al pasar el tiempo).
+  const estadoViaje = getEstadoViaje(
+    reserva.fecha_inicio,
+    reserva.fecha_fin,
+    hoy,
+  );
+  const puedeCancelar = !yaSolicitada && estadoViaje === "futuro";
+  const puedeResenar = estadoViaje === "finalizado";
+
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
@@ -117,7 +135,7 @@ export default function ReservaCard({
                 />
               )}
 
-            {!yaSolicitada && reserva.estado !== "finalizada" && (
+            {puedeCancelar && (
               <button
                 onClick={onSolicitarCancelacion}
                 className="px-3 py-1.5 border border-destructive/30 text-destructive text-xs font-medium rounded-lg hover:bg-destructive/5 transition-all cursor-pointer"
@@ -126,12 +144,14 @@ export default function ReservaCard({
               </button>
             )}
 
-            <button
-              onClick={onDejarResena}
-              className="px-3 py-1.5 border border-primary/30 text-primary text-xs font-medium rounded-lg hover:bg-primary/5 transition-all cursor-pointer"
-            >
-              Dejar reseña
-            </button>
+            {puedeResenar && (
+              <button
+                onClick={onDejarResena}
+                className="px-3 py-1.5 border border-primary/30 text-primary text-xs font-medium rounded-lg hover:bg-primary/5 transition-all cursor-pointer"
+              >
+                Dejar reseña
+              </button>
+            )}
           </div>
 
           <button
@@ -185,4 +205,6 @@ export default function ReservaCard({
       </AnimatePresence>
     </motion.div>
   );
-}
+});
+
+export default ReservaCard;
