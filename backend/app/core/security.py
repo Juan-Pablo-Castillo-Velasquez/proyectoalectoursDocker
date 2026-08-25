@@ -5,6 +5,7 @@ Módulo de seguridad: autenticación JWT, hashing de contraseñas y autorizació
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
+from fastapi import Header, HTTPException
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -111,3 +112,27 @@ def get_current_user(authorization: Optional[str] = None) -> Optional[int]:
     if user_id is None:
         raise HTTPException(status_code=401, detail="Token expirado o inválido")
     return user_id
+
+
+def require_admin(authorization: Optional[str] = Header(None)) -> int:
+    """
+    Dependency reutilizable para endpoints exclusivos de administrador:
+    exige un JWT válido cuyo claim `roles` incluya "admin". Se usa como
+    `Depends(require_admin)` en las rutas de administración (usuarios/roles,
+    solicitudes de cancelación, etc).
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    payload = decode_token(parts[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Token expirado o inválido")
+
+    roles = payload.get("roles") or []
+    if "admin" not in roles:
+        raise HTTPException(status_code=403, detail="Requiere rol de administrador")
+
+    return int(payload["sub"])

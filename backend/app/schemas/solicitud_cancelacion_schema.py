@@ -42,3 +42,15 @@ class SolicitudCancelacionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SolicitudCancelacionResolve(BaseModel):
+    estado: str = Field(..., description="'aprobada' o 'rechazada'")
+    comentario_resolucion: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("estado")
+    @classmethod
+    def validar_estado(cls, v):
+        if v not in ("aprobada", "rechazada"):
+            raise ValueError("estado debe ser 'aprobada' o 'rechazada'")
+        return v

@@ -5,13 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_user_from_token
+from app.core.security import get_user_from_token, require_admin
 from app.core.mail import send_email
 from app.models.user_model import Usuario
-from app.models.reserva_model import Reserva
+from app.models.reserva_model import Reserva, HistorialReserva
 from app.schemas.solicitud_cancelacion_schema import (
     SolicitudCancelacionCreate,
     SolicitudCancelacionResponse,
+    SolicitudCancelacionResolve,
 )
 from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
 
@@ -126,3 +127,63 @@ def get_solicitudes_cliente(
         raise HTTPException(status_code=403, detail="No puedes ver las solicitudes de otro cliente")
 
     return SolicitudCancelacionRepository.get_by_cliente(db, cliente_id, skip, limit)
+
+
+# ===================== ADMIN =====================
+
+@router.get("/solicitudes-cancelacion", response_model=list[SolicitudCancelacionResponse])
+def admin_get_solicitudes(
+    estado: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _admin: int = Depends(require_admin),
+):
+    """Cola de solicitudes de cancelación para el panel de admin (pendientes primero)."""
+    return SolicitudCancelacionRepository.get_all(db, estado=estado, skip=skip, limit=limit)
+
+
+@router.put("/solicitudes-cancelacion/{id_solicitud}/resolver", response_model=SolicitudCancelacionResponse)
+def admin_resolver_solicitud(
+    id_solicitud: int,
+    data: SolicitudCancelacionResolve,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """
+    Aprueba o rechaza una solicitud de cancelación, con nota del admin.
+    Aprobar cancela de verdad la reserva (y queda trazado en su historial);
+    rechazar solo cierra la solicitud, la reserva sigue como estaba.
+    """
+    solicitud = SolicitudCancelacionRepository.get_by_id(db, id_solicitud)
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if solicitud.estado != "pendiente":
+        raise HTTPException(status_code=409, detail=f"Esta solicitud ya fue '{solicitud.estado}'")
+
+    from datetime import datetime, timezone
+
+    solicitud.estado = data.estado
+    solicitud.comentario_resolucion = data.comentario_resolucion
+    solicitud.fecha_resolucion = datetime.now(timezone.utc)
+
+    admin = db.query(Usuario).filter(Usuario.id_usuario == admin_id).first()
+    if admin and admin.empleado:
+        solicitud.id_empleado_resolutor = admin.empleado.id_empleado
+
+    if data.estado == "aprobada":
+        reserva = db.query(Reserva).filter(Reserva.id_reserva == solicitud.id_reserva).first()
+        if reserva and reserva.estado not in ("cancelada", "finalizada"):
+            estado_anterior = reserva.estado
+            reserva.estado = "cancelada"
+            db.add(HistorialReserva(
+                id_reserva=reserva.id_reserva,
+                estado_anterior=estado_anterior,
+                estado_nuevo="cancelada",
+                id_empleado_responsable=solicitud.id_empleado_resolutor,
+                comentarios=f"Cancelación aprobada: {data.comentario_resolucion or solicitud.motivo}",
+            ))
+
+    db.commit()
+    db.refresh(solicitud)
+    return solicitud

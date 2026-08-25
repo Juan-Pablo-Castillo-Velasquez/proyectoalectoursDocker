@@ -28,6 +28,7 @@ from app.routes.reserva_route import router as reserva_router
 from app.routes.usuario_route import router as usuario_router, roles_router
 from app.routes.destino_route import router as destino_router
 from app.routes.servicio_route import router as servicio_router
+from app.routes.solicitud_cancelacion_route import router as solicitud_cancelacion_router
 
 # ============================================================================
 # CONFIGURACIÓN LOGGING
@@ -118,6 +119,7 @@ app.include_router(usuario_router)
 app.include_router(roles_router)
 app.include_router(destino_router)
 app.include_router(servicio_router)
+app.include_router(solicitud_cancelacion_router)
 
 # ============================================================================
 # ARCHIVOS ESTÁTICOS (fotos de perfil, etc.)

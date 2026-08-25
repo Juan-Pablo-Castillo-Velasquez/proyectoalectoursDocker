@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.database import get_db
-from app.core.security import get_user_from_token, decode_token, hash_password
+from app.core.security import get_user_from_token, hash_password, require_admin
 from app.models.user_model import Usuario
 from app.models.auth_model import Rol, UsuarioRol
 from app.schemas.user_schema import UsuarioResponse
@@ -42,31 +42,6 @@ def get_current_usuario(authorization: Optional[str] = Header(None), db: Session
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     return user
-
-
-def require_admin(authorization: Optional[str] = Header(None)) -> int:
-    """
-    Protege los endpoints de administración de usuarios/roles: exige un JWT
-    válido cuyo claim `roles` incluya "admin". A diferencia de los demás
-    endpoints de admin de este backend (hoteles/clientes/paquetes/reservas,
-    que hoy no validan rol en absoluto), esta superficie sí lo exige porque
-    permite crear cuentas y asignar roles.
-    """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    payload = decode_token(parts[1])
-    if payload is None:
-        raise HTTPException(status_code=401, detail="Token expirado o inválido")
-
-    roles = payload.get("roles") or []
-    if "admin" not in roles:
-        raise HTTPException(status_code=403, detail="Requiere rol de administrador")
-
-    return int(payload["sub"])
 
 
 def _shape_usuario_admin(db: Session, usuario: Usuario) -> UsuarioAdminResponse:

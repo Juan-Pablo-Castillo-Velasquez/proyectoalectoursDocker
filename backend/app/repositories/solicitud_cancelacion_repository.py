@@ -44,6 +44,23 @@ class SolicitudCancelacionRepository:
         )
 
     @staticmethod
+    def get_all(db: Session, estado: str | None = None, skip: int = 0, limit: int = 100):
+        """Panel de admin: todas las solicitudes, opcionalmente filtradas por estado.
+        Las pendientes primero (más antigua primero), luego las ya resueltas."""
+        query = db.query(SolicitudCancelacion)
+        if estado:
+            query = query.filter(SolicitudCancelacion.estado == estado)
+        return (
+            query.order_by(
+                (SolicitudCancelacion.estado == "pendiente").desc(),
+                SolicitudCancelacion.fecha_solicitud.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
     def create(db: Session, id_reserva: int, id_cliente: int, motivo: str, motivo_detalle: str | None):
         solicitud = SolicitudCancelacion(
             id_reserva=id_reserva,

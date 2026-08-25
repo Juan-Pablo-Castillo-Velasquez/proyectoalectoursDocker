@@ -86,11 +86,15 @@ export interface Rol {
   nombre_rol: string;
 }
 
+// Colores de estado consistentes con la paleta de marca (mismo criterio que
+// ModuleDashboard: dorado/granate/rosa para los estados normales, rojo
+// reservado solo para "cancelada"). Usan opacidad en vez de mapas dark/light
+// separados para que se vean bien en ambos temas sin duplicar clases.
 export const ESTADO_COLOR: Record<string, string> = {
-  pendiente: "bg-amber-100 text-amber-700",
-  confirmada: "bg-green-100 text-green-700",
-  cancelada:  "bg-red-100 text-red-700",
-  finalizada: "bg-blue-100 text-blue-700",
+  pendiente: "bg-[#C9A227]/15 text-[#C9A227]",
+  confirmada: "bg-primary/10 text-primary",
+  cancelada: "bg-destructive/10 text-destructive",
+  finalizada: "bg-[#A13B55]/15 text-[#A13B55]",
 };
 
 export const inputCls =
