@@ -10,7 +10,7 @@ import {
   Phone,
   Plane,
   User,
-  X
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -76,22 +76,16 @@ export default function Navbar() {
         transition={{ duration: 0.45, ease: "easeOut" }}
         className="
           sticky top-0 z-[9999]
-          bg-background/95
+          navbar-surface
           text-foreground
-          border-b border-border/50
-          backdrop-blur-xl
         "
       >
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-[76px]">
-
             {/* =========================================================
                 LOGO
             ========================================================= */}
-            <Link
-              to="/"
-              className="flex items-center gap-3 group shrink-0"
-            >
+            <Link to="/" className="flex items-center gap-3 group shrink-0">
               <motion.div
                 whileHover={{
                   scale: 1.06,
@@ -149,7 +143,6 @@ export default function Navbar() {
                 DESKTOP NAVIGATION
             ========================================================= */}
             <div className="hidden xl:flex items-center gap-1 text-[12px] font-semibold">
-
               {/* OFERTAS */}
               <div className="relative">
                 <button
@@ -243,8 +236,6 @@ export default function Navbar() {
                           </span>
                         </div>
                       </Link>
-
-
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -265,7 +256,9 @@ export default function Navbar() {
               >
                 <Building2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
                 Hoteles
-                <span className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/search") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
+                <span
+                  className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/search") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
+                />
               </Link>
 
               {/* INFO DE VIAJE — antes escondida dentro de "Más", ahora es su
@@ -286,7 +279,9 @@ export default function Navbar() {
               >
                 <Compass className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
                 Info de viaje
-                <span className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/travel-info") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
+                <span
+                  className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/travel-info") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
+                />
               </Link>
 
               {/* PAQUETES - CTA COMERCIAL */}
@@ -422,9 +417,7 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
 
-
               {/* AUTOS */}
-
 
               {/* MÁS */}
               <div className="relative">
@@ -507,7 +500,6 @@ export default function Navbar() {
                 RIGHT SIDE
             ========================================================= */}
             <div className="hidden xl:flex items-center gap-3 shrink-0">
-
               {/* CONTACT */}
               <div
                 className="
@@ -519,18 +511,18 @@ export default function Navbar() {
                   border border-border/40
                 "
               >
-                <div className="
+                <div
+                  className="
                   w-8 h-8
                   rounded-lg
                   bg-primary/10
                   flex items-center justify-center
-                ">
+                "
+                >
                   <Phone className="w-3.5 h-3.5 text-primary" />
                 </div>
 
                 <div className="leading-tight">
-
-
                   <small className="text-[8px] text-muted-foreground">
                     Asesoría 24/7
                   </small>
@@ -542,14 +534,13 @@ export default function Navbar() {
               {/* AUTH */}
               {isAuthenticated ? (
                 <div className="flex items-center gap-2">
-
                   <Link
                     to="/profile"
                     className="
                       group
-                      flex items-center gap-2.5
-                      px-3 py-2
-                      rounded-xl
+                      flex items-center gap-3
+                      pl-2 pr-3.5 py-2
+                      rounded-full
                       border border-border/70
                       bg-card
                       hover:border-primary/30
@@ -557,15 +548,20 @@ export default function Navbar() {
                       transition-all
                     "
                   >
-                    <div className="
-                      w-8 h-8
-                      rounded-lg
-                      bg-primary/10
+                    <div
+                      className="
+                      relative
+                      w-10 h-10
+                      rounded-full
+                      bg-gradient-to-br from-primary to-[#4A1023]
                       flex items-center justify-center
-                      group-hover:bg-primary
-                      transition-colors
+                      ring-2 ring-primary/15
+                      group-hover:ring-primary/40
+                      transition-all
                       overflow-hidden
-                    ">
+                      shrink-0
+                    "
+                    >
                       {usuario?.foto_perfil ? (
                         <img
                           src={`${BASE_URL}${usuario.foto_perfil}`}
@@ -573,26 +569,29 @@ export default function Navbar() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <User className="
-                          w-3.5 h-3.5
-                          text-primary
-                          group-hover:text-primary-foreground
-                          transition-colors
-                        " />
+                        <User
+                          className="
+                          w-4.5 h-4.5
+                          text-primary-foreground
+                        "
+                        />
                       )}
                     </div>
 
-                    <div className="leading-tight max-w-[120px]">
-                      <span className="block truncate text-[10px] font-bold">
+                    <div className="leading-tight max-w-[130px]">
+                      <span className="block truncate text-[13px] font-bold text-foreground">
                         {displayName}
                       </span>
 
-                      <span className="block text-[8px] text-muted-foreground uppercase tracking-wider">
+                      <span
+                        className="block text-[9px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--gold)" }}
+                      >
                         {getRoleLabel(usuario?.roles)}
                       </span>
                     </div>
 
-                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   </Link>
 
                   <motion.button
@@ -698,7 +697,6 @@ export default function Navbar() {
                 "
               >
                 <div className="py-4 space-y-1">
-
                   <Link
                     to="/"
                     className="
@@ -805,28 +803,30 @@ export default function Navbar() {
                   </Link>
 
                   {/* CONTACT CARD */}
-                  <div className="
+                  <div
+                    className="
                     mt-3
                     mx-1
                     p-4
                     rounded-2xl
                     bg-muted/50
                     border border-border/50
-                  ">
+                  "
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="
+                      <div
+                        className="
                         w-10 h-10
                         rounded-xl
                         bg-primary/10
                         flex items-center justify-center
-                      ">
+                      "
+                      >
                         <Phone className="w-4 h-4 text-primary" />
                       </div>
 
                       <div>
-                        <p className="text-xs font-bold">
-                          ¿Necesitas ayuda?
-                        </p>
+                        <p className="text-xs font-bold">¿Necesitas ayuda?</p>
 
                         <p className="text-[11px] text-muted-foreground">
                           +57 601 123 4567 · Asesoría 24/7
@@ -838,7 +838,6 @@ export default function Navbar() {
                   {/* AUTH */}
                   {isAuthenticated ? (
                     <div className="pt-3 mt-2 border-t border-border/50">
-
                       <Link
                         to="/profile"
                         className="
@@ -852,13 +851,15 @@ export default function Navbar() {
                         "
                         onClick={() => setIsMenuOpen(false)}
                       >
-                        <div className="
+                        <div
+                          className="
                           w-9 h-9
                           rounded-lg
                           bg-primary-foreground/15
                           flex items-center justify-center
                           overflow-hidden
-                        ">
+                        "
+                        >
                           {usuario?.foto_perfil ? (
                             <img
                               src={`${BASE_URL}${usuario.foto_perfil}`}
@@ -900,11 +901,13 @@ export default function Navbar() {
                       </button>
                     </div>
                   ) : (
-                    <div className="
+                    <div
+                      className="
                       flex flex-col gap-2
                       pt-3 mt-2
                       border-t border-border/50
-                    ">
+                    "
+                    >
                       <button
                         onClick={() => {
                           setIsMenuOpen(false);

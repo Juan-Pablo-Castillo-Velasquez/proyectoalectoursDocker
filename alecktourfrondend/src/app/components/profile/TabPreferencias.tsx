@@ -1,13 +1,26 @@
 import {
   Calendar,
-  Clock, Coffee, Compass, CreditCard, Heart, MapPin,
-  Mountain, Music, Palmtree,
+  Clock,
+  Coffee,
+  Compass,
+  CreditCard,
+  Heart,
+  MapPin,
+  Mountain,
+  Music,
+  Palmtree,
   PenSquare,
-  Plane, Sparkles, User, Utensils
+  Plane,
+  Sparkles,
+  User,
+  Utensils,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { PaqueteSugerido, preferenciasService } from "../../services/preferencias.service";
+import {
+  PaqueteSugerido,
+  preferenciasService,
+} from "../../services/preferencias.service";
 
 // ── Mapeos de Negocio ──────────────────────────────────────────────────────
 const interesIcons: Record<string, any> = {
@@ -28,7 +41,10 @@ const interesLabels: Record<string, string> = {
   wellness: "Bienestar",
 };
 
-interface Props { preferencias: any; idCliente?: number; }
+interface Props {
+  preferencias: any;
+  idCliente?: number;
+}
 
 export default function TabPreferencias({ preferencias, idCliente }: Props) {
   const [sugerencias, setSugerencias] = useState<PaqueteSugerido[]>([]);
@@ -56,7 +72,8 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
             Mis Preferencias
           </h2>
           <p className="text-muted-foreground text-sm md:text-base mt-2">
-            Calibramos nuestro motor de recomendaciones basándonos en tu estilo de viaje.
+            Calibramos nuestro motor de recomendaciones basándonos en tu estilo
+            de viaje.
           </p>
         </div>
         <Link
@@ -79,7 +96,8 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
             Descubre tu viaje ideal
           </h3>
           <p className="text-base text-muted-foreground mb-8 max-w-md mx-auto leading-relaxed">
-            Aún no conocemos tus gustos. Cuéntanos qué te apasiona y deja que diseñemos la experiencia perfecta para ti.
+            Aún no conocemos tus gustos. Cuéntanos qué te apasiona y deja que
+            diseñemos la experiencia perfecta para ti.
           </p>
           <Link
             to="/preferences"
@@ -92,7 +110,6 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
       ) : (
         // ── Vista de Datos Estructurada ──
         <div className="space-y-8">
-
           {/* Bloque: Intereses Primarios */}
           <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm transition-colors duration-200">
             <div className="flex items-center gap-3 mb-6">
@@ -106,7 +123,7 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
 
             {preferencias.intereses && preferencias.intereses.length > 0 ? (
               <div className="flex flex-wrap gap-3">
-                {(preferencias.intereses).map((interes: string) => {
+                {preferencias.intereses.map((interes: string) => {
                   const Icon = interesIcons[interes] || Compass;
                   return (
                     <div
@@ -130,25 +147,36 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[
               { label: "Compañía", value: preferencias.compania, icon: User },
-              { label: "Presupuesto", value: preferencias.presupuesto, icon: CreditCard },
+              {
+                label: "Presupuesto",
+                value: preferencias.presupuesto,
+                icon: CreditCard,
+              },
               { label: "Clima ideal", value: preferencias.clima, icon: MapPin },
               { label: "Ritmo", value: preferencias.ritmo, icon: Clock },
-              { label: "Transporte", value: preferencias.transporte, icon: Plane },
+              {
+                label: "Transporte",
+                value: preferencias.transporte,
+                icon: Plane,
+              },
             ]
-              .filter(item => item.value)
-              .map(item => {
+              .filter((item) => item.value)
+              .map((item) => {
                 const Icon = item.icon;
                 return (
                   <div
                     key={item.label}
-                    className="group bg-card border border-border hover:border-primary/40 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 cursor-default"
+                    className="group card-elevated p-6 cursor-default"
                   >
                     <div className="flex flex-col gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:bg-primary transition-colors duration-300">
-                        <Icon className="w-6 h-6 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
+                      <div className="icon-tile w-12 h-12 rounded-2xl flex items-center justify-center">
+                        <Icon className="w-6 h-6" />
                       </div>
                       <div>
-                        <span className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                        <span
+                          className="block text-xs font-bold uppercase tracking-widest mb-1"
+                          style={{ color: "var(--gold)" }}
+                        >
                           {item.label}
                         </span>
                         <p className="font-bold text-foreground text-lg capitalize truncate">
@@ -176,7 +204,10 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
               {cargandoSugerencias ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {[0, 1, 2].map((i) => (
-                    <div key={i} className="h-32 rounded-2xl bg-muted/40 animate-pulse" />
+                    <div
+                      key={i}
+                      className="h-32 rounded-2xl bg-muted/40 animate-pulse"
+                    />
                   ))}
                 </div>
               ) : (
@@ -213,7 +244,6 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
               )}
             </div>
           )}
-
         </div>
       )}
     </div>

@@ -4,55 +4,72 @@
 :root {
   --font-size: 16px;
 
-  --background: #ffffff;
-  --foreground: oklch(0.18 0 0);
+  /* Fondo cálido tipo "hueso", no blanco plano — le da profundidad sin perder claridad */
+  --background: #fbf8f6;
+  --foreground: #241a1f;
 
+  /* Las cards sí van en blanco puro: así generan contraste real contra el fondo cálido */
   --card: #ffffff;
-  --card-foreground: oklch(0.18 0 0);
+  --card-foreground: #241a1f;
 
   --popover: #ffffff;
-  --popover-foreground: oklch(0.18 0 0);
+  --popover-foreground: #241a1f;
 
-  /* 🔴 BRAND (GRANATE AGENCIA) */
-  --primary: #7B1E3A;
+  /* BRAND (GRANATE AGENCIA) */
+  --primary: #6e1832;
   --primary-foreground: #ffffff;
 
-  --secondary: oklch(0.95 0.005 264.53);
-  --secondary-foreground: #7B1E3A;
+  /* Secundario ahora nace del mismo hue del granate en vez de un gris genérico oklch */
+  --secondary: #f4e7eb;
+  --secondary-foreground: #6e1832;
 
-  --muted: #f3f3f5;
-  --muted-foreground: #6b6b6b;
+  --muted: #f5f1ee;
+  --muted-foreground: #7a6e70;
 
-  --accent: #f1e4e8;
-  --accent-foreground: #7B1E3A;
+  --accent: #f6ecd9;
+  --accent-foreground: #6e1832;
 
-  --destructive: #c62828;
+  --destructive: #b3261e;
   --destructive-foreground: #ffffff;
 
-  --border: rgba(123, 30, 58, 0.15);
+  --border: rgba(110, 24, 50, 0.12);
   --input: transparent;
-  --input-background: #f7f5f6;
+  --input-background: #f8f3f4;
 
-  --switch-background: #d8c2c8;
+  --switch-background: #e2cbd1;
 
-  --ring: #7B1E3A;
+  --ring: #6e1832;
 
-  --chart-1: #7B1E3A;
-  --chart-2: #C9A227;
-  --chart-3: #2E2E2E;
-  --chart-4: #E6D3C5;
-  --chart-5: #A13B55;
+  /* Dorado como segundo acento de marca, no solo un color de chart olvidado */
+  --gold: #b8912e;
+  --gold-foreground: #2e2611;
 
-  --radius: 0.625rem;
+  --chart-1: #6e1832;
+  --chart-2: #b8912e;
+  --chart-3: #2e2e2e;
+  --chart-4: #e6d3c5;
+  --chart-5: #a13b55;
+
+  --radius: 0.875rem;
 
   --sidebar: #ffffff;
-  --sidebar-foreground: oklch(0.18 0 0);
-  --sidebar-primary: #7B1E3A;
+  --sidebar-foreground: #241a1f;
+  --sidebar-primary: #6e1832;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f6eef0;
-  --sidebar-accent-foreground: #7B1E3A;
-  --sidebar-border: rgba(123, 30, 58, 0.12);
-  --sidebar-ring: #7B1E3A;
+  --sidebar-accent-foreground: #6e1832;
+  --sidebar-border: rgba(110, 24, 50, 0.1);
+  --sidebar-ring: #6e1832;
+
+  /* Sombras con tinte de marca en vez del gris plano por defecto del navegador.
+     Esto es lo que le da al tema claro esa sensación "premium" que le faltaba. */
+  --shadow-xs: 0 1px 2px rgba(110, 24, 50, 0.04);
+  --shadow-sm:
+    0 2px 8px rgba(110, 24, 50, 0.06), 0 1px 2px rgba(110, 24, 50, 0.04);
+  --shadow-md:
+    0 8px 24px rgba(110, 24, 50, 0.08), 0 2px 6px rgba(110, 24, 50, 0.04);
+  --shadow-lg:
+    0 20px 48px rgba(110, 24, 50, 0.12), 0 4px 12px rgba(110, 24, 50, 0.05);
 
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -68,18 +85,18 @@
   --popover: #161618;
   --popover-foreground: #f5f5f5;
 
-  /* 🔴 GRANATE EN DARK */
-  --primary: #a83255;
+  /* GRANATE EN DARK */
+  --primary: #c24d6e;
   --primary-foreground: #ffffff;
 
-  --secondary: #1f1f22;
+  --secondary: #241a1e;
   --secondary-foreground: #ffffff;
 
   --muted: #1b1b1e;
   --muted-foreground: #a0a0a0;
 
-  --accent: #2a1a1f;
-  --accent-foreground: #ffffff;
+  --accent: #2e1e15;
+  --accent-foreground: #e8c77a;
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
@@ -88,16 +105,24 @@
   --input: #1f1f22;
   --input-background: #1b1b1e;
 
-  --ring: #a83255;
+  --ring: #c24d6e;
+
+  --gold: #e8c77a;
+  --gold-foreground: #241a0e;
 
   --sidebar: #141416;
   --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #a83255;
+  --sidebar-primary: #c24d6e;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1f1f22;
+  --sidebar-accent: #241a1e;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #2a2a2e;
-  --sidebar-ring: #a83255;
+  --sidebar-ring: #c24d6e;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.5);
 }
 
 @theme inline {
@@ -131,6 +156,9 @@
 
   --color-ring: var(--ring);
 
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -144,6 +172,11 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
 }
 
 @layer base {
@@ -163,12 +196,14 @@
     font-size: var(--text-2xl);
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
+    letter-spacing: -0.01em;
   }
 
   h2 {
     font-size: var(--text-xl);
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
+    letter-spacing: -0.01em;
   }
 
   h3 {
@@ -190,4 +225,439 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+}
+
+/* ============================================================
+   DEPTH UTILITIES — le dan peso físico a la UI (cards, botones,
+   hero, badges). Úsalas como clases sueltas en tus componentes.
+   ============================================================ */
+
+/* ---------- 1. Alternancia de secciones ----------
+   Aplica esto a los <section> de la home en vez de dejar
+   que todos hereden el mismo --background. Rompe la
+   sensación de "una sola plancha larga". */
+.section-base {
+  background: var(--background);
+}
+.section-tint {
+  background: linear-gradient(180deg, #ffffff 0%, #f6ece9 100%);
+}
+.section-dark {
+  background: linear-gradient(135deg, #4a1023 0%, #6e1832 100%);
+  color: #fff;
+}
+
+/* ---------- 2. Cards con elevación real ----------
+   Reemplaza el "card" plano por esto en HotelCard,
+   DestinoCard, etc. El hover es lo que da sensación de vida. */
+.card-elevated {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(110, 24, 50, 0.06);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.card-elevated:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Card "hero" o destacada (ej: oferta top, plan premium) */
+.card-featured {
+  background: linear-gradient(160deg, #ffffff 0%, #fbf2f5 100%);
+  border: 1px solid rgba(184, 145, 46, 0.25);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+}
+
+/* ---------- 3. Botón primario con peso físico ----------
+   El botón actual es un rectángulo sólido sin profundidad.
+   Esto le da un gradiente muy sutil + sombra que "levanta". */
+.btn-primary-depth {
+  background: linear-gradient(180deg, #7e1e3b 0%, #6e1832 100%);
+  color: var(--primary-foreground);
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.15),
+    var(--shadow-sm);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.btn-primary-depth:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.15),
+    var(--shadow-md);
+}
+.btn-primary-depth:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- 4. Badge dorado ----------
+   Úsalo en rating "Excepcional", precios destacados,
+   o el sello de "más vendido". */
+.badge-gold {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(180deg, #d4af4a 0%, #b8912e 100%);
+  color: #2e2611;
+  font-weight: var(--font-weight-medium);
+  padding: 2px 10px;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(184, 145, 46, 0.4);
+}
+
+/* ---------- 5. Hero con textura, no gradiente plano ----------
+   Sustituye el gradiente turquesa genérico por uno anclado
+   a tu marca + una malla de puntos sutil para que no se vea
+   "de stock". Aplica a la sección hero. */
+.hero-brand {
+  position: relative;
+  background:
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(184, 145, 46, 0.25) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 85% 80%,
+      rgba(110, 24, 50, 0.35) 0%,
+      transparent 50%
+    ),
+    linear-gradient(135deg, #2e0c18 0%, #6e1832 55%, #8c2a47 100%);
+  color: #fff;
+}
+.hero-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.15) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ---------- 6. Panel flotante (buscador de hoteles) ----------
+   El buscador dentro del hero debe leerse como un objeto
+   flotando sobre la imagen, no un rectángulo pegado. */
+.panel-floating {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* ---------- 7. Imagen con vignette de marca ----------
+   Aplica sobre el <img> o su contenedor en HotelCard para
+   que la foto se sienta integrada a la paleta, no pegada. */
+.img-branded {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.img-branded::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(110, 24, 50, 0) 60%,
+    rgba(46, 10, 24, 0.35) 100%
+  );
+}
+
+/* ============================================================
+   CHECKOUT / FORM UTILITIES
+   ============================================================ */
+
+/* ---------- 8. Input con borde real + foco de marca ----------
+   El input actual es una caja gris sin límite definido.
+   Esto le da un borde sutil que se activa al enfocar. */
+.input-branded {
+  background: var(--input-background);
+  border: 1px solid rgba(110, 24, 50, 0.1);
+  border-radius: calc(var(--radius) - 4px);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+.input-branded:hover {
+  border-color: rgba(110, 24, 50, 0.22);
+}
+.input-branded:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(110, 24, 50, 0.12);
+}
+
+/* ---------- 9. Card del formulario / resumen ----------
+   Dale esto al contenedor blanco grande del form y al
+   panel "Resumen de itinerario" en vez de un div plano. */
+.form-card {
+  background: var(--card);
+  border: 1px solid rgba(110, 24, 50, 0.06);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- 10. Stepper con progreso real ----------
+   Aplica .step-done a los pasos completados, .step-active
+   al actual, y deja el resto sin clase (pendiente). */
+.step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  font-weight: var(--font-weight-medium);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid rgba(110, 24, 50, 0.08);
+}
+.step-dot.step-active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 0 4px rgba(110, 24, 50, 0.12);
+}
+.step-dot.step-done {
+  background: var(--gold);
+  color: var(--gold-foreground);
+}
+.step-line {
+  height: 2px;
+  background: rgba(110, 24, 50, 0.12);
+}
+.step-line.step-line-done {
+  background: var(--gold);
+}
+
+/* ---------- 11. Separador de línea en resumen de precios ----------
+   Reemplaza el <hr> plano gris entre "Total bruto" y
+   "Cargos actuales". */
+.divider-brand {
+  border: none;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(110, 24, 50, 0.15) 20%,
+    rgba(110, 24, 50, 0.15) 80%,
+    transparent
+  );
+}
+
+/* ---------- 12. Mini-tarjetas de beneficio (Datos protegidos, etc) ----------
+   Ya tienen icono de color, pero sin borde se ven flotando
+   sueltas. Esto las ancla visualmente. */
+.benefit-chip {
+  background: var(--secondary);
+  border: 1px solid rgba(110, 24, 50, 0.08);
+  border-radius: calc(var(--radius) - 2px);
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.benefit-chip:hover {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   NAVBAR + FOOTER — el blanco debe competir contra el negro
+   ============================================================ */
+
+/* ---------- 13. Superficie del navbar con acento de marca ----------
+   Reemplaza "bg-background/95 backdrop-blur-xl" del <nav> por esto.
+   Necesita el <nav> con position: relative (o overflow-visible)
+   para que el ::before (línea superior) se vea. */
+.navbar-surface {
+  position: relative;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(110, 24, 50, 0.08);
+  box-shadow:
+    0 1px 0 rgba(110, 24, 50, 0.04),
+    var(--shadow-sm);
+}
+.navbar-surface::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    var(--gold) 50%,
+    var(--primary) 100%
+  );
+}
+.dark .navbar-surface {
+  background: rgba(15, 15, 16, 0.86);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- 14. Footer con identidad real de marca ----------
+   Fondo oscuro granate con textura de puntos (igual criterio
+   que .hero-brand), para que el footer blanco no se vea "pobre"
+   al lado de un footer negro. El dorado hace de separador. */
+.footer-brand {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 10% 10%,
+      rgba(184, 145, 46, 0.12) 0%,
+      transparent 40%
+    ),
+    linear-gradient(160deg, #2e0c18 0%, #4a1023 50%, #3a0d1c 100%);
+  color: #f3e4e8;
+}
+.footer-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.1) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+.footer-brand > * {
+  position: relative;
+  z-index: 1;
+}
+
+.footer-heading {
+  color: var(--gold, #d9b25b);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.footer-link {
+  color: rgba(243, 228, 232, 0.72);
+  transition:
+    color 0.15s ease,
+    padding-left 0.15s ease;
+}
+.footer-link:hover {
+  color: #f6d98b;
+  padding-left: 4px;
+}
+.footer-divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(217, 178, 91, 0.35) 30%,
+    rgba(217, 178, 91, 0.35) 70%,
+    transparent
+  );
+}
+.footer-social-chip {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(217, 178, 91, 0.12);
+  border: 1px solid rgba(217, 178, 91, 0.3);
+  color: #f6d98b;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.footer-social-chip:hover {
+  background: rgba(217, 178, 91, 0.25);
+  transform: translateY(-2px);
+}
+.footer-newsletter-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(217, 178, 91, 0.25);
+  color: #fff;
+  border-radius: calc(var(--radius) - 4px);
+}
+.footer-newsletter-input::placeholder {
+  color: rgba(243, 228, 232, 0.45);
+}
+.footer-newsletter-input:focus {
+  outline: none;
+  border-color: var(--gold, #d9b25b);
+  box-shadow: 0 0 0 3px rgba(217, 178, 91, 0.18);
+}
+
+/* ============================================================
+   PROFILE PAGE — banner con textura + acentos de color reales
+   ============================================================ */
+.banner-textured {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 20% 30%,
+      rgba(217, 178, 91, 0.2) 0%,
+      transparent 45%
+    ),
+    radial-gradient(circle at 80% 70%, rgba(0, 0, 0, 0.15) 0%, transparent 50%),
+    linear-gradient(135deg, #7e1e3b 0%, #6e1832 55%, #4a1023 100%);
+}
+.banner-textured::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.14) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+
+.vip-chip {
+  background: linear-gradient(180deg, #e8c77a 0%, var(--gold) 100%);
+  color: var(--gold-foreground);
+  border: none;
+  box-shadow: 0 1px 3px rgba(184, 145, 46, 0.4);
+}
+
+.icon-tile {
+  background: linear-gradient(145deg, var(--secondary) 0%, var(--accent) 100%);
+  color: var(--primary);
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
+}
+.group:hover .icon-tile {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.stat-chip {
+  background: var(--secondary);
+  border: 1px solid rgba(110, 24, 50, 0.08);
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.stat-chip:hover {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }

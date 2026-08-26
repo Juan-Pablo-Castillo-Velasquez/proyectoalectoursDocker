@@ -10,7 +10,10 @@ import TabPreferencias from "../components/profile/TabPreferencias";
 import TabReservas from "../components/profile/TabReservas";
 import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
-import { PreferenciaResponse, preferenciasService } from "../services/preferencias.service";
+import {
+  PreferenciaResponse,
+  preferenciasService,
+} from "../services/preferencias.service";
 import { ReservaResponse, reservaService } from "../services/reserva.service";
 export default function Profile() {
   const { usuario, logout, isAuthenticated } = useAuth();
@@ -20,32 +23,45 @@ export default function Profile() {
   // terminar) vuelvan directo a una pestaña específica en vez de caer
   // siempre en "reservas" — ver PreferencesForm.tsx handleFinish.
   const [activeTab, setActiveTab] = useState(
-    () => (location.state as { tab?: string } | null)?.tab ?? "reservas"
+    () => (location.state as { tab?: string } | null)?.tab ?? "reservas",
   );
   const [reservas, setReservas] = useState<ReservaResponse[]>([]);
-  const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(null);
+  const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(
+    null,
+  );
   const [clienteData, setClienteData] = useState<ClienteResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated) { navigate("/login"); return; }
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated || !usuario?.id_cliente) { setLoading(false); return; }
+    if (!isAuthenticated || !usuario?.id_cliente) {
+      setLoading(false);
+      return;
+    }
     Promise.all([
       reservaService.getByCliente(usuario.id_cliente),
       clienteService.getById(usuario.id_cliente),
       preferenciasService.getByCliente(usuario.id_cliente).catch(() => null),
-    ]).then(([res, cliente, prefs]) => {
-      setReservas(res);
-      setClienteData(cliente);
-      setPreferencias(prefs);
-    }).catch(console.error)
+    ])
+      .then(([res, cliente, prefs]) => {
+        setReservas(res);
+        setClienteData(cliente);
+        setPreferencias(prefs);
+      })
+      .catch(console.error)
       .finally(() => setLoading(false));
   }, [usuario]);
 
-  const handleLogout = () => { logout(); navigate("/"); };
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
   if (!isAuthenticated) return null;
 
   return (
@@ -53,7 +69,7 @@ export default function Profile() {
       <Navbar />
 
       {/* ── Banner Superior con la identidad Granate Agencia ── */}
-      <div className="bg-primary h-40 relative overflow-hidden">
+      <div className="banner-textured h-40 relative">
         <div className="absolute inset-0 bg-black/5 dark:bg-black/20" />
         {/* Efectos sutiles de fondo para aportar dinamismo visual */}
         <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-white/5 blur-2xl pointer-events-none" />
@@ -63,7 +79,6 @@ export default function Profile() {
       {/* ── Contenedor Principal ── */}
       <div className="max-w-7xl mx-auto px-4 -mt-16 pb-16 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-
           {/* Barra Lateral de Usuario */}
           <aside className="lg:col-span-1">
             <ProfileSidebar
@@ -113,7 +128,10 @@ export default function Profile() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <TabPreferencias preferencias={preferencias} idCliente={usuario?.id_cliente} />
+                  <TabPreferencias
+                    preferencias={preferencias}
+                    idCliente={usuario?.id_cliente}
+                  />
                 </motion.div>
               )}
               {activeTab === "cuenta" && (
@@ -124,12 +142,14 @@ export default function Profile() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <TabCuenta clienteData={clienteData} onClienteActualizado={setClienteData} />
+                  <TabCuenta
+                    clienteData={clienteData}
+                    onClienteActualizado={setClienteData}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
           </main>
-
         </div>
       </div>
       <Footer />
