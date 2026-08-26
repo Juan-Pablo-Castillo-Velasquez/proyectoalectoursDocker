@@ -60,7 +60,7 @@ export default function TerminosModal({ isOpen, onClose }: TerminosModalProps) {
                             </div>
                             <div>
                                 <h2 className="text-white font-semibold text-xl tracking-tight">Términos y Condiciones</h2>
-                                <p className="text-white/80 text-xs font-medium mt-0.5">AleckTours — Última actualización: junio 2025</p>
+                                <p className="text-white/80 text-xs font-medium mt-0.5">AlekTours — Última actualización: junio 2025</p>
                             </div>
                         </div>
 
@@ -78,12 +78,12 @@ export default function TerminosModal({ isOpen, onClose }: TerminosModalProps) {
                     {/* ── Contenido Semántico ── */}
                     <div className="modal-scrollbar overflow-y-auto px-6 py-8 flex-1 text-sm bg-card space-y-8">
                         <Section title="1. Aceptación de los términos">
-                            Al registrarte y utilizar los servicios de <strong className="text-foreground font-bold">AleckTours</strong>, aceptas cumplir con estos Términos y
+                            Al registrarte y utilizar los servicios de <strong className="text-foreground font-bold">AlekTours</strong>, aceptas cumplir con estos Términos y
                             Condiciones. Si no estás de acuerdo con alguna parte, te pedimos que no uses nuestra plataforma.
                         </Section>
 
                         <Section title="2. Uso del servicio">
-                            AleckTours te permite buscar, comparar y reservar destinos y paquetes turísticos. El uso de la plataforma
+                            AlekTours te permite buscar, comparar y reservar destinos y paquetes turísticos. El uso de la plataforma
                             está destinado exclusivamente a fines personales y no comerciales. Queda prohibido:
                             <ul className="grid grid-cols-1 gap-2 mt-4 text-muted-foreground">
                                 <li className="flex items-start gap-2">
@@ -102,25 +102,25 @@ export default function TerminosModal({ isOpen, onClose }: TerminosModalProps) {
                         </Section>
 
                         <Section title="3. Reservas y pagos">
-                            Las reservas realizadas a través de AleckTours están sujetas a disponibilidad. Los precios pueden variar
+                            Las reservas realizadas a través de AlekTours están sujetas a disponibilidad. Los precios pueden variar
                             según la temporada y disponibilidad. Al confirmar una reserva, aceptas el cargo total indicado al momento
                             del pago.
                         </Section>
 
                         <Section title="4. Cancelaciones y reembolsos">
-                            Las políticas de cancelación varían según el proveedor del servicio. AleckTours gestionará las solicitudes
+                            Las políticas de cancelación varían según el proveedor del servicio. AlekTours gestionará las solicitudes
                             de cancelación, pero no garantiza reembolsos automáticos. Te recomendamos revisar las condiciones
                             específicas de cada reserva antes de confirmar.
                         </Section>
 
-                        <Section title="5. Programa de puntos AleckTours Rewards">
-                            Los puntos acumulados a través del programa de fidelidad son propiedad de AleckTours y pueden ser
+                        <Section title="5. Programa de puntos AlekTours Rewards">
+                            Los puntos acumulados a través del programa de fidelidad son propiedad de AlekTours y pueden ser
                             modificados o cancelados en cualquier momento. No tienen valor monetario fuera de la plataforma y no son
                             transferibles.
                         </Section>
 
                         <Section title="6. Limitación de responsabilidad">
-                            AleckTours actúa como intermediario entre el usuario y los proveedores de servicios turísticos. No nos
+                            AlekTours actúa como intermediario entre el usuario y los proveedores de servicios turísticos. No nos
                             hacemos responsables por cancelaciones, cambios o inconvenientes causados directamente por aerolíneas,
                             hoteles u otros proveedores.
                         </Section>
@@ -132,8 +132,8 @@ export default function TerminosModal({ isOpen, onClose }: TerminosModalProps) {
 
                         <Section title="8. Contacto">
                             Si tienes dudas sobre estos términos, puedes contactarnos en{" "}
-                            <a href="mailto:soporte@alecktours.com" className="text-primary hover:text-primary/80 dark:text-primary dark:hover:text-primary/80 hover:underline font-semibold transition-colors">
-                                soporte@alecktours.com
+                            <a href="mailto:soporte@alektours.com" className="text-primary hover:text-primary/80 dark:text-primary dark:hover:text-primary/80 hover:underline font-semibold transition-colors">
+                                soporte@alektours.com
                             </a>.
                         </Section>
                     </div>

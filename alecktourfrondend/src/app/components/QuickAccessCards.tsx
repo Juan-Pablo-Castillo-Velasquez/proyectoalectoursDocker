@@ -50,7 +50,7 @@ export default function QuickAccessCards() {
         },
         {
             icon: <PhoneCall className="w-5 h-5 text-[#7B1E3A]" />,
-            title: "Mi agente Aleck Tours",
+            title: "Mi agente AlekTours",
             description: "Compra llamando al 01 800 518 9330 o en nuestros canales.",
             link: "/informacion/canales",
         },

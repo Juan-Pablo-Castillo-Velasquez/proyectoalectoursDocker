@@ -31,6 +31,26 @@ class ReservaDetailRepository:
         return [dict(r._mapping) for r in result]
 
     @staticmethod
+    def get_historial_reciente(db: Session, limit: int = 15):
+        """
+        Feed de actividad reciente para el Dashboard de admin: últimos
+        cambios de estado de TODAS las reservas (no de una sola), más
+        recientes primero. Misma tabla historial_reservas que ya usa
+        get_historial — no crea ninguna tabla/columna nueva, solo agrega
+        una consulta agregada sobre datos que ya existían.
+        """
+        result = db.execute(text("""
+            SELECT hr.id_historial, hr.id_reserva, hr.estado_anterior, hr.estado_nuevo,
+                   hr.fecha_cambio, hr.comentarios,
+                   COALESCE(e.nombre || ' ' || e.apellido, 'Sistema') AS nombre_empleado
+            FROM historial_reservas hr
+            LEFT JOIN empleados e ON e.id_empleado = hr.id_empleado_responsable
+            ORDER BY hr.fecha_cambio DESC
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
+        return [dict(r._mapping) for r in result]
+
+    @staticmethod
     def get_historial(db: Session, reserva_id: int):
         result = db.execute(text("""
             SELECT hr.id_historial, hr.estado_anterior, hr.estado_nuevo,

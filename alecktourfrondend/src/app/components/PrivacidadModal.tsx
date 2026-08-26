@@ -39,7 +39,7 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
                         </div>
                         <div>
                             <h2 className="text-primary-foreground font-medium text-lg leading-tight">Política de Privacidad</h2>
-                            <p className="text-primary-foreground/70 text-xs">AleckTours — Última actualización: junio 2025</p>
+                            <p className="text-primary-foreground/70 text-xs">AlekTours — Última actualización: junio 2025</p>
                         </div>
                     </div>
                     <button
@@ -56,7 +56,7 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
                 <div className="overflow-y-auto px-6 py-5 flex-1 text-sm text-foreground/90 space-y-5 bg-card">
 
                     <Section title="1. Información que recopilamos">
-                        Al registrarte en <strong className="text-foreground font-bold">AleckTours</strong>, recopilamos información personal como tu nombre, correo
+                        Al registrarte en <strong className="text-foreground font-bold">AlekTours</strong>, recopilamos información personal como tu nombre, correo
                         electrónico, número de teléfono y datos de pago. También recopilamos datos de uso de la plataforma para
                         mejorar tu experiencia.
                     </Section>
@@ -66,13 +66,13 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
                         <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
                             <li>Procesar y confirmar tus reservas.</li>
                             <li>Enviarte notificaciones sobre tus viajes y ofertas personalizadas.</li>
-                            <li>Gestionar tu cuenta y el programa AleckTours Rewards.</li>
+                            <li>Gestionar tu cuenta y el programa AlekTours Rewards.</li>
                             <li>Mejorar nuestros servicios mediante análisis de uso.</li>
                         </ul>
                     </Section>
 
                     <Section title="3. Compartir información con terceros">
-                        AleckTours no vende ni arrienda tu información personal a terceros. Solo compartimos datos con
+                        AlekTours no vende ni arrienda tu información personal a terceros. Solo compartimos datos con
                         proveedores de servicios turísticos (aerolíneas, hoteles, etc.) en la medida necesaria para completar
                         tu reserva, y con plataformas de pago seguras para procesar transacciones.
                     </Section>
@@ -92,8 +92,8 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
                     <Section title="6. Tus derechos">
                         Tienes derecho a acceder, corregir o eliminar tus datos personales en cualquier momento. Para ejercer
                         estos derechos, escríbenos a{" "}
-                        <a href="mailto:privacidad@alecktours.com" className="text-primary hover:underline font-bold transition-colors">
-                            privacidad@alecktours.com
+                        <a href="mailto:privacidad@alektours.com" className="text-primary hover:underline font-bold transition-colors">
+                            privacidad@alektours.com
                         </a>{" "}
                         y gestionaremos tu solicitud en un plazo de 15 días hábiles.
                     </Section>
@@ -106,14 +106,14 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
 
                     <Section title="8. Cambios en esta política">
                         Podemos actualizar esta política periódicamente. Te notificaremos cualquier cambio relevante mediante
-                        un aviso en la plataforma o por correo electrónico. El uso continuado de AleckTours tras los cambios
+                        un aviso en la plataforma o por correo electrónico. El uso continuado de AlekTours tras los cambios
                         implica tu aceptación.
                     </Section>
 
                     <Section title="9. Contacto">
                         Para cualquier consulta sobre privacidad, contáctanos en{" "}
-                        <a href="mailto:privacidad@alecktours.com" className="text-primary hover:underline font-bold transition-colors">
-                            privacidad@alecktours.com
+                        <a href="mailto:privacidad@alektours.com" className="text-primary hover:underline font-bold transition-colors">
+                            privacidad@alektours.com
                         </a>.
                     </Section>
                 </div>

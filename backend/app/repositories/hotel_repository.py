@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func
 from app.models.hotel_model import Hotel, Habitacion, Caracteristica, HotelCaracteristica
 from app.core.exceptions import HotelDependencyError, NotFoundError
@@ -8,7 +8,25 @@ class HotelRepository:
 
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Hotel).offset(skip).limit(limit).all()
+        # GET /hoteles/ responde con HotelDetailResponse (habitaciones +
+        # hotel_caracteristicas) y además expone total_resenas/
+        # calificacion_promedio (propiedades sobre Hotel.resenas) para cada
+        # hotel de la lista — sin esto cada hotel disparaba 3 queries
+        # perezosas (N+1). selectinload (no joinedload) para las relaciones
+        # de colección evita el producto cartesiano de combinar varios
+        # joinedload de "muchos" a la vez; tipo_habitacion/caracteristica son
+        # relaciones "uno" así que sí pueden ir con joinedload anidado.
+        return (
+            db.query(Hotel)
+            .options(
+                selectinload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
+                selectinload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
+                selectinload(Hotel.resenas),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     @staticmethod
     def get_destacados(db: Session, limit: int = 3):

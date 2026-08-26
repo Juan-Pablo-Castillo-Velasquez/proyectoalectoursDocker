@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import {
   CalendarDays, Clock, CheckCircle, Hotel,
   PlusCircle, Package, Users, TrendingUp,
-  DollarSign, ArrowUpRight, AlertCircle, XCircle
+  DollarSign, ArrowUpRight, AlertCircle, XCircle,
+  Inbox, Activity,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -11,6 +12,8 @@ import {
 } from "recharts";
 import { Reserva, HotelData, Paquete, Cliente } from "./types";
 import { apiFetch } from "../../api/v1/api";
+import { reservaDetailService, type ActividadRecienteItem } from "../../services/reserva.service";
+import StatusBadge from "./ui/StatusBadge";
 
 interface Pago {
   id_pago: number;
@@ -27,9 +30,27 @@ interface Props {
   paquetes: Paquete[];
   clientes: Cliente[];
   setActiveModule: (m: any) => void;
+  /** Conteo real de solicitudes de cancelación pendientes (ver Admindashboard.tsx) */
+  pendingCancelaciones: number;
 }
 
-// Paleta brand AleckTours: granate, dorado, oscuro, crema, rosa
+// Formato relativo simple ("Hace 5 min", "Ayer") para el feed de actividad
+// reciente — sin librerías nuevas, solo Date nativo.
+function tiempoRelativo(fechaISO: string): string {
+  const fecha = new Date(fechaISO).getTime();
+  if (Number.isNaN(fecha)) return "";
+  const diffMin = Math.floor((Date.now() - fecha) / 60000);
+  if (diffMin < 1) return "Hace un momento";
+  if (diffMin < 60) return `Hace ${diffMin} min`;
+  const diffHoras = Math.floor(diffMin / 60);
+  if (diffHoras < 24) return `Hace ${diffHoras} h`;
+  const diffDias = Math.floor(diffHoras / 24);
+  if (diffDias === 1) return "Ayer";
+  if (diffDias < 30) return `Hace ${diffDias} días`;
+  return new Date(fechaISO).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Paleta brand AlekTours: granate, dorado, oscuro, crema, rosa
 const COLORS = ["#7B1E3A", "#C9A227", "#2E2E2E", "#A13B55", "#E6D3C5", "#a83255", "#c9a227", "#7b1e3a"];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -50,11 +71,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes, setActiveModule }: Props) {
+export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes, setActiveModule, pendingCancelaciones }: Props) {
   const [pagos, setPagos] = useState<Pago[]>([]);
+  const [actividad, setActividad] = useState<ActividadRecienteItem[]>([]);
 
   useEffect(() => {
     apiFetch<Pago[]>("/pagos?limit=100").then(setPagos).catch(() => {});
+    reservaDetailService.getActividadReciente(12).then(setActividad).catch(() => {});
   }, []);
 
   // --- KPIs ---
@@ -88,6 +111,17 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
     }))
     .sort((a, b) => b.reservas - a.reservas);
 
+  // --- Hoteles más reservados (Reserva.hotel_nombre, ya calculado en el
+  // backend — ver Reserva._primer_hotel / Reserva.hotel_nombre) ---
+  const hotelCount: Record<string, number> = {};
+  reservas.forEach(r => {
+    if (r.hotel_nombre) hotelCount[r.hotel_nombre] = (hotelCount[r.hotel_nombre] || 0) + 1;
+  });
+  const hotelesData = Object.entries(hotelCount)
+    .map(([name, count]) => ({ name, reservas: count }))
+    .sort((a, b) => b.reservas - a.reservas)
+    .slice(0, 8);
+
   // --- Pagos por método ---
   const metodoData: Record<string, number> = {};
   pagos.forEach(p => {
@@ -109,25 +143,6 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
   const actividadData = Object.entries(actividadDias).map(([dia, total]) => ({ dia, total }));
 
   const totalPersonas = reservas.reduce((a, r) => a + r.numero_personas, 0);
-
-  // Helpers de estado para badges
-  const estadoBadgeClass = (estado: string) => {
-    switch (estado) {
-      case "confirmada": return "bg-[#f1e4e8] text-[#7B1E3A]";
-      case "pendiente":  return "bg-[#fdf6e3] text-[#C9A227]";
-      case "cancelada":  return "bg-[#f5e6e6] text-[#c62828]";
-      default:           return "bg-[#f1e4e8] text-[#A13B55]";
-    }
-  };
-
-  const estadoBgClass = (estado: string) => {
-    switch (estado) {
-      case "confirmada": return "bg-[#7B1E3A]";
-      case "pendiente":  return "bg-[#C9A227]";
-      case "cancelada":  return "bg-[#2E2E2E]";
-      default:           return "bg-[#A13B55]";
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -194,12 +209,14 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
       </div>
 
       {/* KPI Row 2 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           { label: "Hoteles activos",   value: hoteles.length,                         icon: Hotel,        color: "from-[#7B1E3A] to-[#A13B55]" },
           { label: "Paquetes activos",  value: paquetes.filter(p => p.activo).length,  icon: Package,      color: "from-[#A13B55] to-[#7B1E3A]" },
           { label: "Clientes",          value: clientes.length,                         icon: Users,        color: "from-[#C9A227] to-[#e6b830]" },
           { label: "Confirmadas",       value: confirmadas,                             icon: CheckCircle,  color: "from-[#2E2E2E] to-[#555555]" },
+          { label: "Canceladas",        value: canceladas,                              icon: XCircle,      color: "from-[#c62828] to-[#8f1d1d]" },
+          { label: "Solicitudes pendientes", value: pendingCancelaciones,               icon: Inbox,        color: "from-[#C9A227] to-[#7B1E3A]" },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-card rounded-2xl p-5 shadow-sm border border-border flex items-center gap-4 hover:shadow-md transition-shadow">
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
@@ -281,7 +298,7 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Bar paquetes */}
         <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
@@ -307,6 +324,36 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted-foreground flex-col gap-2">
               <Package className="w-8 h-8" />
+              <p className="text-sm">Sin datos</p>
+            </div>
+          )}
+        </div>
+
+        {/* Bar hoteles */}
+        <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-foreground">Hoteles más reservados</h3>
+              <p className="text-xs text-muted-foreground">Por número de reservas</p>
+            </div>
+          </div>
+          {hotelesData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={hotelesData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(123,30,58,0.08)" />
+                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="reservas" name="Reservas" radius={[0, 6, 6, 0]}>
+                  {hotelesData.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground flex-col gap-2">
+              <Hotel className="w-8 h-8" />
               <p className="text-sm">Sin datos</p>
             </div>
           )}
@@ -345,49 +392,45 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Últimas reservas */}
+        {/* Actividad reciente — feed cronológico real (historial_reservas de
+            TODAS las reservas, no solo un slice del array cargado), ver
+            GET /historial-reservas/recientes en reserva_route.py */}
         <div className="bg-card rounded-2xl p-6 shadow-sm border border-border lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Últimas reservas</h3>
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary" />
+              <h3 className="font-semibold text-foreground">Actividad reciente</h3>
+            </div>
             <button
               onClick={() => setActiveModule("reservas")}
               className="text-xs text-[#7B1E3A] hover:text-[#A13B55] font-medium flex items-center gap-1 transition-colors"
             >
-              Ver todas <ArrowUpRight className="w-3 h-3" />
+              Ver reservas <ArrowUpRight className="w-3 h-3" />
             </button>
           </div>
-          <div className="space-y-2">
-            {reservas.slice(-5).reverse().map(r => {
-              const pago = pagos.find(p => p.id_reserva === r.id_reserva);
-              return (
-                <div key={r.id_reserva} className="flex items-center justify-between p-3 rounded-xl hover:bg-accent transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white ${estadoBgClass(r.estado)}`}>
-                      #{r.id_reserva}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Cliente #{r.id_cliente} · Paquete #{r.id_paquete}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.fecha_inicio} → {r.fecha_fin} · {r.numero_personas} personas
-                      </p>
-                    </div>
+          {actividad.length > 0 ? (
+            <div className="space-y-1">
+              {actividad.map(item => (
+                <div key={item.id_historial} className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors">
+                  <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground">
+                      <span className="font-medium">Reserva #{item.id_reserva}</span>
+                      {item.estado_nuevo ? ` ${item.estado_nuevo}` : " actualizada"}
+                      {item.nombre_empleado && item.nombre_empleado !== "Sistema" ? ` · ${item.nombre_empleado}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{tiempoRelativo(item.fecha_cambio)}</p>
                   </div>
-                  <div className="text-right">
-                    {pago && (
-                      <p className="text-sm font-semibold text-foreground">
-                        ${pago.monto.toLocaleString("es-CO")}
-                      </p>
-                    )}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estadoBadgeClass(r.estado)}`}>
-                      {r.estado}
-                    </span>
-                  </div>
+                  {item.estado_nuevo && <StatusBadge status={item.estado_nuevo} className="flex-shrink-0" />}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-[180px] flex items-center justify-center text-muted-foreground flex-col gap-2">
+              <Activity className="w-8 h-8" />
+              <p className="text-sm">Todavía no hay actividad registrada</p>
+            </div>
+          )}
         </div>
 
         {/* Accesos rápidos + Alertas */}

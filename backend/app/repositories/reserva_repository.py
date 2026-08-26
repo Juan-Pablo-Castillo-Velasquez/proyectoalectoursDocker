@@ -9,10 +9,17 @@ from app.core.exceptions import (
 
 
 class PaqueteRepository:
-    
+
     @staticmethod
-    def get_all(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Paquete).filter(Paquete.activo == True).offset(skip).limit(limit).all()
+    def get_all(db: Session, skip: int = 0, limit: int = 10, incluir_inactivos: bool = False):
+        # El sitio público solo debe ver paquetes activos (comportamiento
+        # original, sin cambios) — incluir_inactivos=True es un opt-in nuevo
+        # para el panel de admin, que sí necesita ver/gestionar los paquetes
+        # desactivados (delete_paquete solo los desactiva, nunca los borra).
+        query = db.query(Paquete)
+        if not incluir_inactivos:
+            query = query.filter(Paquete.activo == True)
+        return query.offset(skip).limit(limit).all()
     
     @staticmethod
     def get_by_id(db: Session, paquete_id: int):
@@ -61,7 +68,22 @@ class ReservaRepository:
     
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Reserva).offset(skip).limit(limit).all()
+        # joinedload evita N+1 al resolver Reserva.precio_total / .nombre_paquete
+        # / .destino / .hotel_nombre / .fecha_ultima_actualizacion (propiedades
+        # usadas por ReservaResponse) para cada reserva de la lista del admin
+        # — mismo criterio ya usado en get_by_cliente.
+        return (
+            db.query(Reserva)
+            .options(
+                joinedload(Reserva.paquete).joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel),
+                joinedload(Reserva.reserva_habitaciones).joinedload(ReservaHabitacion.habitacion).joinedload(Habitacion.hotel),
+                joinedload(Reserva.reserva_servicios),
+                joinedload(Reserva.historial_reservas),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
     
     @staticmethod
     def get_by_id(db: Session, reserva_id: int):

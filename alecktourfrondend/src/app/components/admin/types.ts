@@ -1,3 +1,25 @@
+// Identificadores de cada pantalla del admin — compartido por
+// Admindashboard.tsx (qué módulo renderizar) y AdminSidebar.tsx (qué ítem
+// de navegación resaltar). Los que todavía no tienen módulo real construido
+// (cancelaciones, empresas, pagos, notificaciones, roles, actividad,
+// configuracion) muestran un EmptyState en vez de datos inventados — se
+// van habilitando fase a fase del rediseño del panel.
+export type Module =
+  | "dashboard"
+  | "reservas"
+  | "crear-reserva"
+  | "hoteles"
+  | "paquetes"
+  | "clientes"
+  | "cancelaciones"
+  | "empresas"
+  | "pagos"
+  | "usuarios"
+  | "notificaciones"
+  | "roles"
+  | "actividad"
+  | "configuracion";
+
 export interface Reserva {
   id_reserva: number;
   id_cliente: number;
@@ -7,6 +29,18 @@ export interface Reserva {
   fecha_fin: string;
   numero_personas: number;
   estado: string;
+  // El backend (ReservaResponse) ya devuelve estos campos calculados desde
+  // Reserva.hotel_nombre / Reserva.destino (ver reserva_model.py) — se
+  // agregan aquí para el ranking "Hoteles más reservados" del Dashboard,
+  // sin pedir ningún endpoint nuevo.
+  hotel_nombre?: string | null;
+  destino?: string | null;
+  // precio_total ya existía en ReservaResponse; fecha_ultima_actualizacion
+  // es nueva (ver Reserva.fecha_ultima_actualizacion en reserva_model.py) —
+  // ambos para las columnas "Total" y "Última actualización" del módulo
+  // de Reservas del admin.
+  precio_total?: number;
+  fecha_ultima_actualizacion?: string | null;
 }
 
 export type CanalOrigen = "web" | "empleado" | "telefono";
@@ -27,6 +61,13 @@ export interface HotelData {
   pais: string;
   correo_electronico: string;
   telefono: string;
+  // GET /hoteles/ ya responde con HotelDetailResponse — estos campos ya
+  // viajan en cada hotel de la lista, solo faltaba declararlos acá.
+  // total_resenas/calificacion_promedio: reales, calculados en el backend
+  // desde la tabla resenas (ver Hotel.total_resenas en hotel_model.py).
+  total_resenas?: number;
+  calificacion_promedio?: number | null;
+  habitaciones?: { id_habitacion: number }[];
 }
 
 export interface Paquete {
@@ -95,6 +136,18 @@ export const ESTADO_COLOR: Record<string, string> = {
   confirmada: "bg-primary/10 text-primary",
   cancelada: "bg-destructive/10 text-destructive",
   finalizada: "bg-[#A13B55]/15 text-[#A13B55]",
+  // Estados de pagos (Pago.estado) y solicitudes de cancelación
+  // (SolicitudCancelacion.estado) — mismos tokens de marca, para que
+  // StatusBadge se vea consistente sin importar el dominio.
+  procesando: "bg-[#C9A227]/15 text-[#C9A227]",
+  pagado: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  rechazado: "bg-destructive/10 text-destructive",
+  rechazada: "bg-destructive/10 text-destructive",
+  aprobada: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  cancelado: "bg-destructive/10 text-destructive",
+  // Estados de Usuario.activo
+  activo: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  inactivo: "bg-muted text-muted-foreground",
 };
 
 export const inputCls =

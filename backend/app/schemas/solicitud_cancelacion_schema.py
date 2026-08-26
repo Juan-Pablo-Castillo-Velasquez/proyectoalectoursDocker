@@ -39,6 +39,10 @@ class SolicitudCancelacionResponse(BaseModel):
     fecha_solicitud: datetime
     fecha_resolucion: Optional[datetime] = None
     comentario_resolucion: Optional[str] = None
+    # Ya existía como columna en el modelo (SolicitudCancelacion.id_empleado_resolutor)
+    # pero no se exponía en la respuesta — el panel de admin lo necesita para
+    # mostrar qué asesor tomó la decisión (trazabilidad).
+    id_empleado_resolutor: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -46,7 +50,9 @@ class SolicitudCancelacionResponse(BaseModel):
 
 class SolicitudCancelacionResolve(BaseModel):
     estado: str = Field(..., description="'aprobada' o 'rechazada'")
-    comentario_resolucion: Optional[str] = Field(None, max_length=1000)
+    # Obligatorio: el panel de admin exige un motivo interno para cada
+    # decisión de aprobar/rechazar (queda como registro de auditoría).
+    comentario_resolucion: str = Field(..., min_length=1, max_length=1000)
 
     @field_validator("estado")
     @classmethod
@@ -54,3 +60,10 @@ class SolicitudCancelacionResolve(BaseModel):
         if v not in ("aprobada", "rechazada"):
             raise ValueError("estado debe ser 'aprobada' o 'rechazada'")
         return v
+
+    @field_validator("comentario_resolucion")
+    @classmethod
+    def validar_comentario(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Debes indicar un motivo interno para la decisión")
+        return v.strip()

@@ -150,6 +150,10 @@ class ReservaResponse(BaseModel):
     # Nombre del hotel — respaldo para cuando la reserva no tiene paquete
     # (reserva directa de habitación, id_paquete nulo): ver Reserva.hotel_nombre.
     hotel_nombre: Optional[str] = None
+    # Fecha del último cambio de estado registrado en historial_reservas (o
+    # fecha_reserva si aún no hay historial) — ver Reserva.fecha_ultima_actualizacion.
+    # Usado por la columna "Última actualización" del panel de admin.
+    fecha_ultima_actualizacion: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -14,3 +14,7 @@ class ReservaDetailService:
     @staticmethod
     def get_historial(db: Session, reserva_id: int):
         return ReservaDetailRepository.get_historial(db, reserva_id)
+
+    @staticmethod
+    def get_historial_reciente(db: Session, limit: int = 15):
+        return ReservaDetailRepository.get_historial_reciente(db, limit)

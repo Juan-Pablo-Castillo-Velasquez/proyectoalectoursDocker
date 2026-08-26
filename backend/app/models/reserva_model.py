@@ -118,6 +118,20 @@ class Reserva(Base):
         hotel = self._primer_hotel
         return hotel.nombre_hotel if hotel else None
 
+    @property
+    def fecha_ultima_actualizacion(self):
+        """Fecha del cambio de estado más reciente registrado en
+        historial_reservas (pago aprobado, confirmación, cancelación...), o
+        la fecha de creación de la reserva si todavía no tiene historial —
+        para la columna 'Última actualización' del panel de admin. No
+        agrega ninguna columna nueva, usa la relación historial_reservas
+        que ya existe."""
+        if self.historial_reservas:
+            fechas = [h.fecha_cambio for h in self.historial_reservas if h.fecha_cambio]
+            if fechas:
+                return max(fechas)
+        return self.fecha_reserva
+
 
 class ReservaHabitacion(Base):
     __tablename__ = "reserva_habitaciones"

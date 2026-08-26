@@ -410,7 +410,7 @@ export default function Checkout() {
 
                   <div className="p-6 md:p-8">
                     <h2 className="text-xl font-medium text-foreground mb-1">Información del viajero</h2>
-                    <p className="text-xs text-muted-foreground mb-5">Estos datos vienen de tu perfil registrado en AleckTours.</p>
+                    <p className="text-xs text-muted-foreground mb-5">Estos datos vienen de tu perfil registrado en AlekTours.</p>
 
                     <div className="flex items-start gap-3 bg-input-background border border-border/60 rounded-xl p-4 mb-5">
                       <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />

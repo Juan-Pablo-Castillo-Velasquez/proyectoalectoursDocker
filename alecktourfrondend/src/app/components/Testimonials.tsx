@@ -40,7 +40,7 @@ const testimonialsFallback: Testimonio[] = [
     name: "Daniel Ortega",
     location: "Bogotá, Colombia",
     quote:
-      "Con AleckTours encontré el mejor precio y una asesoría increíble para mi viaje a Europa.",
+      "Con AlekTours encontré el mejor precio y una asesoría increíble para mi viaje a Europa.",
     rating: 5,
     avatar:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=85",
@@ -135,7 +135,7 @@ export default function Testimonials() {
             </h2>
 
             <p className="mt-3 text-muted-foreground text-sm md:text-base max-w-xl leading-relaxed">
-              Miles de viajeros han confiado en AleckTours para convertir sus
+              Miles de viajeros han confiado en AlekTours para convertir sus
               planes de viaje en experiencias inolvidables.
             </p>
           </div>

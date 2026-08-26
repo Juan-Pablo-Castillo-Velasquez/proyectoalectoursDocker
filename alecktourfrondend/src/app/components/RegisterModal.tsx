@@ -279,7 +279,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                         <Plane className="w-6 h-6 text-primary-foreground transform -rotate-12" />
                                     </div>
                                     <div>
-                                        <p className="text-primary-foreground/70 text-[11px] font-bold tracking-widest uppercase">AleckTours</p>
+                                        <p className="text-primary-foreground/70 text-[11px] font-bold tracking-widest uppercase">AlekTours</p>
                                         <h1 className="text-primary-foreground font-medium text-2xl tracking-tight leading-none mt-0.5">Crea tu cuenta</h1>
                                     </div>
                                 </div>
@@ -528,7 +528,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                         className="text-primary hover:underline font-bold transition-colors">
                                                         Política de Privacidad
                                                     </button>{" "}
-                                                    de AleckTours
+                                                    de AlekTours
                                                 </span>
                                             </label>
 

@@ -39,3 +39,19 @@ class ReservaHistorialDetail(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ActividadRecienteItem(BaseModel):
+    """Un ítem del feed de 'Actividad reciente' del Dashboard de admin —
+    igual que ReservaHistorialDetail pero con id_reserva incluido, porque
+    acá se listan cambios de MUCHAS reservas mezcladas (no una sola, donde
+    el id ya se sabe por la URL)."""
+    id_historial: int
+    id_reserva: int
+    estado_anterior: Optional[str] = None
+    estado_nuevo: Optional[str] = None
+    fecha_cambio: datetime
+    comentarios: Optional[str] = None
+    nombre_empleado: Optional[str] = None
+
+    class Config:
+        from_attributes = True

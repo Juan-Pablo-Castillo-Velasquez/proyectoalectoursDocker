@@ -1,33 +1,36 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import {
-  LayoutDashboard, CalendarDays, PlusCircle, Hotel, Package,
-  Users, UserPlus, LogOut, Plane, ChevronRight, Menu, X, Moon, Sun
+  PlusCircle, Hotel, Package, Users, Building2, Wallet, Bell,
+  ShieldCheck, Activity, Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../api/v1/api";
-import { Reserva, HotelData, Paquete, Cliente, Empleado, Pago, Usuario, Rol } from "../components/admin/types";
+import { Reserva, HotelData, Paquete, Cliente, Empleado, Pago, Usuario, Rol, Module } from "../components/admin/types";
 import ModuleDashboard from "../components/admin/ModuleDashboard";
 import ModuleReservas from "../components/admin/ModuleReservas";
+import ModuleCancelaciones from "../components/admin/ModuleCancelaciones";
 import ModuleCrearReserva from "../components/admin/ModuleCrearReserva";
 import ModuleHoteles from "../components/admin/ModuleHoteles";
 import ModulePaquetes from "../components/admin/ModulePaquetes";
 import ModuleClientes from "../components/admin/ModuleClientes";
 import ModuleUsuarios from "../components/admin/ModuleUsuarios";
+import AdminSidebar from "../components/admin/AdminSidebar";
+import AdminHeader from "../components/admin/AdminHeader";
+import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
+import EmptyState from "../components/admin/ui/EmptyState";
+import type { QuickAction } from "../components/admin/ui/QuickActions";
 import { usuarioAdminService } from "../services/usuarioAdmin.service";
+import { solicitudCancelacionService, type SolicitudCancelacionResponse } from "../services/solicitudCancelacion.service";
 
-type Module = "dashboard" | "reservas" | "crear-reserva" | "hoteles" | "paquetes" | "clientes" | "usuarios";
-
-const NAV_ITEMS = [
-  { id: "dashboard",     label: "Dashboard",     icon: LayoutDashboard },
-  { id: "reservas",      label: "Reservas",       icon: CalendarDays    },
-  { id: "crear-reserva", label: "Crear Reserva",  icon: PlusCircle      },
-  { id: "hoteles",       label: "Hoteles",         icon: Hotel           },
-  { id: "paquetes",      label: "Paquetes",        icon: Package         },
-  { id: "clientes",      label: "Clientes",        icon: Users           },
-  { id: "usuarios",      label: "Usuarios",        icon: UserPlus        },
-] as const;
+type PendingDelete =
+  | { kind: "reserva"; id: number; label: string }
+  | { kind: "hotel"; id: number; label: string }
+  | { kind: "paquete"; id: number; label: string }
+  | { kind: "cliente"; id: number; label: string }
+  | { kind: "usuario"; id: number; label: string };
 
 export default function AdminDashboard() {
   const { usuario, logout, isAdmin } = useAuth();
@@ -45,6 +48,14 @@ export default function AdminDashboard() {
   const [pagos,     setPagos]     = useState<Pago[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
   const [roles,     setRoles]     = useState<Rol[]>([]);
+  const [solicitudes, setSolicitudes] = useState<SolicitudCancelacionResponse[]>([]);
+
+  // Derivado del listado completo de solicitudes (una sola fuente de
+  // verdad) en vez de un fetch aparte solo para el contador — la campana
+  // de notificaciones y el módulo de Cancelaciones ya no pueden desincronizarse.
+  const pendingCancelaciones = solicitudes.filter(s => s.estado === "pendiente").length;
+
+  const [confirmDelete, setConfirmDelete] = useState<PendingDelete | null>(null);
 
   // ─── Dark mode via clase en <html> ───────────────────────────────────────
   useEffect(() => {
@@ -54,19 +65,31 @@ export default function AdminDashboard() {
 
   useEffect(() => { if (!isAdmin) navigate("/"); }, [isAdmin]);
 
+  // Antes cada dataset se pedía solo al entrar a su pestaña (ej. "clientes"
+  // y "paquetes" no se cargaban al abrir el Dashboard), así que el
+  // Dashboard podía mostrar "0 clientes" / "0 paquetes" en la primera
+  // visita hasta pasar por esas pestañas. Ahora se cargan todos una sola
+  // vez al entrar al panel: el Dashboard queda correcto desde el primer
+  // render y el buscador global del header tiene datos reales desde ya.
   useEffect(() => {
-    if (activeModule === "reservas" || activeModule === "dashboard") {
-      fetchReservas(); fetchEmpleados(); fetchPagos();
-    }
-    if (activeModule === "hoteles"       || activeModule === "dashboard")     fetchHoteles();
-    if (activeModule === "paquetes"      || activeModule === "crear-reserva") fetchPaquetes();
-    if (activeModule === "clientes"      || activeModule === "crear-reserva") fetchClientes();
-    if (activeModule === "usuarios") fetchUsuarios();
-  }, [activeModule]);
+    if (!isAdmin) return;
+    fetchReservas();
+    fetchHoteles();
+    fetchPaquetes();
+    fetchClientes();
+    fetchEmpleados();
+    fetchPagos();
+    fetchUsuarios();
+    fetchSolicitudes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   const fetchReservas  = async () => { try { setReservas(await apiFetch<Reserva[]>("/reservas?limit=100"));      } catch {} };
   const fetchHoteles   = async () => { try { setHoteles(await apiFetch<HotelData[]>("/hoteles/?limit=100"));     } catch {} };
-  const fetchPaquetes  = async () => { try { setPaquetes(await apiFetch<Paquete[]>("/paquetes?limit=100"));      } catch {} };
+  // incluir_inactivos=true: el admin necesita ver y poder reactivar los
+  // paquetes desactivados (ver PaqueteRepository.get_all), a diferencia del
+  // sitio público que solo debe listar los activos.
+  const fetchPaquetes  = async () => { try { setPaquetes(await apiFetch<Paquete[]>("/paquetes?limit=100&incluir_inactivos=true")); } catch {} };
   const fetchClientes  = async () => { try { setClientes(await apiFetch<Cliente[]>("/clientes?limit=100"));      } catch {} };
   const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch {} };
   const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=100"));               } catch {} };
@@ -76,49 +99,102 @@ export default function AdminDashboard() {
       setUsuarios(u); setRoles(r);
     } catch {}
   };
+  // Todas las solicitudes de cancelación (no solo pendientes) — el módulo
+  // de Cancelaciones necesita ver también las ya resueltas, y de acá se
+  // deriva `pendingCancelaciones` para la campana del header.
+  const fetchSolicitudes = async () => {
+    try { setSolicitudes(await solicitudCancelacionService.getAll()); } catch {}
+  };
 
-  const deleteReserva = async (id: number) => {
-    if (!confirm("¿Eliminar esta reserva?")) return;
-    await apiFetch(`/reservas/${id}`, { method: "DELETE" });
-    fetchReservas();
-  };
-  const deleteHotel = async (id: number) => {
-    if (!confirm("¿Eliminar este hotel?")) return;
-    await apiFetch(`/hoteles/${id}`, { method: "DELETE" });
-    fetchHoteles();
-  };
-  const deletePaquete = async (id: number) => {
-    if (!confirm("¿Eliminar este paquete?")) return;
-    await apiFetch(`/paquetes/${id}`, { method: "DELETE" });
-    fetchPaquetes();
-  };
-  const deleteCliente = async (id: number) => {
-    if (!confirm("¿Eliminar este cliente?")) return;
-    await apiFetch(`/clientes/${id}`, { method: "DELETE" });
-    fetchClientes();
-  };
-  const deleteUsuario = async (id: number) => {
-    if (!confirm("¿Eliminar este usuario?")) return;
-    await usuarioAdminService.delete(id);
-    fetchUsuarios();
+  // ─── Eliminar (ahora vía ConfirmDialog centrado, no window.confirm) ──────
+  const deleteReserva = (id: number) => setConfirmDelete({ kind: "reserva", id, label: `la reserva #${id}` });
+  const deleteHotel   = (id: number) => setConfirmDelete({ kind: "hotel", id, label: "este hotel" });
+  const deletePaquete = (id: number) => setConfirmDelete({ kind: "paquete", id, label: "este paquete" });
+  const deleteCliente = (id: number) => setConfirmDelete({ kind: "cliente", id, label: "este cliente" });
+  const deleteUsuario = (id: number) => setConfirmDelete({ kind: "usuario", id, label: "este usuario" });
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+    const { kind, id } = confirmDelete;
+    try {
+      if (kind === "reserva") {
+        await apiFetch(`/reservas/${id}`, { method: "DELETE" });
+        await fetchReservas();
+        toast.success("Reserva eliminada correctamente");
+      } else if (kind === "hotel") {
+        await apiFetch(`/hoteles/${id}`, { method: "DELETE" });
+        await fetchHoteles();
+        toast.success("Hotel eliminado correctamente");
+      } else if (kind === "paquete") {
+        await apiFetch(`/paquetes/${id}`, { method: "DELETE" });
+        await fetchPaquetes();
+        toast.success("Paquete desactivado correctamente");
+      } else if (kind === "cliente") {
+        await apiFetch(`/clientes/${id}`, { method: "DELETE" });
+        await fetchClientes();
+        toast.success("Cliente eliminado correctamente");
+      } else if (kind === "usuario") {
+        await usuarioAdminService.delete(id);
+        await fetchUsuarios();
+        toast.success("Usuario eliminado correctamente");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo completar la eliminación");
+      throw e;
+    }
   };
 
   const updateEstadoReserva = async (id: number, estado: string) => {
-    await apiFetch(`/reservas/${id}`, { method: "PUT", body: { estado } });
-    setReservas(prev => prev.map(r => r.id_reserva === id ? { ...r, estado } : r));
+    try {
+      await apiFetch(`/reservas/${id}`, { method: "PUT", body: { estado } });
+      setReservas(prev => prev.map(r => r.id_reserva === id ? { ...r, estado } : r));
+      toast.success("Estado de la reserva actualizado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo actualizar el estado de la reserva");
+      throw e;
+    }
+  };
+
+  const resolverSolicitud = async (id: number, data: { estado: "aprobada" | "rechazada"; comentario_resolucion: string }) => {
+    try {
+      await solicitudCancelacionService.resolver(id, data);
+      await fetchSolicitudes();
+      // Aprobar cancela de verdad la reserva vinculada (ver
+      // solicitud_cancelacion_route.py) — refrescamos Reservas para que no
+      // quede con el estado viejo en caché en otras pestañas del panel.
+      if (data.estado === "aprobada") await fetchReservas();
+      toast.success(
+        data.estado === "aprobada"
+          ? "Solicitud aprobada — la reserva quedó cancelada"
+          : "Solicitud rechazada"
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo resolver la solicitud");
+      throw e;
+    }
   };
 
   const submitReserva = async (data: any) => {
     setLoading(true);
-    try { await apiFetch("/reservas", { method: "POST", body: data }); fetchReservas(); }
-    finally { setLoading(false); }
+    try {
+      await apiFetch("/reservas", { method: "POST", body: data });
+      await fetchReservas();
+      toast.success("Reserva creada correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo crear la reserva");
+      throw e;
+    } finally { setLoading(false); }
   };
   const submitHotel = async (data: any, id?: number) => {
     setLoading(true);
     try {
       if (id) await apiFetch(`/hoteles/${id}`, { method: "PUT", body: data });
       else await apiFetch("/hoteles/", { method: "POST", body: data });
-      fetchHoteles();
+      await fetchHoteles();
+      toast.success(id ? "Hotel actualizado correctamente" : "Hotel creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo guardar el hotel");
+      throw e;
     } finally { setLoading(false); }
   };
   const submitPaquete = async (data: any, id?: number) => {
@@ -126,7 +202,11 @@ export default function AdminDashboard() {
     try {
       if (id) await apiFetch(`/paquetes/${id}`, { method: "PUT", body: data });
       else await apiFetch("/paquetes", { method: "POST", body: data });
-      fetchPaquetes();
+      await fetchPaquetes();
+      toast.success(id ? "Paquete actualizado correctamente" : "Paquete creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo guardar el paquete");
+      throw e;
     } finally { setLoading(false); }
   };
   const submitCliente = async (data: any, id?: number) => {
@@ -134,27 +214,53 @@ export default function AdminDashboard() {
     try {
       if (id) await apiFetch(`/clientes/${id}`, { method: "PUT", body: data });
       else await apiFetch("/clientes", { method: "POST", body: data });
-      fetchClientes();
+      await fetchClientes();
+      toast.success(id ? "Cliente actualizado correctamente" : "Cliente creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo guardar el cliente");
+      throw e;
     } finally { setLoading(false); }
   };
 
   const submitUsuario = async (data: any) => {
     setLoading(true);
-    try { await usuarioAdminService.create(data); fetchUsuarios(); }
-    finally { setLoading(false); }
+    try {
+      await usuarioAdminService.create(data);
+      await fetchUsuarios();
+      toast.success("Usuario creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo crear el usuario");
+      throw e;
+    } finally { setLoading(false); }
   };
-  const toggleActivoUsuario = async (usuario: Usuario) => {
-    await usuarioAdminService.update(usuario.id_usuario, { activo: !usuario.activo });
-    setUsuarios(prev => prev.map(u => u.id_usuario === usuario.id_usuario ? { ...u, activo: !u.activo } : u));
+  const toggleActivoUsuario = async (usuarioObj: Usuario) => {
+    try {
+      await usuarioAdminService.update(usuarioObj.id_usuario, { activo: !usuarioObj.activo });
+      setUsuarios(prev => prev.map(u => u.id_usuario === usuarioObj.id_usuario ? { ...u, activo: !u.activo } : u));
+      toast.success(usuarioObj.activo ? "Usuario desactivado" : "Usuario activado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo actualizar el usuario");
+      throw e;
+    }
   };
 
   const handleLogout = () => { logout(); navigate("/"); };
+
+  // Accesos rápidos globales, visibles desde cualquier módulo (header) —
+  // ver AdminHeader.tsx / ui/QuickActions.tsx.
+  const quickActions: QuickAction[] = [
+    { label: "Nueva reserva",    icon: PlusCircle, onClick: () => setActiveModule("crear-reserva") },
+    { label: "Registrar hotel",  icon: Hotel,      onClick: () => setActiveModule("hoteles") },
+    { label: "Crear paquete",    icon: Package,    onClick: () => setActiveModule("paquetes") },
+    { label: "Ver clientes",     icon: Users,      onClick: () => setActiveModule("clientes") },
+  ];
 
   const MODULES: Record<Module, React.ReactNode> = {
     dashboard: (
       <ModuleDashboard
         reservas={reservas} hoteles={hoteles} paquetes={paquetes}
         clientes={clientes} setActiveModule={setActiveModule}
+        pendingCancelaciones={pendingCancelaciones}
       />
     ),
     reservas: (
@@ -176,7 +282,10 @@ export default function AdminDashboard() {
       <ModulePaquetes paquetes={paquetes} onDelete={deletePaquete} onSubmit={submitPaquete} loading={loading} />
     ),
     clientes: (
-      <ModuleClientes clientes={clientes} onDelete={deleteCliente} onSubmit={submitCliente} loading={loading} />
+      <ModuleClientes
+        clientes={clientes} onDelete={deleteCliente} onSubmit={submitCliente} loading={loading}
+        reservas={reservas} solicitudes={solicitudes}
+      />
     ),
     usuarios: (
       <ModuleUsuarios
@@ -185,133 +294,91 @@ export default function AdminDashboard() {
         onToggleActivo={toggleActivoUsuario} loading={loading}
       />
     ),
+    cancelaciones: (
+      <ModuleCancelaciones
+        solicitudes={solicitudes}
+        clientes={clientes}
+        empleados={empleados}
+        reservas={reservas}
+        onResolve={resolverSolicitud}
+      />
+    ),
+    // ─── Módulos de la nueva estructura de navegación, todavía sin
+    // pantalla propia construida (llegan en las próximas fases del
+    // rediseño). Se muestran con un estado vacío honesto, nunca con datos
+    // inventados — ver EmptyState.tsx.
+    empresas: (
+      <EmptyState
+        icon={Building2}
+        title="Empresas y contactos"
+        description="Este módulo de CRM comercial (empresas, contactos, seguimiento) requiere datos que hoy no existen en la base de datos — se habilitará en una próxima actualización, cuando se defina qué información nueva hay que guardar."
+      />
+    ),
+    pagos: (
+      <EmptyState
+        icon={Wallet}
+        title="Centro de pagos"
+        description="La vista dedicada de pagos (recaudo total, pendientes, transacciones recientes) se habilita en una próxima actualización. Mientras tanto, los ingresos y pagos ya se resumen en el Dashboard."
+      />
+    ),
+    notificaciones: (
+      <EmptyState
+        icon={Bell}
+        title="Centro de notificaciones"
+        description="El panel de notificaciones (nuevas reservas, cancelaciones, pagos, contactos) se habilita en una próxima actualización."
+      />
+    ),
+    roles: (
+      <EmptyState
+        icon={ShieldCheck}
+        title="Roles y permisos"
+        description="La gestión detallada de permisos por rol se habilita en una próxima actualización. Los roles de cada usuario ya pueden asignarse desde Usuarios."
+      />
+    ),
+    actividad: (
+      <EmptyState
+        icon={Activity}
+        title="Actividad del sistema"
+        description="El registro completo de actividad del sistema se habilita en una próxima actualización."
+      />
+    ),
+    configuracion: (
+      <EmptyState
+        icon={Settings}
+        title="Configuración"
+        description="Las opciones de configuración general del panel se habilitan en una próxima actualización."
+      />
+    ),
   };
+
+  const usuarioInicial = usuario?.username?.[0]?.toUpperCase() ?? "A";
 
   return (
     <div className="min-h-screen bg-background flex flex-col transition-colors duration-300">
-
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="h-16 bg-gradient-to-r from-[#7B1E3A] via-[#A13B55] to-[#C9A227] flex items-center px-6 gap-4 sticky top-0 z-40 shadow-lg">
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-white/80 hover:text-white transition-colors lg:hidden"
-        >
-          {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-
-        <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-            <Plane className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-white font-bold text-lg hidden sm:block">AlekTours</span>
-          <span className="text-white/60 text-sm hidden sm:block">/ Admin</span>
-        </Link>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          {/* ── Toggle dark mode ── */}
-          <button
-            onClick={() => setDark(d => !d)}
-            title={dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-            className="relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none
-              bg-white/20 hover:bg-white/30 flex items-center px-1"
-          >
-            <motion.div
-              animate={{ x: dark ? 28 : 0 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className="w-5 h-5 rounded-full bg-white shadow flex items-center justify-center"
-            >
-              {dark
-                ? <Moon className="w-3 h-3 text-[#7B1E3A]" />
-                : <Sun className="w-3 h-3 text-[#C9A227]" />
-              }
-            </motion.div>
-          </button>
-
-          <div className="text-right hidden sm:block ml-1">
-            <p className="text-white text-sm font-medium">{usuario?.username}</p>
-            <p className="text-white/60 text-xs">Administrador</p>
-          </div>
-          <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
-            <Users className="w-5 h-5 text-white" />
-          </div>
-          <button
-            onClick={handleLogout}
-            className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
+      <AdminHeader
+        activeModule={activeModule}
+        onToggleSidebar={() => setSidebarOpen(s => !s)}
+        sidebarOpen={sidebarOpen}
+        dark={dark}
+        onToggleDark={() => setDark(d => !d)}
+        usuarioNombre={usuario?.username}
+        onLogout={handleLogout}
+        pendingCancelaciones={pendingCancelaciones}
+        quickActions={quickActions}
+        onNavigate={setActiveModule}
+        searchData={{ reservas, hoteles, paquetes, clientes, usuarios }}
+      />
 
       <div className="flex flex-1 overflow-hidden">
+        <AdminSidebar
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          open={sidebarOpen}
+          usuarioInicial={usuarioInicial}
+          usuarioNombre={usuario?.username}
+        />
 
-        {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.aside
-              initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="w-64 flex-shrink-0 flex flex-col border-r transition-colors duration-300
-                bg-sidebar border-sidebar-border"
-            >
-              {/* Logo area en sidebar */}
-              <div className="px-5 py-4 border-b border-sidebar-border">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Panel de control
-                </p>
-              </div>
-
-              <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-                {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-                  const isActive = activeModule === id;
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setActiveModule(id as Module)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all group ${
-                        isActive
-                          ? "bg-gradient-to-r from-[#7B1E3A] to-[#A13B55] text-white shadow-lg shadow-[rgba(123,30,58,0.25)]"
-                          : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${isActive ? "text-white" : ""}`} />
-                      <span>{label}</span>
-                      {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
-                    </button>
-                  );
-                })}
-              </nav>
-
-              {/* Footer sidebar */}
-              <div className="p-3 border-t border-sidebar-border space-y-1">
-                {/* Info usuario */}
-                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-sidebar-accent">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#7B1E3A] to-[#C9A227] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {usuario?.username?.[0]?.toUpperCase() ?? "A"}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-sidebar-foreground truncate">
-                      {usuario?.username}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Administrador</p>
-                  </div>
-                </div>
-
-                <Link
-                  to="/"
-                  className="flex items-center gap-2 px-4 py-2 text-xs rounded-xl transition-all
-                    text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                >
-                  <Plane className="w-3.5 h-3.5" /> Ir al sitio
-                </Link>
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
-
-        {/* ── Main content ─────────────────────────────────────────────────── */}
+        {/* ── Main content ─────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 transition-colors duration-300 bg-background">
           <AnimatePresence mode="wait">
             <motion.div
@@ -327,6 +394,26 @@ export default function AdminDashboard() {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* DELETE /paquetes/{id} nunca borra de verdad — solo pone activo=false
+          (ver PaqueteRepository.delete), así que para ese caso el diálogo
+          usa un texto honesto ("desactivar", reversible) en vez del genérico
+          "eliminar" que sí aplica a reserva/hotel/cliente/usuario. */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}
+        title={confirmDelete?.kind === "paquete" ? "Confirmar desactivación" : "Confirmar eliminación"}
+        description={
+          confirmDelete
+            ? confirmDelete.kind === "paquete"
+              ? `¿Seguro que quieres desactivar ${confirmDelete.label}? Dejará de verse en el sitio público, pero podrás reactivarlo cuando quieras.`
+              : `¿Seguro que quieres eliminar ${confirmDelete.label}? Esta acción no se puede deshacer.`
+            : undefined
+        }
+        confirmLabel={confirmDelete?.kind === "paquete" ? "Desactivar" : "Eliminar"}
+        destructive
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

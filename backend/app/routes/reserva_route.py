@@ -18,6 +18,7 @@ from app.schemas.reserva_schema import (
 )
 from app.schemas.reserva_detail import (
     ReservaHabitacionDetail, ReservaServicioDetail, ReservaHistorialDetail,
+    ActividadRecienteItem,
 )
 from app.repositories.reserva_repository import (
     PaqueteRepository, ReservaRepository, PagoRepository, MetodoPagoRepository
@@ -36,10 +37,11 @@ router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 def get_paquetes(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    incluir_inactivos: bool = Query(False, description="Solo para el panel de admin: incluye paquetes desactivados"),
     db: Session = Depends(get_db)
 ):
-    """Obtiene lista de paquetes activos"""
-    return PaqueteRepository.get_all(db, skip, limit)
+    """Obtiene lista de paquetes activos (o todos, si incluir_inactivos=true)"""
+    return PaqueteRepository.get_all(db, skip, limit, incluir_inactivos)
 
 @router.get("/paquetes/populares")
 def get_paquetes_populares(limit: int = 6, db: Session = Depends(get_db)):
@@ -213,6 +215,22 @@ def get_servicios_reserva(reserva_id: int, db: Session = Depends(get_db)):
 def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene historial de cambios de una reserva"""
     return ReservaDetailService.get_historial(db, reserva_id)
+
+
+@router.get("/historial-reservas/recientes", response_model=list[ActividadRecienteItem])
+def get_actividad_reciente(
+    limit: int = Query(15, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """
+    Feed de 'Actividad reciente' para el Dashboard de admin: últimos
+    cambios de estado registrados en TODAS las reservas (confirmaciones,
+    cancelaciones, pagos aprobados/rechazados...), más recientes primero.
+    Reutiliza la misma tabla historial_reservas que ya alimenta
+    GET /reservas/{id}/historial — no agrega ninguna tabla ni columna
+    nueva a la base de datos, solo una consulta agregada de solo lectura.
+    """
+    return ReservaDetailService.get_historial_reciente(db, limit)
 
 
 @router.get("/reservas/{reserva_id}", response_model=ReservaDetailResponse)

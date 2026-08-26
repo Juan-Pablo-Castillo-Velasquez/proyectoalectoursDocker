@@ -17,11 +17,16 @@ export interface SolicitudCancelacionResponse {
   fecha_solicitud: string;
   fecha_resolucion: string | null;
   comentario_resolucion: string | null;
+  // Ya existía en la BD (SolicitudCancelacion.id_empleado_resolutor), ahora
+  // el backend también lo expone en la respuesta (ver solicitud_cancelacion_schema.py).
+  id_empleado_resolutor: number | null;
 }
 
 export interface SolicitudCancelacionResolveInput {
   estado: 'aprobada' | 'rechazada';
-  comentario_resolucion?: string;
+  // El backend ahora lo exige (ver SolicitudCancelacionResolve) — motivo
+  // interno obligatorio para cada decisión de aprobar/rechazar.
+  comentario_resolucion: string;
 }
 
 // Requiere sesión iniciada (Authorization: Bearer, igual que resenaService).

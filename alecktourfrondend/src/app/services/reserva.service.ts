@@ -131,6 +131,16 @@ export const pagoService = {
 };
 
 
+export interface ActividadRecienteItem {
+  id_historial: number;
+  id_reserva: number;
+  estado_anterior: string | null;
+  estado_nuevo: string | null;
+  fecha_cambio: string;
+  comentarios: string | null;
+  nombre_empleado: string | null;
+}
+
 export const reservaDetailService = {
   getHabitaciones: (id: number) =>
     apiFetch<any[]>(`/reservas/${id}/habitaciones`),
@@ -138,4 +148,9 @@ export const reservaDetailService = {
     apiFetch<any[]>(`/reservas/${id}/servicios`),
   getHistorial: (id: number) =>
     apiFetch<any[]>(`/reservas/${id}/historial`),
+  // Feed de actividad reciente para el Dashboard de admin — últimos cambios
+  // de estado de TODAS las reservas (no de una sola), más recientes
+  // primero. Ver GET /historial-reservas/recientes en reserva_route.py.
+  getActividadReciente: (limit = 15) =>
+    apiFetch<ActividadRecienteItem[]>(`/historial-reservas/recientes?limit=${limit}`),
 };

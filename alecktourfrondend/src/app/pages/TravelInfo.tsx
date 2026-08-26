@@ -263,7 +263,7 @@ export default function TravelInfo() {
                   </p>
                   <p className="text-muted-foreground leading-relaxed">
                     Para más información, contáctanos al <strong className="text-foreground">+57 (1) 800-ALECK</strong> o escríbenos a{" "}
-                    <strong className="text-primary">info@alecktours.com</strong>
+                    <strong className="text-primary">info@alektours.com</strong>
                   </p>
                 </div>
               </div>
