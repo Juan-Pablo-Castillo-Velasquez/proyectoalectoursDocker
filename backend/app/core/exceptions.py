@@ -163,3 +163,24 @@ class ProveeDependencyError(DependencyError):
         self.status_code = 409
         self.detail = detail
         self.code = "PROVEEDOR_HAS_SERVICES"
+class HabitacionNoDisponibleError(BaseAPIException):
+    """La habitación no está disponible en las fechas solicitadas"""
+    def __init__(self, id_habitacion: int, fecha_checkin=None, fecha_checkout=None):
+        detail = (
+            f"La habitación ID {id_habitacion} no está disponible "
+            f"entre {fecha_checkin} y {fecha_checkout}. Ya tiene otra reserva en ese rango "
+            f"o su estado actual no permite reservarla."
+        )
+        super().__init__(status_code=409, detail=detail, code="HABITACION_NO_DISPONIBLE")
+ 
+ 
+class PaqueteNoEncontradoError(NotFoundError):
+    """El paquete referenciado en la reserva no existe"""
+    def __init__(self, id_paquete: int):
+        super().__init__(detail=f"El paquete con ID {id_paquete} no existe.")
+ 
+ 
+class HabitacionNoEncontradaError(NotFoundError):
+    """La habitación referenciada en la reserva no existe"""
+    def __init__(self, id_habitacion: int):
+        super().__init__(detail=f"La habitación con ID {id_habitacion} no existe.")

@@ -7,13 +7,15 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../api/v1/api";
-import { Reserva, HotelData, Paquete, Cliente, Empleado, Pago } from "../components/admin/types";
+import { Reserva, HotelData, Paquete, Cliente, Empleado, Pago, Usuario, Rol } from "../components/admin/types";
 import ModuleDashboard from "../components/admin/ModuleDashboard";
 import ModuleReservas from "../components/admin/ModuleReservas";
 import ModuleCrearReserva from "../components/admin/ModuleCrearReserva";
 import ModuleHoteles from "../components/admin/ModuleHoteles";
 import ModulePaquetes from "../components/admin/ModulePaquetes";
 import ModuleClientes from "../components/admin/ModuleClientes";
+import ModuleUsuarios from "../components/admin/ModuleUsuarios";
+import { usuarioAdminService } from "../services/usuarioAdmin.service";
 
 type Module = "dashboard" | "reservas" | "crear-reserva" | "hoteles" | "paquetes" | "clientes" | "usuarios";
 
@@ -41,6 +43,8 @@ export default function AdminDashboard() {
   const [clientes,  setClientes]  = useState<Cliente[]>([]);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [pagos,     setPagos]     = useState<Pago[]>([]);
+  const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
+  const [roles,     setRoles]     = useState<Rol[]>([]);
 
   // ─── Dark mode via clase en <html> ───────────────────────────────────────
   useEffect(() => {
@@ -57,6 +61,7 @@ export default function AdminDashboard() {
     if (activeModule === "hoteles"       || activeModule === "dashboard")     fetchHoteles();
     if (activeModule === "paquetes"      || activeModule === "crear-reserva") fetchPaquetes();
     if (activeModule === "clientes"      || activeModule === "crear-reserva") fetchClientes();
+    if (activeModule === "usuarios") fetchUsuarios();
   }, [activeModule]);
 
   const fetchReservas  = async () => { try { setReservas(await apiFetch<Reserva[]>("/reservas?limit=100"));      } catch {} };
@@ -65,6 +70,12 @@ export default function AdminDashboard() {
   const fetchClientes  = async () => { try { setClientes(await apiFetch<Cliente[]>("/clientes?limit=100"));      } catch {} };
   const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch {} };
   const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=100"));               } catch {} };
+  const fetchUsuarios  = async () => {
+    try {
+      const [u, r] = await Promise.all([usuarioAdminService.getAll(), usuarioAdminService.getRoles()]);
+      setUsuarios(u); setRoles(r);
+    } catch {}
+  };
 
   const deleteReserva = async (id: number) => {
     if (!confirm("¿Eliminar esta reserva?")) return;
@@ -86,6 +97,11 @@ export default function AdminDashboard() {
     await apiFetch(`/clientes/${id}`, { method: "DELETE" });
     fetchClientes();
   };
+  const deleteUsuario = async (id: number) => {
+    if (!confirm("¿Eliminar este usuario?")) return;
+    await usuarioAdminService.delete(id);
+    fetchUsuarios();
+  };
 
   const updateEstadoReserva = async (id: number, estado: string) => {
     await apiFetch(`/reservas/${id}`, { method: "PUT", body: { estado } });
@@ -97,20 +113,39 @@ export default function AdminDashboard() {
     try { await apiFetch("/reservas", { method: "POST", body: data }); fetchReservas(); }
     finally { setLoading(false); }
   };
-  const submitHotel = async (data: any) => {
+  const submitHotel = async (data: any, id?: number) => {
     setLoading(true);
-    try { await apiFetch("/hoteles/", { method: "POST", body: data }); fetchHoteles(); }
+    try {
+      if (id) await apiFetch(`/hoteles/${id}`, { method: "PUT", body: data });
+      else await apiFetch("/hoteles/", { method: "POST", body: data });
+      fetchHoteles();
+    } finally { setLoading(false); }
+  };
+  const submitPaquete = async (data: any, id?: number) => {
+    setLoading(true);
+    try {
+      if (id) await apiFetch(`/paquetes/${id}`, { method: "PUT", body: data });
+      else await apiFetch("/paquetes", { method: "POST", body: data });
+      fetchPaquetes();
+    } finally { setLoading(false); }
+  };
+  const submitCliente = async (data: any, id?: number) => {
+    setLoading(true);
+    try {
+      if (id) await apiFetch(`/clientes/${id}`, { method: "PUT", body: data });
+      else await apiFetch("/clientes", { method: "POST", body: data });
+      fetchClientes();
+    } finally { setLoading(false); }
+  };
+
+  const submitUsuario = async (data: any) => {
+    setLoading(true);
+    try { await usuarioAdminService.create(data); fetchUsuarios(); }
     finally { setLoading(false); }
   };
-  const submitPaquete = async (data: any) => {
-    setLoading(true);
-    try { await apiFetch("/paquetes", { method: "POST", body: data }); fetchPaquetes(); }
-    finally { setLoading(false); }
-  };
-  const submitCliente = async (data: any) => {
-    setLoading(true);
-    try { await apiFetch("/clientes", { method: "POST", body: data }); fetchClientes(); }
-    finally { setLoading(false); }
+  const toggleActivoUsuario = async (usuario: Usuario) => {
+    await usuarioAdminService.update(usuario.id_usuario, { activo: !usuario.activo });
+    setUsuarios(prev => prev.map(u => u.id_usuario === usuario.id_usuario ? { ...u, activo: !u.activo } : u));
   };
 
   const handleLogout = () => { logout(); navigate("/"); };
@@ -144,13 +179,11 @@ export default function AdminDashboard() {
       <ModuleClientes clientes={clientes} onDelete={deleteCliente} onSubmit={submitCliente} loading={loading} />
     ),
     usuarios: (
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-foreground">Usuarios</h2>
-        <div className="bg-card rounded-2xl p-8 shadow-sm border border-border text-center text-muted-foreground">
-          <UserPlus className="w-12 h-12 mx-auto mb-3 text-[rgba(123,30,58,0.25)]" />
-          <p>Módulo de usuarios en construcción</p>
-        </div>
-      </div>
+      <ModuleUsuarios
+        usuarios={usuarios} roles={roles}
+        onDelete={deleteUsuario} onSubmit={submitUsuario}
+        onToggleActivo={toggleActivoUsuario} loading={loading}
+      />
     ),
   };
 
@@ -287,6 +320,7 @@ export default function AdminDashboard() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
+              className="max-w-7xl mx-auto"
             >
               {MODULES[activeModule]}
             </motion.div>

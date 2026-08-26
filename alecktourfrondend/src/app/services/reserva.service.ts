@@ -1,9 +1,23 @@
 import { apiFetch } from '../api/v1/api';
-import { ReservaResponse, ReservaCreate } from '../data/reservaTypes';
+import { ReservaCreate, ReservaResponse } from '../data/reservaTypes';
+
+export type CodigoMetodoPago =
+  | 'tarjeta_credito'
+  | 'tarjeta_debito'
+  | 'pse'
+  | 'nequi'
+  | 'paypal'
+  | 'efectivo'
+  | 'transferencia'
+  | 'cripto'
+  | 'daviplata'
+  | 'cheque'
+  | 'otro';
 
 export interface MetodoPago {
   id_metodo: number;
   nombre_metodo: string;
+  codigo: CodigoMetodoPago;
 }
 
 export interface PagoCreate {
@@ -33,6 +47,7 @@ export interface ReservaDetail {
   fecha_fin: string;
   numero_personas: number;
   estado: string;
+  precio_total?: number;
   paquete?: {
     id_paquete: number;
     nombre_paquete: string;
@@ -47,6 +62,29 @@ export interface ReservaDetail {
     };
   };
   pagos?: PagoResponse[];
+  empleado?: {
+    id_empleado: number;
+    nombre: string;
+    apellido: string;
+    correo_electronico?: string | null;
+    celular?: string | null;
+  } | null;
+  canal_origen?: string | null;
+}
+
+export interface PagarRequest {
+  id_metodo_pago: number;
+  tipo_pago: 'completo' | 'parcial';
+  // Especificos por metodo, nunca se manda el numero completo de tarjeta:
+  ultimos4?: string;   // tarjeta
+  celular?: string;    // nequi
+  banco?: string;      // pse
+  documento?: string;  // pse
+}
+
+export interface PagarResponse {
+  pago: PagoResponse;
+  reserva: ReservaResponse;
 }
 
 export const reservaService = {
@@ -67,12 +105,16 @@ export const reservaService = {
   delete: (id: number) =>
     apiFetch<{ message: string }>(`/reservas/${id}`, { method: 'DELETE' }),
 
-  
+  // El backend calcula y valida el monto real (habitaciones + servicios de la
+  // reserva) — nunca se manda un monto calculado en el navegador.
+  pagar: (id: number, data: PagarRequest) =>
+    apiFetch<PagarResponse>(`/reservas/${id}/pagar`, { method: 'POST', body: data }),
+
   updateEstado: (id: number, estado: string) =>
-  apiFetch<ReservaResponse>(`/reservas/${id}`, {
-    method: 'PUT',
-    body: { estado },   // ReservaUpdate tiene exclude_unset=True, así que solo manda esto
-  }),
+    apiFetch<ReservaResponse>(`/reservas/${id}`, {
+      method: 'PUT',
+      body: { estado },   // ReservaUpdate tiene exclude_unset=True, así que solo manda esto
+    }),
 };
 
 
@@ -81,6 +123,11 @@ export const pagoService = {
     apiFetch<MetodoPago[]>('/metodos-pago'),
   create: (data: PagoCreate) =>
     apiFetch<PagoResponse>('/pagos', { method: 'POST', body: data }),
+  // Confirma un pago que quedo 'procesando' (PSE/Nequi) — simula que el
+  // banco o la app ya respondieron. Tarjeta/PayPal/otros no necesitan esto,
+  // resuelven al instante dentro de reservaService.pagar().
+  confirmar: (idPago: number) =>
+    apiFetch<PagarResponse>(`/pagos/${idPago}/confirmar`, { method: 'POST' }),
 };
 
 
@@ -92,5 +139,3 @@ export const reservaDetailService = {
   getHistorial: (id: number) =>
     apiFetch<any[]>(`/reservas/${id}/historial`),
 };
-
-

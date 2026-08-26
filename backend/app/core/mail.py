@@ -287,3 +287,70 @@ El equipo de AlecTours
     """.strip()
 
     return await send_email(email, subject, body, html_body)
+async def send_contact_email(
+    nombre: str,
+    correo: str,
+    asunto: str,
+    mensaje: str
+) -> bool:
+    """
+    Reenvía un mensaje del formulario de contacto a la bandeja de soporte
+    y envía una confirmación de recibido al remitente.
+    """
+    # 1) Correo interno a soporte con los datos del formulario
+    subject_interno = f"[Contacto Web] {asunto}"
+    body_interno = f"""
+Nuevo mensaje desde el formulario de contacto:
+
+Nombre: {nombre}
+Correo: {correo}
+Asunto: {asunto}
+
+Mensaje:
+{mensaje}
+    """.strip()
+
+    html_interno = f"""
+<html>
+    <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+        <h2>Nuevo mensaje de contacto</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px; font-weight: bold;">Nombre:</td><td style="padding: 8px;">{nombre}</td></tr>
+            <tr style="background-color: #f5f5f5;"><td style="padding: 8px; font-weight: bold;">Correo:</td><td style="padding: 8px;">{correo}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Asunto:</td><td style="padding: 8px;">{asunto}</td></tr>
+        </table>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-top: 15px;">
+            <p style="white-space: pre-wrap; margin: 0;">{mensaje}</p>
+        </div>
+    </body>
+</html>
+    """.strip()
+
+    ok_interno = await send_email(settings.MAIL_FROM, subject_interno, body_interno, html_interno)
+
+    # 2) Confirmación automática al usuario
+    subject_confirmacion = "Recibimos tu mensaje - AlecTours"
+    body_confirmacion = f"""
+Hola {nombre},
+
+Gracias por escribirnos. Hemos recibido tu mensaje sobre "{asunto}" y un asesor te responderá a este correo en menos de 2 horas hábiles.
+
+Saludos,
+El equipo de AlecTours
+    """.strip()
+
+    html_confirmacion = f"""
+<html>
+    <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+        <h2>¡Gracias por escribirnos, {nombre}! 🎉</h2>
+        <p>Hemos recibido tu mensaje sobre <strong>"{asunto}"</strong>.</p>
+        <p>Un asesor de AlecTours te responderá a este correo en menos de 2 horas hábiles.</p>
+        <hr>
+        <p>Saludos,<br>El equipo de AlecTours</p>
+    </body>
+</html>
+    """.strip()
+
+    ok_confirmacion = await send_email(correo, subject_confirmacion, body_confirmacion, html_confirmacion)
+
+    return ok_interno and ok_confirmacion

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, CheckConstraint, ForeignKey, TIMESTAMP, Boolean
+from sqlalchemy import Column, Integer, String, Text, Date, CheckConstraint, ForeignKey, TIMESTAMP, Boolean, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -36,8 +36,8 @@ class Servicio(Base):
     descripcion = Column(Text)
     id_categoria = Column(Integer, ForeignKey("categoria_servicio.id_categoria"))
     id_destino = Column(Integer, ForeignKey("destinos.id_destino"))
-    duracion_horas = Column(Integer)
-    precio_base = Column(Integer, CheckConstraint("precio_base >= 0"), nullable=False)
+    duracion_horas = Column(Numeric(4, 1))
+    precio_base = Column(Numeric(10, 2), CheckConstraint("precio_base >= 0"), nullable=False)
     capacidad_maxima = Column(Integer, CheckConstraint("capacidad_maxima > 0"), nullable=False)
 
     categoria = relationship("CategoriaServicio", back_populates="servicios")
@@ -59,7 +59,7 @@ class Proveedor(Base):
     direccion = Column(String(255))
     ciudad = Column(String(100))
     pais = Column(String(100))
-    comision_porcentaje = Column(Integer)
+    comision_porcentaje = Column(Numeric(5, 2))
 
     servicio_proveedor = relationship("ServicioProveedor", back_populates="proveedor")
 
@@ -69,7 +69,7 @@ class ServicioProveedor(Base):
 
     id_servicio = Column(Integer, ForeignKey("servicios.id_servicio", ondelete="CASCADE"), primary_key=True)
     id_proveedor = Column(Integer, ForeignKey("proveedores.id_proveedor", ondelete="CASCADE"), primary_key=True)
-    precio_proveedor = Column(Integer)
+    precio_proveedor = Column(Numeric(10, 2))
     es_proveedor_principal = Column(Boolean, default=False)
 
     servicio = relationship("Servicio", back_populates="servicio_proveedor")

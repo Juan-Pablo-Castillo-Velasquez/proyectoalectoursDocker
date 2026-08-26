@@ -20,12 +20,42 @@ export interface PaqueteResponse {
   activo: boolean;
 }
 
+export interface PaqueteHotelDetalle {
+  id_hotel: number;
+  nombre_hotel: string;
+  ciudad: string | null;
+  pais: string | null;
+  calificacion: number | null;
+  noches_incluidas: number | null;
+  caracteristicas: string[];
+}
+
+export interface PaqueteServicioDetalle {
+  nombre_servicio: string;
+  categoria: string | null;
+  descripcion: string | null;
+  dia_actividad: number | null;
+  incluido: boolean;
+}
+
+// Igual que PaqueteResponse pero con destinos/hoteles/servicios reales —
+// usado en la página de detalle del paquete (antes mostraba datos de
+// ejemplo hardcodeados desde data/packages.ts).
+export interface PaqueteDetalleResponse extends PaqueteResponse {
+  destinos: string[];
+  hoteles: PaqueteHotelDetalle[];
+  servicios: PaqueteServicioDetalle[];
+}
+
 export const paqueteService = {
   getAll: (skip = 0, limit = 10) =>
     apiFetch<PaqueteResponse[]>(`/paquetes?skip=${skip}&limit=${limit}`),
 
   getById: (id: number) =>
     apiFetch<PaqueteResponse>(`/paquetes/${id}`),
+
+  getDetalle: (id: number) =>
+    apiFetch<PaqueteDetalleResponse>(`/paquetes/${id}/detalle`),
 
   // Usa la vista vista_paquetes_populares del backend
   getPopulares: (limit = 6) =>

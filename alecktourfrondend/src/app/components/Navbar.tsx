@@ -1,12 +1,26 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { Building2, ChevronDown, Gift, LogIn, LogOut, Menu, Plane, User, X } from "lucide-react";
+import {
+  Building2,
+  ChevronDown,
+  Compass,
+  Gift,
+  LogIn,
+  LogOut,
+  Menu,
+  Package,
+  Phone,
+  Plane,
+  User,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
+import { BASE_URL } from "../api/v1/api";
 import { useAuth } from "../context/AuthContext";
+import { ClienteResponse, clienteService } from "../services/cliente.service";
 import LoginModal from "./LoginModal";
 import RegisterModal from "./RegisterModal";
 import { ThemeToggle } from "./ThemeToggle";
-import { clienteService, ClienteResponse } from "../services/cliente.service";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -18,12 +32,17 @@ export default function Navbar() {
   const [cliente, setCliente] = useState<ClienteResponse | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, usuario, logout } = useAuth();
 
-  // Fetch del cliente cuando hay sesión activa y existe id_cliente
+  // Pestaña activa (estilo tabs de Despegar: subrayado persistente, no solo
+  // al pasar el mouse) para los enlaces directos de la barra desktop.
+  const isActivePath = (path: string) => location.pathname === path;
+
   useEffect(() => {
     if (isAuthenticated && usuario?.id_cliente) {
-      clienteService.getById(usuario.id_cliente)
+      clienteService
+        .getById(usuario.id_cliente)
         .then(setCliente)
         .catch(() => setCliente(null));
     } else {
@@ -45,7 +64,6 @@ export default function Navbar() {
     return roles[0];
   }
 
-  // Nombre a mostrar: nombre+apellido del cliente si existe, si no username
   const displayName = cliente
     ? `${cliente.nombre} ${cliente.apellido}`
     : (usuario?.username ?? "");
@@ -53,94 +71,345 @@ export default function Navbar() {
   return (
     <>
       <motion.nav
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        className="bg-background text-foreground shadow-md sticky top-0 z-[9999] border-b border-border/60 backdrop-blur-md"
+        initial={{ y: -80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+        className="
+          sticky top-0 z-[9999]
+          navbar-surface
+          text-foreground
+        "
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 group">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-[76px]">
+            {/* =========================================================
+                LOGO
+            ========================================================= */}
+            <Link to="/" className="flex items-center gap-3 group shrink-0">
               <motion.div
-                whileHover={{ rotate: 360, scale: 1.1 }}
-                transition={{ duration: 0.6 }}
-                className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md bg-primary text-primary-foreground"
+                whileHover={{
+                  scale: 1.06,
+                  rotate: 3,
+                }}
+                whileTap={{ scale: 0.96 }}
+                className="
+                  relative
+                  w-11 h-11
+                  rounded-[14px]
+                  flex items-center justify-center
+                  bg-primary
+                  text-primary-foreground
+                  shadow-lg
+                  shadow-primary/20
+                  overflow-hidden
+                "
               >
-                <Plane className="w-6 h-6" />
+                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+
+                <Plane className="relative w-[19px] h-[19px]" />
               </motion.div>
-              <div>
-                <span className="text-2xl font-bold tracking-tight text-primary">
+
+              <div className="leading-none">
+                <div
+                  className="
+                    text-[22px]
+                    tracking-[-0.5px]
+                    text-primary
+                  "
+                  style={{
+                    fontFamily: "'Fraunces', serif",
+                    fontWeight: 800,
+                  }}
+                >
                   AlekTours
-                </span>
-                <p className="text-xs text-muted-foreground -mt-1 font-normal">Viaja con estilo</p>
+                </div>
+
+                <div
+                  className="
+                    mt-1
+                    text-[8px]
+                    uppercase
+                    tracking-[1.8px]
+                    font-bold
+                    text-muted-foreground/70
+                  "
+                >
+                  Agencia de viajes
+                </div>
               </div>
             </Link>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-6">
-
-              {/* Ofertas / Destinos */}
-              <div className="relative group">
+            {/* =========================================================
+                DESKTOP NAVIGATION
+            ========================================================= */}
+            <div className="hidden xl:flex items-center gap-1 text-[12px] font-semibold">
+              {/* OFERTAS */}
+              <div className="relative">
                 <button
                   onMouseEnter={() => setShowOffersMenu(true)}
                   onMouseLeave={() => setShowOffersMenu(false)}
-                  className="flex items-center gap-1 text-foreground/80 hover:text-primary transition-all duration-300 font-medium"
+                  className="
+                    group
+                    relative
+                    flex items-center gap-1.5
+                    px-3 py-2.5
+                    rounded-xl
+                    text-foreground/75
+                    hover:text-primary
+                    hover:bg-primary/[0.05]
+                    transition-all
+                  "
                 >
-                  Ofertas / Destinos
-                  <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <Plane className="w-3.5 h-3.5 text-primary transition-transform group-hover:-translate-y-0.5" />
+
+                  <span>Ofertas</span>
+
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+
+                  <span className="absolute bottom-1 left-3 right-3 h-[2px] bg-primary scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full" />
                 </button>
+
                 <AnimatePresence>
                   {showOffersMenu && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
+                      initial={{
+                        opacity: 0,
+                        y: 8,
+                        scale: 0.98,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        scale: 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        y: 8,
+                        scale: 0.98,
+                      }}
+                      transition={{ duration: 0.16 }}
                       onMouseEnter={() => setShowOffersMenu(true)}
                       onMouseLeave={() => setShowOffersMenu(false)}
-                      className="absolute top-full left-0 mt-2 w-56 bg-card text-card-foreground rounded-lg shadow-xl border border-border overflow-hidden"
+                      className="
+                        absolute
+                        top-full
+                        left-0
+                        mt-2
+                        w-[270px]
+                        bg-card
+                        text-card-foreground
+                        rounded-2xl
+                        shadow-2xl
+                        shadow-black/10
+                        border border-border/60
+                        overflow-hidden
+                        p-2
+                      "
                     >
-                      <Link to="/search" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all">
-                        Todos los destinos
-                      </Link>
-                      <Link to="/search?transport=vuelo" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all">
-                        Paquetes con vuelo
+                      <div className="px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-primary">
+                          Descubre tu próximo viaje
+                        </p>
+                      </div>
+
+                      <Link
+                        to="/search"
+                        className="
+                          flex items-center gap-3
+                          px-3 py-3
+                          rounded-xl
+                          hover:bg-accent
+                          transition-all
+                          group/item
+                        "
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <Plane className="w-4 h-4 text-primary" />
+                        </div>
+
+                        <div>
+                          <span className="block text-sm font-bold">
+                            Todos los destinos
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            Explora todas nuestras opciones
+                          </span>
+                        </div>
                       </Link>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Beneficios */}
-              <div className="relative group">
+              {/* HOTELES */}
+              <Link
+                to="/search?type=hotel"
+                className={`
+                  group
+                  relative
+                  flex items-center gap-1.5
+                  px-3 py-2.5
+                  rounded-xl
+                  transition-all
+                  ${isActivePath("/search") ? "text-primary bg-primary/[0.06]" : "text-foreground/75 hover:text-primary hover:bg-primary/[0.05]"}
+                `}
+              >
+                <Building2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                Hoteles
+                <span
+                  className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/search") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
+                />
+              </Link>
+
+              {/* INFO DE VIAJE — antes escondida dentro de "Más", ahora es su
+                  propia pestaña visible para que la barra se sienta más
+                  informativa (estilo Despegar) sin inventar secciones que
+                  el sitio no tiene realmente. */}
+              <Link
+                to="/travel-info"
+                className={`
+                  group
+                  relative
+                  flex items-center gap-1.5
+                  px-3 py-2.5
+                  rounded-xl
+                  transition-all
+                  ${isActivePath("/travel-info") ? "text-primary bg-primary/[0.06]" : "text-foreground/75 hover:text-primary hover:bg-primary/[0.05]"}
+                `}
+              >
+                <Compass className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                Info de viaje
+                <span
+                  className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/travel-info") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
+                />
+              </Link>
+
+              {/* PAQUETES - CTA COMERCIAL */}
+              <Link
+                to="/search"
+                className="
+                  group
+                  flex items-center gap-1.5
+                  px-3.5 py-2.5
+                  rounded-xl
+                  bg-primary/[0.08]
+                  text-primary
+                  hover:bg-primary
+                  hover:text-primary-foreground
+                  transition-all
+                  shadow-sm
+                "
+              >
+                <Package className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                <span>Paquetes</span>
+              </Link>
+
+              {/* BENEFICIOS */}
+              <div className="relative">
                 <button
                   onMouseEnter={() => setShowBenefitsMenu(true)}
                   onMouseLeave={() => setShowBenefitsMenu(false)}
-                  className="flex items-center gap-1 text-foreground/80 hover:text-primary transition-all duration-300 font-medium"
+                  className="
+                    group
+                    flex items-center gap-1.5
+                    px-3 py-2.5
+                    rounded-xl
+                    text-foreground/75
+                    hover:text-primary
+                    hover:bg-primary/[0.05]
+                    transition-all
+                  "
                 >
-                  Beneficios AleckTours
-                  <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <Gift className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                  Beneficios
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 </button>
+
                 <AnimatePresence>
                   {showBenefitsMenu && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
+                      initial={{
+                        opacity: 0,
+                        y: 8,
+                        scale: 0.98,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        scale: 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        y: 8,
+                        scale: 0.98,
+                      }}
                       onMouseEnter={() => setShowBenefitsMenu(true)}
                       onMouseLeave={() => setShowBenefitsMenu(false)}
-                      className="absolute top-full left-0 mt-2 w-64 bg-card text-card-foreground rounded-lg shadow-xl border border-border overflow-hidden"
+                      className="
+                        absolute
+                        top-full
+                        left-0
+                        mt-2
+                        w-[270px]
+                        bg-card
+                        rounded-2xl
+                        shadow-2xl
+                        border border-border/60
+                        overflow-hidden
+                        p-2
+                      "
                     >
-                      <Link to="/benefits" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all group/item">
-                        <div className="flex items-center gap-3">
-                          <Gift className="w-4 h-4 text-primary group-hover/item:text-accent-foreground transition-colors" />
-                          <span>Programa de puntos</span>
+                      <div className="px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-primary">
+                          Viajar tiene sus ventajas
+                        </p>
+                      </div>
+
+                      <Link
+                        to="/benefits"
+                        className="
+                          flex items-center gap-3
+                          px-3 py-3
+                          rounded-xl
+                          hover:bg-accent
+                          transition-all
+                        "
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <Gift className="w-4 h-4 text-primary" />
+                        </div>
+
+                        <div>
+                          <span className="block text-sm font-bold">
+                            Programa de puntos
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            Obtén beneficios en tus viajes
+                          </span>
                         </div>
                       </Link>
-                      <Link to="/corporate" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all group/item">
-                        <div className="flex items-center gap-3">
-                          <Building2 className="w-4 h-4 text-primary group-hover/item:text-accent-foreground transition-colors" />
-                          <span>Convenios empresariales</span>
+
+                      <Link
+                        to="/corporate"
+                        className="
+                          flex items-center gap-3
+                          px-3 py-3
+                          rounded-xl
+                          hover:bg-accent
+                          transition-all
+                        "
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <Building2 className="w-4 h-4 text-primary" />
+                        </div>
+
+                        <div>
+                          <span className="block text-sm font-bold">
+                            Convenios empresariales
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            Soluciones para empresas
+                          </span>
                         </div>
                       </Link>
                     </motion.div>
@@ -148,58 +417,196 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
 
-              {/* Información */}
-              <div className="relative group">
+              {/* AUTOS */}
+
+              {/* MÁS */}
+              <div className="relative">
                 <button
                   onMouseEnter={() => setShowInfoMenu(true)}
                   onMouseLeave={() => setShowInfoMenu(false)}
-                  className="flex items-center gap-1 text-foreground/80 hover:text-primary transition-all duration-300 font-medium"
+                  className="
+                    group
+                    flex items-center gap-1
+                    px-3 py-2.5
+                    rounded-xl
+                    text-foreground/75
+                    hover:text-primary
+                    hover:bg-primary/[0.05]
+                    transition-all
+                  "
                 >
-                  Información
-                  <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  Más
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 </button>
+
                 <AnimatePresence>
                   {showInfoMenu && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
+                      initial={{
+                        opacity: 0,
+                        y: 8,
+                        scale: 0.98,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        scale: 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        y: 8,
+                        scale: 0.98,
+                      }}
                       onMouseEnter={() => setShowInfoMenu(true)}
                       onMouseLeave={() => setShowInfoMenu(false)}
-                      className="absolute top-full left-0 mt-2 w-56 bg-card text-card-foreground rounded-lg shadow-xl border border-border overflow-hidden"
+                      className="
+                        absolute
+                        top-full
+                        right-0
+                        mt-2
+                        w-[230px]
+                        bg-card
+                        rounded-2xl
+                        shadow-2xl
+                        border border-border/60
+                        overflow-hidden
+                        p-2
+                      "
                     >
-                      <Link to="/travel-info" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all">
-                        Info para tu viaje
+                      <Link
+                        to="/faq"
+                        className="block px-4 py-3 rounded-xl hover:bg-accent transition-all"
+                      >
+                        <span className="block text-sm font-bold">
+                          Preguntas frecuentes
+                        </span>
                       </Link>
-                      <Link to="/faq" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all">
-                        Preguntas frecuentes
-                      </Link>
-                      <Link to="/contact" className="block px-5 py-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all">
-                        Contáctanos
+
+                      <Link
+                        to="/contact"
+                        className="block px-4 py-3 rounded-xl hover:bg-accent transition-all"
+                      >
+                        <span className="block text-sm font-bold">
+                          Contáctanos
+                        </span>
                       </Link>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
+            </div>
 
-              {/* Login / Perfil */}
+            {/* =========================================================
+                RIGHT SIDE
+            ========================================================= */}
+            <div className="hidden xl:flex items-center gap-3 shrink-0">
+              {/* CONTACT */}
+              <div
+                className="
+                  hidden 2xl:flex
+                  items-center gap-2.5
+                  px-3 py-2
+                  rounded-xl
+                  bg-muted/40
+                  border border-border/40
+                "
+              >
+                <div
+                  className="
+                  w-8 h-8
+                  rounded-lg
+                  bg-primary/10
+                  flex items-center justify-center
+                "
+                >
+                  <Phone className="w-3.5 h-3.5 text-primary" />
+                </div>
+
+                <div className="leading-tight">
+                  <small className="text-[8px] text-muted-foreground">
+                    Asesoría 24/7
+                  </small>
+                </div>
+              </div>
+
+              <ThemeToggle />
+
+              {/* AUTH */}
               {isAuthenticated ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Link
                     to="/profile"
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 shadow-sm transition-all duration-300 font-medium text-sm"
+                    className="
+                      group
+                      flex items-center gap-3
+                      pl-2 pr-3.5 py-2
+                      rounded-full
+                      border border-border/70
+                      bg-card
+                      hover:border-primary/30
+                      hover:bg-primary/[0.04]
+                      transition-all
+                    "
                   >
-                    <User className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate max-w-[140px]">{displayName}</span>
-                    <span className="text-[12px] opacity-75 uppercase tracking-wider font-normal flex-shrink-0">
-                      {getRoleLabel(usuario?.roles)}
-                    </span>
+                    <div
+                      className="
+                      relative
+                      w-10 h-10
+                      rounded-full
+                      bg-gradient-to-br from-primary to-[#4A1023]
+                      flex items-center justify-center
+                      ring-2 ring-primary/15
+                      group-hover:ring-primary/40
+                      transition-all
+                      overflow-hidden
+                      shrink-0
+                    "
+                    >
+                      {usuario?.foto_perfil ? (
+                        <img
+                          src={`${BASE_URL}${usuario.foto_perfil}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User
+                          className="
+                          w-4.5 h-4.5
+                          text-primary-foreground
+                        "
+                        />
+                      )}
+                    </div>
+
+                    <div className="leading-tight max-w-[130px]">
+                      <span className="block truncate text-[13px] font-bold text-foreground">
+                        {displayName}
+                      </span>
+
+                      <span
+                        className="block text-[9px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--gold)" }}
+                      >
+                        {getRoleLabel(usuario?.roles)}
+                      </span>
+                    </div>
+
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   </Link>
+
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleLogout}
-                    className="p-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                    className="
+                      w-9 h-9
+                      flex items-center justify-center
+                      rounded-xl
+                      text-muted-foreground
+                      hover:text-destructive
+                      hover:bg-destructive/10
+                      transition-all
+                    "
                     title="Cerrar sesión"
                   >
                     <LogOut className="w-4 h-4" />
@@ -207,84 +614,338 @@ export default function Navbar() {
                 </div>
               ) : (
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{
+                    scale: 1.02,
+                    y: -1,
+                  }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setShowLoginModal(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-95 shadow-sm transition-all duration-300 font-medium text-sm"
+                  className="
+                    group
+                    flex items-center gap-2
+                    px-4 py-2.5
+                    rounded-xl
+                    border border-primary/20
+                    bg-primary/[0.06]
+                    text-primary
+                    hover:bg-primary
+                    hover:text-primary-foreground
+                    hover:border-primary
+                    transition-all
+                    font-bold
+                    text-[11px]
+                  "
                 >
-                  <LogIn className="w-4 h-4" />
-                  Iniciar Sesión
+                  <LogIn className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  Iniciar sesión
                 </motion.button>
               )}
             </div>
 
-            <div className="flex items-center gap-4">
+            {/* =========================================================
+                MOBILE
+            ========================================================= */}
+            <div className="flex items-center gap-2 xl:hidden">
               <ThemeToggle />
-            </div>
 
-            {/* Mobile menu button */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-muted text-foreground"
-            >
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="
+                  w-10 h-10
+                  flex items-center justify-center
+                  rounded-xl
+                  border border-border/60
+                  hover:bg-muted
+                  text-foreground
+                  transition-all
+                "
+              >
+                {isMenuOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </motion.button>
+            </div>
           </div>
 
-          {/* Mobile menu */}
+          {/* =========================================================
+              MOBILE MENU
+          ========================================================= */}
           <AnimatePresence>
             {isMenuOpen && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="md:hidden py-4 border-t border-border overflow-hidden bg-background"
+                initial={{
+                  opacity: 0,
+                  height: 0,
+                }}
+                animate={{
+                  opacity: 1,
+                  height: "auto",
+                }}
+                exit={{
+                  opacity: 0,
+                  height: 0,
+                }}
+                transition={{ duration: 0.25 }}
+                className="
+                  xl:hidden
+                  border-t border-border/50
+                  overflow-hidden
+                  bg-background
+                "
               >
-                <div className="flex flex-col gap-2">
-                  <Link to="/" className="px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-all" onClick={() => setIsMenuOpen(false)}>
+                <div className="py-4 space-y-1">
+                  <Link
+                    to="/"
+                    className="
+                      block px-4 py-3
+                      text-sm font-semibold
+                      text-foreground
+                      hover:bg-muted
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
                     Inicio
                   </Link>
-                  <Link to="/search" className="px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-all" onClick={() => setIsMenuOpen(false)}>
-                    Destinos
+
+                  <Link
+                    to="/search"
+                    className="
+                      flex items-center justify-between
+                      px-4 py-3
+                      text-sm font-semibold
+                      text-primary
+                      bg-primary/[0.06]
+                      hover:bg-primary/[0.1]
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <span className="flex items-center gap-3">
+                      <Package className="w-4 h-4" />
+                      Explorar paquetes
+                    </span>
+
+                    <ChevronDown className="w-4 h-4 -rotate-90" />
                   </Link>
-                  <Link to="/benefits" className="px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-all" onClick={() => setIsMenuOpen(false)}>
+
+                  <Link
+                    to="/search?type=hotel"
+                    className="
+                      flex items-center gap-3
+                      px-4 py-3
+                      text-sm font-semibold
+                      text-foreground
+                      hover:bg-muted
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Building2 className="w-4 h-4 text-primary" />
+                    Hoteles
+                  </Link>
+
+                  <Link
+                    to="/benefits"
+                    className="
+                      flex items-center gap-3
+                      px-4 py-3
+                      text-sm font-semibold
+                      text-foreground
+                      hover:bg-muted
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Gift className="w-4 h-4 text-primary" />
                     Beneficios
                   </Link>
 
+                  <Link
+                    to="/travel-info"
+                    className="
+                      flex items-center gap-3
+                      px-4 py-3
+                      text-sm font-semibold
+                      text-foreground
+                      hover:bg-muted
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Compass className="w-4 h-4 text-primary" />
+                    Info de viaje
+                  </Link>
+
+                  <Link
+                    to="/contact"
+                    className="
+                      flex items-center gap-3
+                      px-4 py-3
+                      text-sm font-semibold
+                      text-foreground
+                      hover:bg-muted
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Phone className="w-4 h-4 text-primary" />
+                    Contáctanos
+                  </Link>
+
+                  {/* CONTACT CARD */}
+                  <div
+                    className="
+                    mt-3
+                    mx-1
+                    p-4
+                    rounded-2xl
+                    bg-muted/50
+                    border border-border/50
+                  "
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="
+                        w-10 h-10
+                        rounded-xl
+                        bg-primary/10
+                        flex items-center justify-center
+                      "
+                      >
+                        <Phone className="w-4 h-4 text-primary" />
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold">¿Necesitas ayuda?</p>
+
+                        <p className="text-[11px] text-muted-foreground">
+                          +57 601 123 4567 · Asesoría 24/7
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AUTH */}
                   {isAuthenticated ? (
-                    <>
+                    <div className="pt-3 mt-2 border-t border-border/50">
                       <Link
                         to="/profile"
-                        className="flex items-center gap-3 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl hover:opacity-90 shadow-sm transition-all duration-300"
+                        className="
+                          flex items-center gap-3
+                          px-4 py-3
+                          bg-primary
+                          text-primary-foreground
+                          rounded-xl
+                          shadow-lg
+                          shadow-primary/20
+                        "
                         onClick={() => setIsMenuOpen(false)}
                       >
-                        <User className="w-4 h-4 flex-shrink-0" />
-                        <div className="flex flex-col items-start leading-none">
-                          <span className="font-medium">{displayName}</span>
-                          <span className="text-[12px] opacity-75 uppercase tracking-wider font-normal">
+                        <div
+                          className="
+                          w-9 h-9
+                          rounded-lg
+                          bg-primary-foreground/15
+                          flex items-center justify-center
+                          overflow-hidden
+                        "
+                        >
+                          {usuario?.foto_perfil ? (
+                            <img
+                              src={`${BASE_URL}${usuario.foto_perfil}`}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-4 h-4" />
+                          )}
+                        </div>
+
+                        <div className="flex flex-col items-start leading-tight">
+                          <span className="font-bold text-sm">
+                            {displayName}
+                          </span>
+
+                          <span className="text-[9px] opacity-70 uppercase tracking-wider">
                             {getRoleLabel(usuario?.roles)}
                           </span>
                         </div>
                       </Link>
+
                       <button
                         onClick={handleLogout}
-                        className="px-4 py-2.5 text-destructive hover:bg-destructive/10 rounded-lg text-center font-medium text-sm"
+                        className="
+                          w-full
+                          mt-2
+                          px-4 py-3
+                          text-destructive
+                          hover:bg-destructive/10
+                          rounded-xl
+                          text-center
+                          font-semibold
+                          text-sm
+                          transition-all
+                        "
                       >
                         Cerrar sesión
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
+                    <div
+                      className="
+                      flex flex-col gap-2
+                      pt-3 mt-2
+                      border-t border-border/50
+                    "
+                    >
                       <button
-                        onClick={() => { setIsMenuOpen(false); setShowLoginModal(true); }}
-                        className="px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-center font-medium text-sm"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setShowLoginModal(true);
+                        }}
+                        className="
+                          flex items-center justify-center gap-2
+                          px-4 py-3
+                          bg-primary
+                          text-primary-foreground
+                          rounded-xl
+                          text-center
+                          font-bold
+                          text-sm
+                          shadow-lg
+                          shadow-primary/20
+                        "
                       >
-                        Iniciar Sesión
+                        <LogIn className="w-4 h-4" />
+                        Iniciar sesión
                       </button>
+
                       <button
-                        onClick={() => { setIsMenuOpen(false); setShowRegisterModal(true); }}
-                        className="px-4 py-2.5 border border-border text-foreground rounded-lg text-center font-medium text-sm hover:bg-muted"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setShowRegisterModal(true);
+                        }}
+                        className="
+                          px-4 py-3
+                          border border-border
+                          text-foreground
+                          rounded-xl
+                          text-center
+                          font-semibold
+                          text-sm
+                          hover:bg-muted
+                          transition-all
+                        "
                       >
                         Crear cuenta
                       </button>
@@ -301,12 +962,19 @@ export default function Navbar() {
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        onSwitchToRegister={() => { setShowLoginModal(false); setShowRegisterModal(true); }}
+        onSwitchToRegister={() => {
+          setShowLoginModal(false);
+          setShowRegisterModal(true);
+        }}
       />
+
       <RegisterModal
         isOpen={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
-        onSwitchToLogin={() => { setShowRegisterModal(false); setShowLoginModal(true); }}
+        onSwitchToLogin={() => {
+          setShowRegisterModal(false);
+          setShowLoginModal(true);
+        }}
       />
     </>
   );

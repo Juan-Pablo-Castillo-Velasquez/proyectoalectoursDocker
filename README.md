@@ -1,300 +1,786 @@
-# Proyecto AlekTours - Backend & Frontend
+<p align="center">
+  <img
+    src="https://ghrb.waren.build/banner?header=AlekTours&subheader=Agencia%20de%20viajes%20%7C%20Hoteles%20%7C%20Reservas%20%7C%20Experiencias&bg=1A0A10-7A173F&color=FFFFFF&subheadercolor=F3B3C9&headerfont=Playfair%20Display&subheaderfont=Inter"
+    alt="AlekTours"
+    width="100%"
+  />
+</p>
 
-Sistema de gestión de reservas de viajes y hoteles desarrollado con **FastAPI** (Backend) y una interfaz moderna (Frontend).
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Active-9E315C?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/Version-Development-6E1738?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/License-MIT-9E315C?style=for-the-badge" alt="License">
+</p>
+
+<p align="center">
+  <strong>Plataforma moderna para descubrir destinos, reservar hoteles y gestionar experiencias de viaje.</strong>
+</p>
+
+<p align="center">
+  <a href="#características">Características</a>
+  •
+  <a href="#arquitectura">Arquitectura</a>
+  •
+  <a href="#instalación">Instalación</a>
+  •
+  <a href="#api">API</a>
+  •
+  <a href="#contribución">Contribución</a>
+</p>
 
 ---
 
-## 📋 Estructura del Proyecto
+# AlekTours
+
+AlekTours es una plataforma web orientada a la gestión integral de servicios turísticos.
+
+El sistema permite centralizar la gestión de hoteles, habitaciones, reservas, paquetes turísticos, usuarios, servicios y procesos relacionados con la experiencia del viajero.
+
+El proyecto está construido bajo una arquitectura desacoplada entre frontend y backend, utilizando una API REST desarrollada con FastAPI, PostgreSQL como sistema de persistencia y Docker Compose para la administración del entorno.
+
+---
+
+# Stack tecnológico
+
+<p align="center">
+
+<img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=111827" alt="React">
+
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+
+<img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite">
+
+<img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+
+<img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
+
+<img src="https://img.shields.io/badge/SQLAlchemy-D71F00?style=flat-square" alt="SQLAlchemy">
+
+<img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
+
+<img src="https://img.shields.io/badge/Alembic-1F2937?style=flat-square" alt="Alembic">
+
+<img src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+
+</p>
+
+---
+
+# Características
+
+| Módulo          | Funcionalidad                                  |
+| --------------- | ---------------------------------------------- |
+| Usuarios        | Registro, autenticación, perfiles y roles      |
+| Hoteles         | Gestión de hoteles y habitaciones              |
+| Reservas        | Creación, consulta, confirmación y cancelación |
+| Paquetes        | Gestión de paquetes turísticos                 |
+| Servicios       | Administración de servicios turísticos         |
+| Pagos           | Gestión y seguimiento de pagos                 |
+| Notificaciones  | Correos transaccionales                        |
+| Seguridad       | JWT, hashing y control de acceso               |
+| API             | REST + OpenAPI                                 |
+| Infraestructura | Docker Compose                                 |
+| Base de datos   | PostgreSQL                                     |
+| Administración  | pgAdmin                                        |
+| Email testing   | Mailpit                                        |
+
+---
+
+# Arquitectura
+
+AlekTours utiliza una arquitectura por capas que separa la presentación, los endpoints, la lógica de negocio y el acceso a datos.
 
 ```mermaid
-graph TD
-    A[proyecto-be-fe-alektours] --> B[backend]
-    A --> C[frontend]
-    A --> D[docker-compose.yml]
-    A --> E[.gitignore]
-    A --> F[README.md]
-    
-    B --> B1[app/core]
-    B --> B2[app/models]
-    B --> B3[app/routes]
-    B --> B4[app/services]
-    B --> B5[app/repositories]
-    B --> B6[app/schemas]
-    B --> B7[alembic/]
-    B --> B8[Dockerfile]
-    B --> B9[requirements.txt]
-    B --> B10[.env]
-    B --> B11[QUICKSTART.md]
-    B --> B12[verify_setup.py]
-    
-    B1 --> B1A["config.py - Variables de entorno"]
-    B1 --> B1B["database.py - SQLAlchemy"]
-    B1 --> B1C["security.py - JWT + Hashing"]
-    B1 --> B1D["mail.py - Envío de emails"]
-    B1 --> B1E["examples.py - Ejemplos de uso"]
-    B1 --> B1F["README.md - Documentación core"]
-    
-    C --> C1[Frontend App]
-    
-    style B1 fill:#e1f5ff
-    style B1A fill:#b3e5fc
-    style B1B fill:#b3e5fc
-    style B1C fill:#b3e5fc
-    style B1D fill:#b3e5fc
+flowchart TB
+
+    USER["Usuario"]
+
+    subgraph FRONTEND["Frontend"]
+        UI["React + TypeScript"]
+        VITE["Vite"]
+    end
+
+    subgraph BACKEND["Backend"]
+        ROUTES["Routes"]
+        SCHEMAS["Pydantic Schemas"]
+        SERVICES["Business Services"]
+        REPOSITORIES["Repositories"]
+        MODELS["SQLAlchemy Models"]
+        SECURITY["Authentication / JWT"]
+    end
+
+    subgraph DATABASE["Persistencia"]
+        POSTGRES[("PostgreSQL")]
+    end
+
+    USER --> UI
+    UI --> VITE
+    VITE -->|"HTTP / REST"| ROUTES
+
+    ROUTES --> SCHEMAS
+    ROUTES --> SERVICES
+    ROUTES --> SECURITY
+
+    SERVICES --> REPOSITORIES
+    REPOSITORIES --> MODELS
+    MODELS --> POSTGRES
+
+    SECURITY --> POSTGRES
+
+    classDef primary fill:#7A173F,color:#fff,stroke:#B83B68,stroke-width:2px;
+    classDef secondary fill:#241019,color:#fff,stroke:#9E315C,stroke-width:1px;
+    classDef database fill:#3B1728,color:#fff,stroke:#C24A78,stroke-width:2px;
+
+    class USER,UI,VITE primary;
+    class ROUTES,SCHEMAS,SERVICES,REPOSITORIES,MODELS,SECURITY secondary;
+    class POSTGRES database;
 ```
 
 ---
 
-## ⚙️ Variables de Entorno (.env)
+# Arquitectura por capas
 
-El archivo `.env` contiene la configuración sensible de la aplicación. **No debe ser versionado en Git** (incluido en `.gitignore`).
+```mermaid
+flowchart LR
 
-### Localización
-- `backend/.env` — Configuración del servidor FastAPI
-- `.env` (opcional) — Variables globales del proyecto
+    A["HTTP Request"] --> B["Route"]
 
-### Variables Configurables
+    B --> C["Schema"]
+
+    C --> D["Service"]
+
+    D --> E["Repository"]
+
+    E --> F["SQLAlchemy"]
+
+    F --> G[("PostgreSQL")]
+
+    G --> F
+    F --> E
+    E --> D
+    D --> B
+    B --> H["HTTP Response"]
+
+    classDef layer fill:#241019,color:#fff,stroke:#9E315C,stroke-width:2px;
+    classDef database fill:#3B1728,color:#fff,stroke:#C24A78,stroke-width:2px;
+
+    class A,B,C,D,E,F,H layer;
+    class G database;
+```
+
+Esta separación permite mantener responsabilidades claras:
+
+* `Routes`: entrada HTTP.
+* `Schemas`: validación y serialización.
+* `Services`: lógica de negocio.
+* `Repositories`: acceso a datos.
+* `Models`: representación ORM.
+* `PostgreSQL`: persistencia.
+
+---
+
+# Flujo de autenticación
+
+El sistema utiliza autenticación basada en JWT.
+
+```mermaid
+sequenceDiagram
+
+    participant U as Usuario
+    participant F as Frontend
+    participant A as API
+    participant S as Auth Service
+    participant DB as PostgreSQL
+
+    U->>F: Ingresa credenciales
+    F->>A: POST /auth/login
+    A->>S: Validar credenciales
+    S->>DB: Buscar usuario
+    DB-->>S: Datos del usuario
+    S->>S: Verificar contraseña
+    S->>S: Generar JWT
+    S-->>A: Access Token
+    A-->>F: Token
+    F-->>U: Sesión iniciada
+
+    U->>F: Solicita recurso protegido
+    F->>A: Request + Bearer Token
+    A->>S: Validar JWT
+    S-->>A: Token válido
+    A-->>F: Recurso solicitado
+    F-->>U: Información
+```
+
+---
+
+# Flujo de reservas
+
+```mermaid
+sequenceDiagram
+
+    participant C as Cliente
+    participant F as Frontend
+    participant API as FastAPI
+    participant RS as Reservation Service
+    participant HR as Hotel Repository
+    participant RR as Reservation Repository
+    participant DB as PostgreSQL
+    participant M as Mailpit / SMTP
+
+    C->>F: Selecciona hotel
+    F->>API: Consultar disponibilidad
+
+    API->>RS: Verificar disponibilidad
+    RS->>HR: Consultar habitaciones
+    HR->>DB: Query
+    DB-->>HR: Habitaciones disponibles
+    HR-->>RS: Disponibilidad
+    RS-->>API: Resultado
+    API-->>F: Habitaciones disponibles
+
+    C->>F: Confirma reserva
+    F->>API: Crear reserva
+
+    API->>RS: Procesar reserva
+    RS->>RR: Crear reserva
+    RR->>DB: INSERT
+    DB-->>RR: Reserva creada
+
+    RS->>M: Enviar confirmación
+    M-->>C: Email de confirmación
+
+    RS-->>API: Reserva confirmada
+    API-->>F: Confirmación
+    F-->>C: Reserva realizada
+```
+
+---
+
+# Modelo de dominio
+
+La relación general entre algunas de las entidades principales puede representarse mediante:
+
+```mermaid
+erDiagram
+
+    USUARIO {
+        int id PK
+        string nombre
+        string email
+        string password_hash
+        string rol
+        boolean activo
+    }
+
+    HOTEL {
+        int id PK
+        string nombre
+        string ciudad
+        string descripcion
+        decimal precio
+        float calificacion
+    }
+
+    HABITACION {
+        int id PK
+        int hotel_id FK
+        string tipo
+        decimal precio
+        boolean disponible
+    }
+
+    RESERVA {
+        int id PK
+        int usuario_id FK
+        int hotel_id FK
+        int habitacion_id FK
+        date fecha_entrada
+        date fecha_salida
+        string estado
+        decimal total
+    }
+
+    PAQUETE {
+        int id PK
+        string nombre
+        string descripcion
+        decimal precio
+        int duracion
+    }
+
+    SERVICIO {
+        int id PK
+        string nombre
+        string descripcion
+        decimal precio
+    }
+
+    PAGO {
+        int id PK
+        int reserva_id FK
+        decimal monto
+        string estado
+        string metodo
+    }
+
+    USUARIO ||--o{ RESERVA : realiza
+
+    HOTEL ||--o{ HABITACION : contiene
+
+    HOTEL ||--o{ RESERVA : recibe
+
+    HABITACION ||--o{ RESERVA : utiliza
+
+    RESERVA ||--o| PAGO : genera
+
+    PAQUETE }o--o{ SERVICIO : incluye
+```
+
+> El diagrama representa conceptualmente el dominio del sistema. La estructura definitiva debe mantenerse sincronizada con los modelos y migraciones actuales de la aplicación.
+
+---
+
+# Infraestructura Docker
+
+El entorno de desarrollo utiliza Docker Compose para ejecutar los principales servicios.
+
+```mermaid
+flowchart TB
+
+    DEV["Developer"]
+
+    subgraph DOCKER["Docker Compose"]
+
+        FRONT["Frontend<br/>React + Vite"]
+
+        BACK["Backend<br/>FastAPI"]
+
+        DB[("PostgreSQL")]
+
+        PGADMIN["pgAdmin"]
+
+        MAIL["Mailpit"]
+    end
+
+    DEV --> FRONT
+
+    FRONT -->|"HTTP"| BACK
+
+    BACK --> DB
+
+    PGADMIN --> DB
+
+    BACK --> MAIL
+
+    classDef main fill:#7A173F,color:#fff,stroke:#B83B68,stroke-width:2px;
+    classDef service fill:#241019,color:#fff,stroke:#9E315C,stroke-width:2px;
+    classDef database fill:#3B1728,color:#fff,stroke:#C24A78,stroke-width:2px;
+
+    class DEV main;
+    class FRONT,BACK,PGADMIN,MAIL service;
+    class DB database;
+```
+
+---
+
+# Estructura del proyecto
+
+```text
+proyectoalectoursDocker/
+│
+├── .github/
+│   └── workflows/
+│
+├── backend/
+│   ├── app/
+│   │   ├── core/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   └── main.py
+│   │
+│   ├── alembic/
+│   │   └── versions/
+│   │
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── alecktourfrondend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── ...
+│
+├── docs/
+│
+├── db_schema.sql
+├── docker-compose.yml
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── LICENCE
+└── README.md
+```
+
+---
+
+# Instalación
+
+## Requisitos
+
+* Git
+* Docker
+* Docker Compose
+* Node.js
+* pnpm
+* Python 3.x
+
+---
+
+## Clonar el repositorio
+
+```bash
+git clone https://github.com/Juan-Pablo-Castillo-Velasquez/proyectoalectoursDocker.git
+
+cd proyectoalectoursDocker
+```
+
+---
+
+# Variables de entorno
+
+Crear el archivo:
+
+```text
+backend/.env
+```
+
+Ejemplo:
 
 ```env
-# Base de Datos PostgreSQL
 DATABASE_URL=postgresql+psycopg://admin:admin123@postgres:5432/alektours_db
 
-# Autenticación JWT
-SECRET_KEY=tu_clave_secreta_aqui_cambiar_en_produccion
+SECRET_KEY=change_this_secret_key
 ALGORITHM=HS256
+
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# Email (SMTP)
-MAIL_USERNAME=tu_correo@example.com
-MAIL_PASSWORD=tu_contraseña_app
+MAIL_USERNAME=your_email@example.com
+MAIL_PASSWORD=your_password
 MAIL_FROM=noreply@alektours.com
 MAIL_PORT=1025
 MAIL_SERVER=mailpit
+
 MAIL_FROM_NAME=AlekTours
 MAIL_STARTTLS=False
 MAIL_SSL_TLS=False
 ```
 
-### Explicación de cada variable
-
-| Variable | Descripción | Valor por defecto |
-|----------|-------------|-------------------|
-| `DATABASE_URL` | Cadena de conexión PostgreSQL | `postgresql+psycopg://admin:admin123@postgres:5432/alektours_db` |
-| `SECRET_KEY` | Clave para firmar JWT tokens | (vacío - requiere configuración) |
-| `ALGORITHM` | Algoritmo de encriptación JWT | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Expiración de tokens en minutos | `30` |
-| `MAIL_USERNAME` | Usuario SMTP para envío de correos | (vacío) |
-| `MAIL_PASSWORD` | Contraseña SMTP | (vacío) |
-| `MAIL_FROM` | Dirección de correo origen | `test@test.com` |
-| `MAIL_PORT` | Puerto SMTP | `1025` |
-| `MAIL_SERVER` | Servidor SMTP (mailpit en Docker) | `mailpit` |
-| `MAIL_FROM_NAME` | Nombre visible del remitente | `FastAPI App` |
-| `MAIL_STARTTLS` | Usar STARTTLS | `False` |
-| `MAIL_SSL_TLS` | Usar SSL/TLS | `False` |
+Las credenciales reales nunca deben almacenarse en el repositorio.
 
 ---
 
-## 🗄️ Base de Datos
+# Ejecutar con Docker
 
-### Esquema: `alektours_db`
-
-La aplicación usa **PostgreSQL 16** con las siguientes tablas principales:
-
-- **hoteles** — Información de hoteles
-- **habitaciones** — Habitaciones disponibles
-- **clientes** — Datos de clientes
-- **empleados** — Staff y roles
-- **reservas** — Gestión de reservas
-- **servicios** — Servicios turísticos
-- **paquetes** — Paquetes de viaje
-- **pagos** — Procesamiento de pagos
-
----
-
-## 🚀 Cómo Ejecutar
-
-### 0. Verificar el Setup (Opcional pero recomendado)
-
-```bash
-cd backend
-python verify_setup.py
-```
-
-Esto verifica que todas las dependencias, variables y archivos necesarios estén configurados.
-
-### 1. Levantar los Contenedores
+Iniciar los servicios:
 
 ```bash
 docker compose up -d
 ```
 
-Este comando inicia:
-- **postgres** (PostgreSQL 16) — Base de datos
-- **backend** (FastAPI) — API en http://localhost:8000
-- **mailpit** — SMTP de prueba en http://localhost:8025
-- **pgadmin** — Admin de BD en http://localhost:5050
-
-### 2. Crear la Base de Datos (si no existe)
+Comprobar el estado:
 
 ```bash
-docker compose exec postgres psql -U admin -c "CREATE DATABASE alektours_db;"
+docker compose ps
 ```
 
-### 3. Ejecutar Migraciones (Alembic)
+Visualizar logs:
+
+```bash
+docker compose logs -f
+```
+
+Logs del backend:
+
+```bash
+docker compose logs -f backend
+```
+
+---
+
+# Migraciones
+
+Aplicar las migraciones:
 
 ```bash
 docker compose exec backend alembic upgrade head
 ```
 
-O localmente:
+Consultar la migración actual:
+
+```bash
+docker compose exec backend alembic current
+```
+
+Consultar historial:
+
+```bash
+docker compose exec backend alembic history
+```
+
+Crear una migración:
+
+```bash
+docker compose exec backend alembic revision --autogenerate -m "descripcion"
+```
+
+---
+
+# Desarrollo local
+
+## Backend
 
 ```bash
 cd backend
-alembic upgrade head
+
+pip install -r requirements.txt
+
+uvicorn app.main:app --reload
 ```
 
----
-
-## � Módulos Core
-
-La aplicación tiene módulos centralizados en `backend/app/core/`:
-
-### Security (`security.py`)
-- **hash_password()** — Hashear contraseñas con bcrypt
-- **verify_password()** — Verificar contraseñas
-- **create_access_token()** — Generar tokens JWT (30 min)
-- **create_refresh_token()** — Generar refresh tokens (7 días)
-- **get_user_from_token()** — Extraer user_id de un token
-
-**Ejemplo:**
-```python
-from app.core.security import hash_password, verify_password, generate_token_pair
-
-pwd_hash = hash_password("password123")
-is_valid = verify_password("password123", pwd_hash)
-tokens = generate_token_pair(user_id=1)
-```
-
-### Mail (`mail.py`)
-- **send_email()** — Email genérico
-- **send_welcome_email()** — Bienvenida
-- **send_verification_email()** — Verificación de cuenta
-- **send_password_reset_email()** — Reset de contraseña
-- **send_reservation_confirmation()** — Confirmación de reserva
-- **send_cancellation_email()** — Cancelación de reserva
-
-**Ejemplo:**
-```python
-from app.core.mail import send_welcome_email, send_reservation_confirmation
-
-await send_welcome_email("user@example.com", "Juan")
-await send_reservation_confirmation(
-    email="user@example.com",
-    reservation_id=123,
-    hotel_name="Hotel Paradise",
-    check_in="2026-06-10",
-    check_out="2026-06-15",
-    total_price=500.00,
-    guest_name="Juan Pérez"
-)
-```
-
-📖 **Documentación completa:** Ver [backend/app/core/README.md](backend/app/core/README.md)
-
-📝 **Ejemplos de uso:** Ver [backend/app/core/examples.py](backend/app/core/examples.py)
-
----
-
-```
-proyecto-be-fe-alektours/
-├── backend/
-│   ├── app/
-│   │   ├── core/              # Configuración centralizada
-│   │   │   ├── config.py      # Settings (DATABASE_URL, etc.)
-│   │   │   ├── database.py    # SQLAlchemy engine & sesiones
-│   │   │   ├── mail.py        # Configuración de email
-│   │   │   └── security.py    # JWT, hashing
-│   │   ├── models/            # Modelos SQLAlchemy
-│   │   ├── routes/            # Endpoints FastAPI
-│   │   ├── services/          # Lógica de negocio
-│   │   ├── repositories/      # Acceso a datos
-│   │   ├── schemas/           # Modelos Pydantic
-│   │   └── main.py            # Aplicación FastAPI
-│   ├── alembic/               # Migraciones de BD
-│   ├── Dockerfile             # Imagen Docker
-│   ├── requirements.txt        # Dependencias Python
-│   └── .env                   # Variables de entorno
-├── frontend/                  # Aplicación Frontend
-├── docker-compose.yml         # Orquestación de servicios
-├── .gitignore                 # Archivos ignorados
-└── README.md                  # Este archivo
-```
-
----
-
-## 🔒 Credenciales por Defecto (Desarrollo)
-
-| Servicio | Usuario | Contraseña | URL |
-|----------|---------|-----------|-----|
-| PostgreSQL | `admin` | `admin123` | `localhost:5432` |
-| PgAdmin | `correoadmin@gmail.com` | `admin1234` | `http://localhost:5050` |
-| FastAPI Docs | — | — | `http://localhost:8000/docs` |
-| Mailpit | — | — | `http://localhost:8025` |
-
-⚠️ **Nota**: Cambiar estas credenciales en producción.
-
----
-
-## 📚 Documentación Adicional
-
-- **Swagger (OpenAPI)**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **PgAdmin**: http://localhost:5050
-- **Mailpit**: http://localhost:8025
-
----
-
-## 🛠️ Dependencias Principales
-
-```
-fastapi==0.115.0          # Framework Web
-sqlalchemy==2.0.35        # ORM
-psycopg2-binary==2.9.9    # Driver PostgreSQL
-alembic==1.13.2           # Migraciones BD
-pydantic==2.9.2           # Validación de datos
-python-jose==3.3.0        # Tokens JWT
-fastapi-mail==1.4.1       # Envío de emails
-```
-
-Ver `backend/requirements.txt` para lista completa.
-
----
-
-## 🐛 Solución de Problemas
-
-### El contenedor `backend` no levanta
+## Frontend
 
 ```bash
-docker compose logs backend
-```
+cd alecktourfrondend
 
-### PostgreSQL no responde
+pnpm install
 
-```bash
-docker compose restart postgres
-docker compose exec postgres psql -U admin -c "SELECT 1;"
-```
-
-### Limpiar todo y empezar desde cero
-
-```bash
-docker compose down -v
-docker compose up -d
-docker compose exec postgres psql -U admin -c "CREATE DATABASE alektours_db;"
-docker compose exec backend alembic upgrade head
+pnpm dev
 ```
 
 ---
 
-**Último actualizado**: Junio 2026
-# proyectoalektoursDocker
+# API
+
+FastAPI genera automáticamente la documentación OpenAPI.
+
+## Swagger UI
+
+```text
+http://localhost:8000/docs
+```
+
+## ReDoc
+
+```text
+http://localhost:8000/redoc
+```
+
+---
+
+# Servicios
+
+| Servicio | URL                       | Propósito         |
+| -------- | ------------------------- | ----------------- |
+| Backend  | `localhost:8000`          | API REST          |
+| Swagger  | `localhost:8000/docs`     | Documentación     |
+| ReDoc    | `localhost:8000/redoc`    | Documentación     |
+| pgAdmin  | `localhost:5050`          | Administración DB |
+| Mailpit  | `localhost:8025`          | Pruebas de correo |
+| Frontend | Configuración Vite/Docker | Aplicación web    |
+
+---
+
+# Contribución
+
+Las contribuciones son bienvenidas.
+
+El flujo recomendado es:
+
+```mermaid
+gitGraph
+    commit id: "main"
+
+    branch feature
+    checkout feature
+
+    commit id: "Implementación"
+    commit id: "Pruebas"
+    commit id: "Documentación"
+
+    checkout main
+    merge feature
+```
+
+Crear una rama:
+
+```bash
+git checkout main
+git pull origin main
+
+git checkout -b feature/nueva-funcionalidad
+```
+
+Realizar cambios:
+
+```bash
+git add .
+git commit -m "feat: agregar nueva funcionalidad"
+```
+
+Subir la rama:
+
+```bash
+git push origin feature/nueva-funcionalidad
+```
+
+Posteriormente crear un Pull Request.
+
+Consulta [`CONTRIBUTING.md`](CONTRIBUTING.md) para las reglas completas de contribución.
+
+---
+
+# Conventional Commits
+
+Se recomienda utilizar:
+
+```text
+feat: nueva funcionalidad
+
+fix: corrección de errores
+
+refactor: modificación interna
+
+docs: documentación
+
+test: pruebas
+
+chore: mantenimiento
+
+perf: rendimiento
+
+style: formato
+```
+
+Ejemplos:
+
+```bash
+git commit -m "feat: agregar gestión de reservas"
+
+git commit -m "fix: corregir disponibilidad de habitaciones"
+
+git commit -m "refactor: separar lógica de reservas"
+
+git commit -m "docs: actualizar arquitectura"
+```
+
+---
+
+# Seguridad
+
+El proyecto utiliza mecanismos como:
+
+* JWT.
+* Hashing de contraseñas.
+* Validación mediante Pydantic.
+* Control de acceso.
+* Variables de entorno.
+* Separación de credenciales.
+* Protección de información sensible.
+
+Nunca subir:
+
+```text
+.env
+*.pem
+*.key
+credentials.json
+tokens
+passwords
+secret keys
+```
+
+Para reportar una vulnerabilidad, consultar [`SECURITY.md`](SECURITY.md).
+
+---
+
+# Documentación
+
+La documentación adicional está disponible en:
+
+```text
+docs/
+```
+
+Documentos principales:
+
+* [`CONTRIBUTING.md`](CONTRIBUTING.md)
+* [`SECURITY.md`](SECURITY.md)
+* [`db_schema.sql`](db_schema.sql)
+
+---
+
+# Roadmap
+
+```mermaid
+timeline
+    title Evolución de AlekTours
+
+    Desarrollo inicial : Arquitectura base
+                      : Frontend
+                      : Backend
+                      : PostgreSQL
+
+    Integración : Autenticación
+                : Reservas
+                : Hoteles
+                : Paquetes
+
+    Optimización : Pruebas automatizadas
+                 : Seguridad
+                 : Rendimiento
+                 : CI/CD
+
+    Producción : Observabilidad
+               : Escalabilidad
+               : Integraciones externas
+```
+
+---
+
+# Estado
+
+<p align="center">
+
+<img src="https://img.shields.io/badge/Frontend-React-61DAFB?style=for-the-badge&logo=react&logoColor=111827" alt="Frontend">
+
+<img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="Backend">
+
+<img src="https://img.shields.io/badge/Database-PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="Database">
+
+<img src="https://img.shields.io/badge/Infrastructure-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+
+</p>
+
+---
+
+# Licencia
+
+Este proyecto se distribuye bajo los términos definidos en [`LICENCE`](LICENCE).
+
+---
+
+# Repositorio
+
+[GitHub — AlekTours](https://github.com/Juan-Pablo-Castillo-Velasquez/proyectoalectoursDocker)
+
+---
+
+<p align="center">
+  <strong>AlekTours</strong>
+</p>
+
+<p align="center">
+  Plataforma de gestión turística y reservas.
+</p>

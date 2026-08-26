@@ -1,8 +1,9 @@
 import { AlertCircle, Clock, CreditCard, FileText, Luggage, MapPin, Plane, Shield } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import Navbar from "../components/Navbar";
+
 export default function TravelInfo() {
   const [activeTab, setActiveTab] = useState("documentos");
 
@@ -142,164 +143,161 @@ export default function TravelInfo() {
 
   return (
     <>
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <Navbar />
+      <div className="min-h-screen bg-background transition-colors duration-300">
+        <Navbar />
 
-      {/* Hero Section - Modificado a Granate de AlecTours */}
-      <section className="relative py-20 overflow-hidden bg-gradient-to-br from-[#7B1E3A] to-[#A13B55]">
-        <div className="absolute inset-0">
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              opacity: [0.1, 0.2, 0.1],
-            }}
-            transition={{
-              duration: 8,
-              repeat: Infinity,
-            }}
-            className="absolute top-10 right-10 w-96 h-96 bg-white rounded-full blur-3xl"
-          />
-        </div>
-
-        <div className="relative max-w-7xl mx-auto px-4 text-center text-white">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <h1 className="text-6xl font-bold mb-6">
-              Información para tu viaje
-            </h1>
-            <p className="text-2xl text-white/90 max-w-3xl mx-auto">
-              Todo lo que necesitas saber antes de viajar
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Content Section */}
-      <section className="py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          {/* Tabs - Modificadas a la paleta AlecTours */}
-          <div className="mb-12">
-            <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide">
-              {tabs.map((tab, index) => (
-                <motion.button
-                  key={tab.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-3 px-6 py-4 rounded-2xl font-semibold whitespace-nowrap transition-all cursor-pointer ${activeTab === tab.id
-                    ? "bg-gradient-to-r from-[#7B1E3A] to-[#A13B55] text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:shadow-md border border-gray-200"
-                    }`}
-                >
-                  <tab.icon className="w-5 h-5" />
-                  {tab.label}
-                </motion.button>
-              ))}
-            </div>
+        {/* Hero Section - Granate de AlecTours usando variables */}
+        <section className="relative py-20 overflow-hidden bg-gradient-to-br from-primary to-primary/80">
+          <div className="absolute inset-0">
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [0.1, 0.2, 0.1],
+              }}
+              transition={{
+                duration: 8,
+                repeat: Infinity,
+              }}
+              className="absolute top-10 right-10 w-96 h-96 bg-primary-foreground/20 rounded-full blur-3xl"
+            />
           </div>
 
-          {/* Content Cards */}
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <h2 className="text-4xl font-bold mb-8 text-gray-900">
-              {activeContent.title}
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeContent.items.map((item, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 50 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ y: -10 }}
-                  className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-100"
-                >
-                  {/* Fondo de los iconos modificado al Granate de la marca */}
-                  <div className="w-16 h-16 bg-gradient-to-br from-[#7B1E3A] to-[#A13B55] rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-                    <item.icon className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 text-gray-900">
-                    {item.title}
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    {item.description}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Important Notice - Modificado al Oro/Miel suave de la marca */}
-      <section className="py-20 bg-gradient-to-r from-[#C9A227]/5 to-[#C9A227]/10">
-        <div className="max-w-4xl mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="bg-white rounded-3xl p-8 shadow-xl border-2 border-[#C9A227]/30"
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#C9A227] to-[#B38F1B] rounded-xl flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold mb-3 text-gray-900">
-                  Importante
-                </h3>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  La información proporcionada es de carácter general. Te recomendamos verificar los
-                  requisitos específicos de tu destino en las páginas oficiales de migración y consulados.
-                  Los requisitos pueden cambiar sin previo aviso.
-                </p>
-                <p className="text-gray-700 leading-relaxed">
-                  Para más información, contáctanos al <strong>+57 (1) 800-ALECK</strong> o escríbenos a{" "}
-                  <strong className="text-[#7B1E3A]">info@alecktours.com</strong>
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* FAQ Preview - Botón modificado a la paleta AlecTours */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              ¿Tienes más preguntas?
-            </h2>
-            <p className="text-xl text-gray-600 mb-8">
-              Visita nuestra sección de preguntas frecuentes
-            </p>
-            <motion.a
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              href="/faq"
-              className="inline-block px-10 py-4 bg-gradient-to-r from-[#7B1E3A] to-[#A13B55] text-white rounded-full font-bold text-lg hover:shadow-2xl transition-all"
+          <div className="relative max-w-7xl mx-auto px-4 text-center text-primary-foreground">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
             >
-              Ver preguntas frecuentes
-            </motion.a>
-          </motion.div>
-        </div>
-      </section>
-    </div>
-    <Footer/>
+              <h1 className="text-4xl md:text-6xl font-bold mb-6">
+                Información para tu viaje
+              </h1>
+              <p className="text-xl md:text-2xl text-primary-foreground/90 max-w-3xl mx-auto">
+                Todo lo que necesitas saber antes de viajar
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Content Section */}
+        <section className="py-12">
+          <div className="max-w-7xl mx-auto px-4">
+            {/* Tabs */}
+            <div className="mb-12">
+              <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide">
+                {tabs.map((tab, index) => (
+                  <motion.button
+                    key={tab.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-3 px-6 py-4 rounded-2xl font-semibold whitespace-nowrap transition-all cursor-pointer ${activeTab === tab.id
+                      ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg"
+                      : "bg-card text-foreground hover:bg-primary/5 hover:text-primary hover:shadow-md border border-border"
+                      }`}
+                  >
+                    <tab.icon className="w-5 h-5" />
+                    {tab.label}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Content Cards */}
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-8 text-foreground">
+                {activeContent.title}
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeContent.items.map((item, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ y: -10 }}
+                    className="bg-card rounded-3xl p-8 shadow-sm hover:shadow-xl transition-all border border-border"
+                  >
+                    <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/80 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                      <item.icon className="w-8 h-8 text-primary-foreground" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-3 text-card-foreground">
+                      {item.title}
+                    </h3>
+                    <p className="text-muted-foreground leading-relaxed">
+                      {item.description}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Important Notice - Adaptado al color Secundario (Oro/Miel) */}
+        <section className="py-20 bg-secondary/5">
+          <div className="max-w-4xl mx-auto px-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="bg-card rounded-3xl p-8 shadow-xl border-2 border-secondary/30"
+            >
+              <div className="flex items-start gap-4 flex-col sm:flex-row">
+                <div className="w-12 h-12 bg-gradient-to-br from-secondary to-secondary/80 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold mb-3 text-card-foreground">
+                    Importante
+                  </h3>
+                  <p className="text-muted-foreground leading-relaxed mb-4">
+                    La información proporcionada es de carácter general. Te recomendamos verificar los requisitos específicos de tu destino en las páginas oficiales de migración y consulados. Los requisitos pueden cambiar sin previo aviso.
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Para más información, contáctanos al <strong className="text-foreground">+57 (1) 800-ALECK</strong> o escríbenos a{" "}
+                    <strong className="text-primary">info@alecktours.com</strong>
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* FAQ Preview */}
+        <section className="py-20">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
+                ¿Tienes más preguntas?
+              </h2>
+              <p className="text-xl text-muted-foreground mb-8">
+                Visita nuestra sección de preguntas frecuentes
+              </p>
+              <motion.a
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                href="/faq"
+                className="inline-block px-10 py-4 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-full font-bold text-lg shadow-md hover:shadow-xl transition-all cursor-pointer"
+              >
+                Ver preguntas frecuentes
+              </motion.a>
+            </motion.div>
+          </div>
+        </section>
+      </div>
+      <Footer />
     </>
   );
 }

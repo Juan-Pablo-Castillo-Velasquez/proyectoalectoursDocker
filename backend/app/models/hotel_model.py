@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, ForeignKey, CheckConstraint, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, ForeignKey, CheckConstraint, UniqueConstraint, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -20,6 +20,25 @@ class Hotel(Base):
 
     habitaciones = relationship("Habitacion", back_populates="hotel", cascade="all, delete-orphan")
     hotel_caracteristicas = relationship("HotelCaracteristica", back_populates="hotel", cascade="all, delete-orphan")
+    resenas = relationship("Resena", back_populates="hotel")
+
+    @property
+    def total_resenas(self) -> int:
+        """Cantidad real de reseñas de clientes que dejaron este hotel —
+        usado para mostrar información comercial real (ej. "4.6 (23 reseñas)")
+        en vez de conteos inventados en las tarjetas de hotel."""
+        return len(self.resenas)
+
+    @property
+    def calificacion_promedio(self):
+        """Promedio real de calificación de clientes (1-5, de la tabla
+        `resenas`), distinto de `calificacion` (categoría/estrellas fijada
+        por el hotel). None si todavía no hay ninguna reseña real — el
+        frontend debe usar `calificacion` como respaldo en ese caso, nunca
+        inventar un promedio."""
+        if not self.resenas:
+            return None
+        return round(sum(r.calificacion for r in self.resenas) / len(self.resenas), 1)
 
 
 class Caracteristica(Base):
@@ -60,7 +79,7 @@ class Habitacion(Base):
     id_hotel = Column(Integer, ForeignKey("hoteles.id_hotel", ondelete="CASCADE"), nullable=False)
     id_tipo_habitacion = Column(Integer, ForeignKey("tipo_habitacion.id_tipo_habitacion"), nullable=False)
     numero_habitacion = Column(String(20), nullable=False)
-    precio_noche = Column(Integer, CheckConstraint("precio_noche >= 0"), nullable=False)
+    precio_noche = Column(Numeric(10, 2), CheckConstraint("precio_noche >= 0"), nullable=False)
     estado = Column(String(20), CheckConstraint("estado IN ('disponible', 'ocupada', 'mantenimiento')"), nullable=False)
 
     hotel = relationship("Hotel", back_populates="habitaciones")

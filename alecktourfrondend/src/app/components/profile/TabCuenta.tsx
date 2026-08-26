@@ -1,139 +1,740 @@
-import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2, Lock } from "lucide-react";
-import { useState } from "react";
-import { apiFetch } from "../../api/v1/api";
+import { Banknote, Building2, Camera, CreditCard, Eye, EyeOff, KeyRound, Lock, Loader2, Pencil, Plus, Shield, Smartphone, Trash2, User, Wallet, X, Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { BASE_URL } from "../../api/v1/api";
+import { useAuth } from "../../context/AuthContext";
+import { ClienteResponse, clienteService } from "../../services/cliente.service";
+import {
+  MetodoPagoGuardado,
+  metodoPagoGuardadoService,
+} from "../../services/metodoPagoGuardado.service";
+import { usuarioService } from "../../services/usuario.service";
 
-interface Props { clienteData: any; }
+interface Props {
+  clienteData: ClienteResponse | null;
+  onClienteActualizado?: (cliente: ClienteResponse) => void;
+}
 
-export default function TabCuenta({ clienteData }: Props) {
-  const [form, setForm] = useState({ actual: "", nueva: "", confirmar: "" });
-  const [show, setShow] = useState({ actual: false, nueva: false, confirmar: false });
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+const CAMPOS_EDITABLES = [
+  { name: "nombre", label: "Nombre", required: true },
+  { name: "apellido", label: "Apellido", required: true },
+  { name: "correo", label: "Correo Electrónico", type: "email" },
+  { name: "celular", label: "Teléfono Celular" },
+  { name: "ciudad", label: "Ciudad" },
+  { name: "pais", label: "País" },
+  { name: "direccion", label: "Dirección de Residencia" },
+  { name: "fecha_nacimiento", label: "Fecha de Nacimiento", type: "date" },
+] as const;
 
-  const toggle = (field: keyof typeof show) => setShow(p => ({ ...p, [field]: !p[field] }));
+const TIPOS_PERMITIDOS = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const TAMANO_MAXIMO = 5 * 1024 * 1024; // 5MB
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+const TIPOS_METODO_PAGO: { id: string; label: string; icon: typeof CreditCard }[] = [
+  { id: "tarjeta_credito", label: "Tarjeta de crédito", icon: CreditCard },
+  { id: "tarjeta_debito", label: "Tarjeta de débito", icon: CreditCard },
+  { id: "pse", label: "PSE", icon: Building2 },
+  { id: "nequi", label: "Nequi", icon: Smartphone },
+  { id: "paypal", label: "PayPal", icon: Wallet },
+  { id: "otro", label: "Otro", icon: Banknote },
+];
 
-  const handleSubmit = async () => {
-    setStatus(null);
-    if (!form.actual || !form.nueva || !form.confirmar)
-      return setStatus({ type: "error", msg: "Completa todos los campos." });
-    if (form.nueva.length < 8)
-      return setStatus({ type: "error", msg: "La nueva contraseña debe tener al menos 8 caracteres." });
-    if (form.nueva !== form.confirmar)
-      return setStatus({ type: "error", msg: "Las contraseñas no coinciden." });
+function iconoMetodoPago(tipo: string) {
+  return TIPOS_METODO_PAGO.find((t) => t.id === tipo)?.icon ?? Banknote;
+}
 
-    setLoading(true);
+function labelMetodoPago(tipo: string) {
+  return TIPOS_METODO_PAGO.find((t) => t.id === tipo)?.label ?? tipo;
+}
+
+function formatearFecha(fecha: string | null | undefined) {
+  if (!fecha) return "—";
+  const [y, m, d] = fecha.split("T")[0].split("-").map(Number);
+  if (!y || !m || !d) return fecha;
+  return new Date(y, m - 1, d).toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+export default function TabCuenta({ clienteData, onClienteActualizado }: Props) {
+  const { usuario, updateUsuario } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [contrasenaActual, setContrasenaActual] = useState("");
+  const [nuevaContrasena, setNuevaContrasena] = useState("");
+  const [confirmarContrasena, setConfirmarContrasena] = useState("");
+  const [guardandoPassword, setGuardandoPassword] = useState(false);
+
+  const [editandoPersonal, setEditandoPersonal] = useState(false);
+  const [formPersonal, setFormPersonal] = useState<Record<string, string>>({});
+  const [guardandoPersonal, setGuardandoPersonal] = useState(false);
+
+  // ── Métodos de pago guardados ──
+  const [metodosGuardados, setMetodosGuardados] = useState<MetodoPagoGuardado[]>([]);
+  const [cargandoMetodos, setCargandoMetodos] = useState(true);
+  const [mostrarFormMetodo, setMostrarFormMetodo] = useState(false);
+  const [guardandoMetodo, setGuardandoMetodo] = useState(false);
+  const [eliminandoMetodoId, setEliminandoMetodoId] = useState<number | null>(null);
+  const [formMetodo, setFormMetodo] = useState({
+    alias: "",
+    tipo: "tarjeta_credito",
+    ultimos4: "",
+    clave: "",
+    confirmarClave: "",
+    predeterminado: false,
+  });
+
+  useEffect(() => {
+    metodoPagoGuardadoService
+      .getAll()
+      .then(setMetodosGuardados)
+      .catch(() => setMetodosGuardados([]))
+      .finally(() => setCargandoMetodos(false));
+  }, []);
+
+  const resetFormMetodo = () =>
+    setFormMetodo({
+      alias: "",
+      tipo: "tarjeta_credito",
+      ultimos4: "",
+      clave: "",
+      confirmarClave: "",
+      predeterminado: false,
+    });
+
+  const handleGuardarMetodo = async () => {
+    if (!formMetodo.alias.trim()) {
+      toast.error("Ponle un alias a tu método de pago (ej. \"Visa personal\").");
+      return;
+    }
+    if (formMetodo.ultimos4 && !/^\d{4}$/.test(formMetodo.ultimos4)) {
+      toast.error("Los últimos 4 dígitos deben ser 4 números.");
+      return;
+    }
+    if (!/^\d{4,6}$/.test(formMetodo.clave)) {
+      toast.error("La clave de confirmación debe ser numérica, de 4 a 6 dígitos.");
+      return;
+    }
+    if (formMetodo.clave !== formMetodo.confirmarClave) {
+      toast.error("Las claves no coinciden.");
+      return;
+    }
+
+    setGuardandoMetodo(true);
     try {
-      await apiFetch(`/clientes/${clienteData.id_cliente}/cambiar-contrasena`, {
-        method: "PUT",
-        body: { contrasena_actual: form.actual, nueva_contrasena: form.nueva },
+      const nuevo = await metodoPagoGuardadoService.create({
+        alias: formMetodo.alias.trim(),
+        tipo: formMetodo.tipo,
+        ultimos4: formMetodo.ultimos4 || undefined,
+        clave: formMetodo.clave,
+        predeterminado: formMetodo.predeterminado,
       });
-      setStatus({ type: "success", msg: "Contraseña actualizada correctamente." });
-      setForm({ actual: "", nueva: "", confirmar: "" });
+      setMetodosGuardados((prev) => [
+        nuevo,
+        ...(nuevo.predeterminado ? prev.map((m) => ({ ...m, predeterminado: false })) : prev),
+      ]);
+      resetFormMetodo();
+      setMostrarFormMetodo(false);
+      toast.success("Método de pago guardado. Tu clave quedó protegida con hash, nunca en texto plano.");
     } catch (err: any) {
-      setStatus({ type: "error", msg: err?.message ?? "Error al cambiar la contraseña." });
+      toast.error(err?.message || "No pudimos guardar el método de pago.");
     } finally {
-      setLoading(false);
+      setGuardandoMetodo(false);
     }
   };
 
-  const fields: { name: keyof typeof form; label: string; key: keyof typeof show }[] = [
-    { name: "actual", label: "Contraseña actual", key: "actual" },
-    { name: "nueva", label: "Nueva contraseña", key: "nueva" },
-    { name: "confirmar", label: "Confirmar nueva contraseña", key: "confirmar" },
+  const handleEliminarMetodo = async (id: number) => {
+    setEliminandoMetodoId(id);
+    try {
+      await metodoPagoGuardadoService.delete(id);
+      setMetodosGuardados((prev) => prev.filter((m) => m.id_metodo_guardado !== id));
+      toast.success("Método de pago eliminado");
+    } catch (err: any) {
+      toast.error(err?.message || "No pudimos eliminar este método de pago.");
+    } finally {
+      setEliminandoMetodoId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!clienteData) return;
+    setFormPersonal({
+      nombre: clienteData.nombre ?? "",
+      apellido: clienteData.apellido ?? "",
+      correo: clienteData.correo ?? "",
+      celular: clienteData.celular ?? "",
+      ciudad: clienteData.ciudad ?? "",
+      pais: clienteData.pais ?? "",
+      direccion: clienteData.direccion ?? "",
+      fecha_nacimiento: clienteData.fecha_nacimiento ? clienteData.fecha_nacimiento.split("T")[0] : "",
+    });
+  }, [clienteData]);
+
+  const iniciarEdicionPersonal = () => setEditandoPersonal(true);
+  const cancelarEdicionPersonal = () => {
+    setEditandoPersonal(false);
+    if (clienteData) {
+      setFormPersonal({
+        nombre: clienteData.nombre ?? "",
+        apellido: clienteData.apellido ?? "",
+        correo: clienteData.correo ?? "",
+        celular: clienteData.celular ?? "",
+        ciudad: clienteData.ciudad ?? "",
+        pais: clienteData.pais ?? "",
+        direccion: clienteData.direccion ?? "",
+        fecha_nacimiento: clienteData.fecha_nacimiento ? clienteData.fecha_nacimiento.split("T")[0] : "",
+      });
+    }
+  };
+
+  const handleGuardarPersonal = async () => {
+    if (!clienteData) return;
+    if (!formPersonal.nombre.trim() || !formPersonal.apellido.trim()) {
+      toast.error("Nombre y apellido son obligatorios.");
+      return;
+    }
+    setGuardandoPersonal(true);
+    try {
+      // fecha_nacimiento y correo vacíos no son valores válidos para el
+      // backend (date/EmailStr) — se omiten en vez de mandar "" cuando el
+      // usuario los deja en blanco.
+      const { fecha_nacimiento, correo, ...resto } = formPersonal;
+      const payload: Record<string, string> = { ...resto };
+      if (fecha_nacimiento) payload.fecha_nacimiento = fecha_nacimiento;
+      if (correo) payload.correo = correo;
+      const actualizado = await clienteService.update(clienteData.id_cliente, payload);
+      onClienteActualizado?.(actualizado);
+      setEditandoPersonal(false);
+      toast.success("Datos personales actualizados");
+    } catch (err: any) {
+      toast.error(err?.message || "No pudimos actualizar tus datos.");
+    } finally {
+      setGuardandoPersonal(false);
+    }
+  };
+
+  const fotoUrl = usuario?.foto_perfil ? `${BASE_URL}${usuario.foto_perfil}` : null;
+
+  const handleSeleccionArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!TIPOS_PERMITIDOS.includes(file.type)) {
+      toast.error("Formato no soportado. Usa una imagen JPG, PNG o WEBP.");
+      return;
+    }
+    if (file.size > TAMANO_MAXIMO) {
+      toast.error("La imagen no puede superar los 5MB.");
+      return;
+    }
+
+    setSubiendoFoto(true);
+    try {
+      const actualizado = await usuarioService.uploadFoto(file);
+      updateUsuario({ foto_perfil: actualizado.foto_perfil });
+      toast.success("Foto de perfil actualizada");
+    } catch (err: any) {
+      toast.error(err?.message || "No pudimos subir la imagen. Intenta de nuevo.");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
+  const handleEliminarFoto = async () => {
+    if (!usuario?.foto_perfil) return;
+    setSubiendoFoto(true);
+    try {
+      await usuarioService.deleteFoto();
+      updateUsuario({ foto_perfil: null });
+      toast.success("Foto de perfil eliminada");
+    } catch (err: any) {
+      toast.error(err?.message || "No pudimos eliminar la imagen.");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
+  const handleActualizarPassword = async () => {
+    if (!clienteData) return;
+    if (!contrasenaActual || !nuevaContrasena || !confirmarContrasena) {
+      toast.error("Completa los tres campos de contraseña.");
+      return;
+    }
+    if (nuevaContrasena.length < 8) {
+      toast.error("La nueva contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (nuevaContrasena !== confirmarContrasena) {
+      toast.error("La nueva contraseña y su confirmación no coinciden.");
+      return;
+    }
+
+    setGuardandoPassword(true);
+    try {
+      await clienteService.cambiarContrasena(clienteData.id_cliente, {
+        contrasena_actual: contrasenaActual,
+        nueva_contrasena: nuevaContrasena,
+      });
+      toast.success("Contraseña actualizada correctamente");
+      setContrasenaActual("");
+      setNuevaContrasena("");
+      setConfirmarContrasena("");
+    } catch (err: any) {
+      toast.error(err?.message || "No pudimos actualizar tu contraseña.");
+    } finally {
+      setGuardandoPassword(false);
+    }
+  };
+
+  const datosPersonales = [
+    { label: "Nombre Completo", value: clienteData ? `${clienteData.nombre} ${clienteData.apellido}` : "—" },
+    { label: "Correo Electrónico", value: clienteData?.correo || usuario?.username || "—" },
+    { label: "Teléfono Celular", value: clienteData?.celular || "—" },
+    { label: "Ciudad", value: clienteData?.ciudad || "—" },
+    { label: "País", value: clienteData?.pais || "—" },
+    { label: "Dirección de Residencia", value: clienteData?.direccion || "—" },
+    { label: "Fecha de Nacimiento", value: formatearFecha(clienteData?.fecha_nacimiento) },
   ];
 
+  const inputPersonalCls = "w-full bg-transparent text-base font-bold text-foreground focus:outline-none placeholder:text-muted-foreground/50 placeholder:font-normal";
+
   return (
-    <>
-      {/* Título de la pestaña */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground  text-white tracking-tight">Mi Cuenta</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Información de tu perfil y configuración de seguridad</p>
+    <div className="w-full max-w-4xl">
+      {/* ── Encabezado ── */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+          Mi Cuenta
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Información de tu perfil y configuración de seguridad
+        </p>
       </div>
 
-      {/* Datos del perfil */}
-      <div className="bg-card text-card-foreground rounded-xl shadow-md border border-border p-6 mb-6 transition-colors duration-200">
-        {clienteData ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { label: "Nombre completo", value: `${clienteData.nombre} ${clienteData.apellido}` },
-              { label: "Documento de Identidad / Cédula", value: clienteData.cedula },
-              { label: "Correo electrónico", value: clienteData.correo },
-              { label: "Teléfono Celular", value: clienteData.celular },
-              { label: "Ciudad", value: clienteData.ciudad },
-              { label: "País", value: clienteData.pais },
-              { label: "Dirección de residencia", value: clienteData.direccion },
-              {
-                label: "Fecha de nacimiento", value: clienteData.fecha_nacimiento
-                  ? new Date(clienteData.fecha_nacimiento).toLocaleDateString("es-CO", { day: 'numeric', month: 'long', year: 'numeric' }) : null
-              },
-            ].filter(item => item.value).map(item => (
-              <div key={item.label} className="p-3.5 bg-muted/40 rounded-lg border border-border/40">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80 mb-0.5">{item.label}</p>
-                <p className="font-semibold text-foreground text-sm">{item.value}</p>
-              </div>
-            ))}
+      <div className="space-y-8">
+
+        {/* ── SECCIÓN 1: Foto de Perfil ── */}
+        <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col sm:flex-row items-center gap-6">
+
+          {/* Avatar con botón superpuesto */}
+          <div className="relative group shrink-0">
+            <div className="w-24 h-24 bg-primary/10 rounded-full border-4 border-background flex items-center justify-center shadow-md overflow-hidden">
+              {subiendoFoto ? (
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              ) : fotoUrl ? (
+                <img src={fotoUrl} alt="Foto de perfil" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-10 h-10 text-primary" />
+              )}
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={subiendoFoto}
+              className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full border-2 border-card shadow-md hover:scale-110 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+              title="Cambiar foto de perfil"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={handleSeleccionArchivo}
+            />
           </div>
-        ) : (
-          <p className="text-muted-foreground text-center py-8 text-sm">No se encontró información del perfil.</p>
-        )}
-      </div>
 
-      {/* Cambiar contraseña */}
-      <div className="bg-card text-card-foreground rounded-xl shadow-md border border-border p-6 transition-colors duration-200">
-        <h2 className="text-lg font-bold text-foreground tracking-tight mb-0.5 flex items-center gap-2">
-          <Lock className="w-4 h-4 text-primary" /> Seguridad de la cuenta
-        </h2>
-        <p className="text-muted-foreground text-xs mb-6">Actualiza tu contraseña de acceso para mantener la cuenta protegida</p>
+          {/* Textos y botón de acción */}
+          <div className="text-center sm:text-left">
+            <h2 className="text-lg font-bold text-foreground">Foto de perfil</h2>
+            <p className="text-sm text-muted-foreground mb-4 mt-1 max-w-md">
+              Sube una nueva foto para personalizar tu cuenta. Recomendamos usar una imagen cuadrada de al menos 256x256px en formato JPG o PNG.
+            </p>
+            <div className="flex items-center justify-center sm:justify-start gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={subiendoFoto}
+                className="text-sm font-semibold bg-background border border-border hover:border-primary/50 hover:text-primary px-5 py-2.5 rounded-full transition-all duration-200 active:scale-95 shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+              >
+                Subir nueva imagen
+              </button>
+              <button
+                onClick={handleEliminarFoto}
+                disabled={subiendoFoto || !usuario?.foto_perfil}
+                className="text-sm font-semibold text-destructive hover:text-destructive/80 px-4 py-2.5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
 
-        <div className="space-y-4 max-w-md">
-          {fields.map(({ name, label, key }) => (
-            <div key={name} className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">{label}</label>
-              <div className="relative">
-                <input
-                  type={show[key] ? "text" : "password"}
-                  name={name}
-                  value={form[name]}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2 pr-10 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-muted/30 text-foreground placeholder:text-muted-foreground/50 transition-all"
-                />
+        {/* ── SECCIÓN 2: Información Personal (Estilo Bento Box) ── */}
+        <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-foreground">Información Personal</h2>
+            {!editandoPersonal ? (
+              <button
+                onClick={iniciarEdicionPersonal}
+                disabled={!clienteData}
+                className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Editar
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
                 <button
-                  type="button"
-                  onClick={() => toggle(key)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground transition-colors"
+                  onClick={cancelarEdicionPersonal}
+                  disabled={guardandoPersonal}
+                  className="text-sm font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors"
                 >
-                  {show[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <X className="w-3.5 h-3.5" /> Cancelar
+                </button>
+                <button
+                  onClick={handleGuardarPersonal}
+                  disabled={guardandoPersonal}
+                  className="text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 px-4 py-1.5 rounded-full transition-colors disabled:opacity-50"
+                >
+                  {guardandoPersonal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Guardar
                 </button>
               </div>
-            </div>
-          ))}
+            )}
+          </div>
 
-          {status && (
-            <div className={`flex items-start gap-2.5 text-xs px-4 py-3 rounded-lg border transition-all ${status.type === "success"
-              ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
-              : "bg-destructive/10 text-destructive border-destructive/20"
-              }`}>
-              {status.type === "success"
-                ? <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
-              <span className="font-medium">{status.msg}</span>
+          {!editandoPersonal ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {datosPersonales.map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-background border border-border/50 rounded-2xl p-4 hover:border-primary/30 transition-colors"
+                >
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">
+                    {item.label}
+                  </label>
+                  <p className="text-base font-bold text-foreground truncate">{item.value}</p>
+                </div>
+              ))}
+              <div className="bg-background border border-border/50 rounded-2xl p-4 opacity-70">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">
+                  Documento de Identidad / Cédula
+                </label>
+                <p className="text-base font-bold text-foreground truncate">{clienteData?.cedula || "—"}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {CAMPOS_EDITABLES.map((campo) => (
+                <div
+                  key={campo.name}
+                  className="bg-background border border-primary/30 rounded-2xl p-4"
+                >
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">
+                    {campo.label}
+                  </label>
+                  <input
+                    type={campo.type ?? "text"}
+                    value={formPersonal[campo.name] ?? ""}
+                    onChange={(e) => setFormPersonal((f) => ({ ...f, [campo.name]: e.target.value }))}
+                    required={campo.required}
+                    className={inputPersonalCls}
+                  />
+                </div>
+              ))}
+              <div className="bg-muted/40 border border-border/50 rounded-2xl p-4 opacity-70">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">
+                  Documento de Identidad / Cédula
+                </label>
+                <p className="text-base font-bold text-foreground truncate">{clienteData?.cedula || "—"}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">No editable</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── SECCIÓN 3: Métodos de pago guardados ── */}
+        <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                <Wallet className="w-5 h-5 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground">Métodos de pago guardados</h2>
+            </div>
+            {!mostrarFormMetodo && (
+              <button
+                onClick={() => setMostrarFormMetodo(true)}
+                className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1.5 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Agregar
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mb-6">
+            Guarda un método de pago con una clave de confirmación propia. Nunca almacenamos el
+            número completo de tu tarjeta o cuenta — solo un alias, los últimos 4 dígitos y tu
+            clave protegida con hash, la misma técnica que usamos para tu contraseña.
+          </p>
+
+          {cargandoMetodos ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Cargando métodos guardados...
+            </div>
+          ) : (
+            <div className="space-y-3 mb-2">
+              {metodosGuardados.map((metodo) => {
+                const Icon = iconoMetodoPago(metodo.tipo);
+                return (
+                  <div
+                    key={metodo.id_metodo_guardado}
+                    className="flex items-center justify-between gap-3 bg-background border border-border/50 rounded-2xl p-4"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                        <Icon className="w-4.5 h-4.5 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate flex items-center gap-2">
+                          {metodo.alias}
+                          {metodo.predeterminado && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                              Predeterminado
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {labelMetodoPago(metodo.tipo)}
+                          {metodo.ultimos4 && ` · •••• ${metodo.ultimos4}`}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleEliminarMetodo(metodo.id_metodo_guardado)}
+                      disabled={eliminandoMetodoId === metodo.id_metodo_guardado}
+                      className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                      title="Eliminar método de pago"
+                    >
+                      {eliminandoMetodoId === metodo.id_metodo_guardado ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+
+              {metodosGuardados.length === 0 && !mostrarFormMetodo && (
+                <p className="text-sm text-muted-foreground italic bg-background p-4 rounded-xl border border-border/50">
+                  Aún no tienes métodos de pago guardados.
+                </p>
+              )}
             </div>
           )}
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium transition-all duration-200 hover:opacity-95 active:scale-95 disabled:opacity-50 shadow-sm"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-            {loading ? "Guardando cambios..." : "Actualizar contraseña"}
-          </button>
+          {mostrarFormMetodo && (
+            <div className="bg-background border border-primary/30 rounded-2xl p-5 mt-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Alias</label>
+                  <input
+                    type="text"
+                    value={formMetodo.alias}
+                    onChange={(e) => setFormMetodo((f) => ({ ...f, alias: e.target.value }))}
+                    placeholder="Ej. Visa personal"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Tipo</label>
+                  <select
+                    value={formMetodo.tipo}
+                    onChange={(e) => setFormMetodo((f) => ({ ...f, tipo: e.target.value }))}
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                  >
+                    {TIPOS_METODO_PAGO.map((t) => (
+                      <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Últimos 4 dígitos (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={formMetodo.ultimos4}
+                    onChange={(e) => setFormMetodo((f) => ({ ...f, ultimos4: e.target.value.replace(/\D/g, "") }))}
+                    placeholder="1234"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                    <Shield className="w-3 h-3" /> Marcar como predeterminado
+                  </span>
+                  <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formMetodo.predeterminado}
+                      onChange={(e) => setFormMetodo((f) => ({ ...f, predeterminado: e.target.checked }))}
+                      className="w-4 h-4 text-primary rounded"
+                    />
+                    <span className="text-sm text-foreground">Usar por defecto al pagar</span>
+                  </label>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                    <KeyRound className="w-3 h-3" /> Clave de confirmación (4-6 dígitos)
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={formMetodo.clave}
+                    onChange={(e) => setFormMetodo((f) => ({ ...f, clave: e.target.value.replace(/\D/g, "") }))}
+                    placeholder="••••"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Confirmar clave</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={formMetodo.confirmarClave}
+                    onChange={(e) => setFormMetodo((f) => ({ ...f, confirmarClave: e.target.value.replace(/\D/g, "") }))}
+                    placeholder="••••"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={handleGuardarMetodo}
+                  disabled={guardandoMetodo}
+                  className="text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 px-5 py-2.5 rounded-full transition-colors disabled:opacity-50"
+                >
+                  {guardandoMetodo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Guardar método
+                </button>
+                <button
+                  onClick={() => {
+                    setMostrarFormMetodo(false);
+                    resetFormMetodo();
+                  }}
+                  disabled={guardandoMetodo}
+                  className="text-sm font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 px-4 py-2.5 rounded-full transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* ── SECCIÓN 4: Seguridad de la cuenta ── */}
+        <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
+
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+              <Lock className="w-5 h-5 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Seguridad de la cuenta</h2>
+          </div>
+
+          <p className="text-sm text-muted-foreground mb-6 ml-13">
+            Actualiza tu contraseña de acceso para mantener la cuenta protegida
+          </p>
+
+          <div className="space-y-5 max-w-md ml-13">
+            {/* Input: Contraseña actual */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Contraseña actual</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={contrasenaActual}
+                  onChange={(e) => setContrasenaActual(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Input: Nueva contraseña */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Nueva contraseña</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={nuevaContrasena}
+                  onChange={(e) => setNuevaContrasena(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Input: Confirmar nueva contraseña */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Confirmar nueva contraseña</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmarContrasena}
+                  onChange={(e) => setConfirmarContrasena(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Botón */}
+            <div className="pt-2">
+              <button
+                onClick={handleActualizarPassword}
+                disabled={guardandoPassword || !clienteData}
+                className="flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-full hover:bg-primary/90 hover:scale-[0.98] transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {guardandoPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                {guardandoPassword ? "Actualizando..." : "Actualizar contraseña"}
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
-    </>
+    </div>
   );
 }

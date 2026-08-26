@@ -31,6 +31,34 @@ class PaqueteResponse(BaseModel):
         from_attributes = True
 
 
+class PaqueteHotelDetalle(BaseModel):
+    id_hotel: int
+    nombre_hotel: str
+    ciudad: Optional[str] = None
+    pais: Optional[str] = None
+    calificacion: Optional[int] = None
+    noches_incluidas: Optional[int] = None
+    caracteristicas: List[str] = []
+
+
+class PaqueteServicioDetalle(BaseModel):
+    nombre_servicio: str
+    categoria: Optional[str] = None
+    descripcion: Optional[str] = None
+    dia_actividad: Optional[int] = None
+    incluido: bool = True
+
+
+class PaqueteDetalleResponse(PaqueteResponse):
+    """PaqueteResponse enriquecido con destinos, hoteles y servicios reales
+    — usado por GET /paquetes/{id}/detalle para la página de detalle del
+    frontend, que antes mostraba datos de ejemplo hardcodeados en
+    data/packages.ts (nombres de hoteles, vuelos y horarios inventados)."""
+    destinos: List[str] = []
+    hoteles: List[PaqueteHotelDetalle] = []
+    servicios: List[PaqueteServicioDetalle] = []
+
+
 class MetodoPagoCreate(BaseModel):
     nombre_metodo: str = Field(..., min_length=1, max_length=50)
 
@@ -38,6 +66,33 @@ class MetodoPagoCreate(BaseModel):
 class MetodoPagoResponse(BaseModel):
     id_metodo: int
     nombre_metodo: str
+    codigo: str
+
+    class Config:
+        from_attributes = True
+
+
+# ===================== NUEVO: Habitación dentro de una reserva =====================
+
+class HabitacionReservaCreate(BaseModel):
+    """Una habitación específica que el cliente quiere reservar dentro de la reserva."""
+    id_habitacion: int
+    fecha_checkin: date
+    fecha_checkout: date
+
+    @field_validator("fecha_checkout")
+    @classmethod
+    def validate_fechas_habitacion(cls, v, info):
+        if "fecha_checkin" in info.data and v <= info.data["fecha_checkin"]:
+            raise ValueError("fecha_checkout debe ser posterior a fecha_checkin")
+        return v
+
+
+class HabitacionReservaResponse(BaseModel):
+    id_habitacion: int
+    fecha_checkin: date
+    fecha_checkout: date
+    precio_acordado: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -50,6 +105,8 @@ class ReservaCreate(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     numero_personas: int = Field(..., gt=0)
+    # NUEVO: habitaciones reales que se están reservando (precio se calcula en backend, no se confía en el frontend)
+    habitaciones: Optional[List[HabitacionReservaCreate]] = None
 
     @field_validator("fecha_fin")
     @classmethod
@@ -84,6 +141,15 @@ class ReservaResponse(BaseModel):
     fecha_fin: date
     numero_personas: int
     estado: str
+    precio_total: float = 0
+    # Nombre del paquete y destino (ciudad/país del hotel), calculados en
+    # Reserva.nombre_paquete / Reserva.destino — para que el historial de
+    # reservas del frontend no tenga que mostrar solo el id_paquete crudo.
+    nombre_paquete: Optional[str] = None
+    destino: Optional[str] = None
+    # Nombre del hotel — respaldo para cuando la reserva no tiene paquete
+    # (reserva directa de habitación, id_paquete nulo): ver Reserva.hotel_nombre.
+    hotel_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -104,8 +170,8 @@ class PagoUpdate(BaseModel):
     @field_validator("estado")
     @classmethod
     def validate_estado(cls, v):
-        if v and v not in ["pendiente", "pagado", "rechazado"]:
-            raise ValueError("estado debe ser: pendiente, pagado o rechazado")
+        if v and v not in ["pendiente", "procesando", "pagado", "rechazado", "cancelado"]:
+            raise ValueError("estado debe ser: pendiente, procesando, pagado, rechazado o cancelado")
         return v
 
 
@@ -123,6 +189,51 @@ class PagoResponse(BaseModel):
         from_attributes = True
 
 
+class AsesorResponse(BaseModel):
+    """Datos mínimos del empleado asignado a la reserva (sin cédula ni
+    fecha de contratación — esto lo ve el cliente en el popup de su reserva)."""
+    id_empleado: int
+    nombre: str
+    apellido: str
+    correo_electronico: Optional[str] = None
+    celular: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PagarRequest(BaseModel):
+    id_metodo_pago: int
+    tipo_pago: str = "completo"
+
+    # Campos especificos por metodo — nunca se envia el numero completo de
+    # tarjeta ni datos sensibles reales, todo esto es simulado:
+    ultimos4: Optional[str] = Field(None, max_length=4, min_length=4)   # tarjeta
+    celular: Optional[str] = Field(None, max_length=15)                 # nequi
+    banco: Optional[str] = Field(None, max_length=100)                  # pse
+    documento: Optional[str] = Field(None, max_length=20)               # pse
+
+    @field_validator("tipo_pago")
+    @classmethod
+    def validate_tipo_pago(cls, v):
+        if v not in ("completo", "parcial"):
+            raise ValueError("tipo_pago debe ser: completo o parcial")
+        return v
+
+
+class PagarResponse(BaseModel):
+    pago: PagoResponse
+    reserva: ReservaResponse
+
+
 class ReservaDetailResponse(ReservaResponse):
     paquete: Optional[PaqueteResponse] = None
     pagos: List[PagoResponse] = []
+    # OJO: el modelo SQLAlchemy llama a esta relación "reserva_habitaciones", por eso el alias.
+    habitaciones: List[HabitacionReservaResponse] = Field(default=[], validation_alias="reserva_habitaciones")
+    empleado: Optional[AsesorResponse] = None
+    canal_origen: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True

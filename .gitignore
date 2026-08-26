@@ -46,6 +46,10 @@ pgadmin_data/
 # Alembic
 alembic/versions/__pycache__/
 
+# Archivos subidos por usuarios (fotos de perfil, etc.)
+backend/app/static/uploads/**
+!backend/app/static/uploads/**/.gitkeep
+
 # Logs
 *.log
 

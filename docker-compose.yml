@@ -1,5 +1,4 @@
 services:
-
   postgres:
     image: postgres:16
     container_name: postgres_db
@@ -55,6 +54,7 @@ services:
   backend:
     build:
       context: ./backend
+      target: dev
 
     container_name: fastapi_backend
     restart: always
@@ -94,7 +94,14 @@ services:
 
     networks:
       - alecktours_network
-
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - alecktours_network
 volumes:
   postgres_data:
   pgadmin_data:

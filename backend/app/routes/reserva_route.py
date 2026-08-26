@@ -1,18 +1,31 @@
+import uuid
 from app.services.reserva_detail_service import ReservaDetailService
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from app.core.database import get_db
-from app.core.exceptions import ReservaDependencyError, PaqueteDependencyError, NotFoundError
+from app.core.exceptions import (
+    ReservaDependencyError, PaqueteDependencyError, NotFoundError,
+    HabitacionNoDisponibleError, HabitacionNoEncontradaError, PaqueteNoEncontradoError,
+)
 from app.schemas.reserva_schema import (
     PaqueteCreate, PaqueteUpdate, PaqueteResponse,
+    PaqueteDetalleResponse, PaqueteHotelDetalle, PaqueteServicioDetalle,
     ReservaCreate, ReservaUpdate, ReservaResponse, ReservaDetailResponse,
     PagoCreate, PagoUpdate, PagoResponse,
-    MetodoPagoCreate, MetodoPagoResponse
+    MetodoPagoCreate, MetodoPagoResponse,
+    PagarRequest, PagarResponse,
+)
+from app.schemas.reserva_detail import (
+    ReservaHabitacionDetail, ReservaServicioDetail, ReservaHistorialDetail,
 )
 from app.repositories.reserva_repository import (
     PaqueteRepository, ReservaRepository, PagoRepository, MetodoPagoRepository
 )
+from app.models.reserva_model import Pago, MetodoPago, HistorialReserva, Paquete, PaqueteServicio, PaqueteHotel
+from app.models.servicio_model import Servicio
+from app.models.hotel_model import Hotel, HotelCaracteristica
+from app.services import payment_service
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 
@@ -43,6 +56,77 @@ def get_paquete(paquete_id: int, db: Session = Depends(get_db)):
     if not paquete:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
     return paquete
+
+
+@router.get("/paquetes/{paquete_id}/detalle", response_model=PaqueteDetalleResponse)
+def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
+    """
+    Igual que GET /paquetes/{id} pero enriquecido con los destinos, hoteles
+    (con sus características reales) y servicios incluidos del paquete —
+    usado por la página de detalle del frontend, que antes mostraba datos
+    de ejemplo hardcodeados (vuelos, horarios y hoteles inventados) desde
+    data/packages.ts en vez de la información real de la base de datos.
+    """
+    paquete = (
+        db.query(Paquete)
+        .options(
+            joinedload(Paquete.paquete_servicios).joinedload(PaqueteServicio.servicio).joinedload(Servicio.categoria),
+            joinedload(Paquete.paquete_servicios).joinedload(PaqueteServicio.servicio).joinedload(Servicio.destino),
+            joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel).joinedload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
+        )
+        .filter(Paquete.id_paquete == paquete_id)
+        .first()
+    )
+    if not paquete:
+        raise HTTPException(status_code=404, detail="Paquete no encontrado")
+
+    destinos = sorted({
+        ps.servicio.destino.nombre_destino
+        for ps in paquete.paquete_servicios
+        if ps.servicio and ps.servicio.destino
+    })
+
+    hoteles = [
+        PaqueteHotelDetalle(
+            id_hotel=ph.hotel.id_hotel,
+            nombre_hotel=ph.hotel.nombre_hotel,
+            ciudad=ph.hotel.ciudad,
+            pais=ph.hotel.pais,
+            calificacion=ph.hotel.calificacion,
+            noches_incluidas=ph.noches_incluidas,
+            caracteristicas=sorted({
+                hc.caracteristica.nombre_caracteristica
+                for hc in ph.hotel.hotel_caracteristicas
+                if hc.disponible and hc.caracteristica
+            }),
+        )
+        for ph in paquete.paquete_hotel
+        if ph.hotel
+    ]
+
+    servicios = [
+        PaqueteServicioDetalle(
+            nombre_servicio=ps.servicio.nombre_servicio,
+            categoria=ps.servicio.categoria.nombre_categoria if ps.servicio.categoria else None,
+            descripcion=ps.servicio.descripcion,
+            dia_actividad=ps.dia_actividad,
+            incluido=ps.incluido if ps.incluido is not None else True,
+        )
+        for ps in paquete.paquete_servicios
+        if ps.servicio
+    ]
+
+    return PaqueteDetalleResponse(
+        id_paquete=paquete.id_paquete,
+        nombre_paquete=paquete.nombre_paquete,
+        descripcion=paquete.descripcion,
+        duracion_dias=paquete.duracion_dias,
+        precio_base=float(paquete.precio_base),
+        activo=paquete.activo,
+        destinos=destinos,
+        hoteles=hoteles,
+        servicios=servicios,
+    )
 
 
 @router.post("/paquetes", response_model=PaqueteResponse, status_code=201)
@@ -113,19 +197,19 @@ def get_reservas_estado(
 # ⚠️ IMPORTANTE: estos tres endpoints específicos van ANTES de /reservas/{reserva_id}
 # para que FastAPI no los confunda con el parámetro dinámico
 
-@router.get("/reservas/{reserva_id}/habitaciones")
+@router.get("/reservas/{reserva_id}/habitaciones", response_model=list[ReservaHabitacionDetail])
 def get_habitaciones_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene habitaciones asociadas a una reserva"""
     return ReservaDetailService.get_habitaciones(db, reserva_id)
 
 
-@router.get("/reservas/{reserva_id}/servicios")
+@router.get("/reservas/{reserva_id}/servicios", response_model=list[ReservaServicioDetail])
 def get_servicios_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene servicios asociados a una reserva"""
     return ReservaDetailService.get_servicios(db, reserva_id)
 
 
-@router.get("/reservas/{reserva_id}/historial")
+@router.get("/reservas/{reserva_id}/historial", response_model=list[ReservaHistorialDetail])
 def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene historial de cambios de una reserva"""
     return ReservaDetailService.get_historial(db, reserva_id)
@@ -133,7 +217,7 @@ def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
 
 @router.get("/reservas/{reserva_id}", response_model=ReservaDetailResponse)
 def get_reserva(reserva_id: int, db: Session = Depends(get_db)):
-    """Obtiene detalles completos de una reserva con paquete y pagos"""
+    """Obtiene detalles completos de una reserva con paquete, pagos y habitaciones"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
@@ -142,8 +226,150 @@ def get_reserva(reserva_id: int, db: Session = Depends(get_db)):
 
 @router.post("/reservas", response_model=ReservaResponse, status_code=201)
 def create_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
-    """Crea una nueva reserva"""
-    return ReservaRepository.create(db, reserva.dict())
+    """
+    Crea una nueva reserva.
+
+    Si `habitaciones` viene incluido, el backend:
+    - Verifica que cada habitación exista y no esté en mantenimiento
+    - Verifica que no haya otra reserva activa cruzando esas fechas (409 si la hay)
+    - Calcula el precio con el valor REAL de la habitación en la BD (ignora cualquier
+      precio que mande el frontend, para evitar manipulación)
+    """
+    try:
+        return ReservaRepository.create(db, reserva.dict())
+    except HabitacionNoDisponibleError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except HabitacionNoEncontradaError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except PaqueteNoEncontradoError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reservas/{reserva_id}/pagar", response_model=PagarResponse)
+def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get_db)):
+    """
+    Inicia el pago de una reserva (100% simulado, sin pasarela real). El
+    monto SIEMPRE se calcula en el backend a partir del precio real de
+    habitaciones/servicios ya guardados en la reserva — nunca se acepta un
+    monto propuesto por el cliente.
+
+    Segun el metodo:
+    - Tarjeta / PayPal / otros: resuelve al instante (aprobado o rechazado
+      con los valores de prueba de payment_service).
+    - PSE / Nequi: el pago queda en estado 'procesando' y la reserva sigue
+      'pendiente' hasta que el frontend llama a
+      POST /api/pagos/{id}/confirmar (simula la confirmacion del banco o
+      la app, que en la vida real llega despues, de forma asincrona).
+    """
+    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    if reserva.estado != "pendiente":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Esta reserva ya está en estado '{reserva.estado}', no se puede pagar de nuevo",
+        )
+
+    metodo = db.query(MetodoPago).filter(MetodoPago.id_metodo == data.id_metodo_pago).first()
+    if not metodo:
+        raise HTTPException(status_code=404, detail="Método de pago no encontrado")
+
+    total = reserva.precio_total
+    if total <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Esta reserva no tiene habitaciones ni servicios asociados, no hay nada que cobrar",
+        )
+    monto = total if data.tipo_pago == "completo" else round(total * 0.5, 2)
+
+    rechazo_simulado = payment_service.debe_simular_rechazo(metodo.codigo, data)
+    es_async = payment_service.es_pago_asincrono(metodo.codigo)
+
+    if es_async:
+        estado_pago = "procesando"
+    elif rechazo_simulado:
+        estado_pago = "rechazado"
+    else:
+        estado_pago = "pagado"
+
+    pago = Pago(
+        id_reserva=reserva_id,
+        id_metodo_pago=data.id_metodo_pago,
+        monto=monto,
+        referencia=f"PAY-{uuid.uuid4().hex[:10].upper()}",
+        estado=estado_pago,
+        simular_rechazo=rechazo_simulado,
+    )
+    db.add(pago)
+
+    if not es_async:
+        estado_anterior = reserva.estado
+        if not rechazo_simulado:
+            reserva.estado = "confirmada"
+            comentario = f"Pago {data.tipo_pago} aprobado (simulado) por ${monto:,.0f}"
+        else:
+            comentario = f"Pago {data.tipo_pago} rechazado (simulado) por ${monto:,.0f}"
+        db.add(HistorialReserva(
+            id_reserva=reserva_id,
+            estado_anterior=estado_anterior,
+            estado_nuevo=reserva.estado,
+            comentarios=comentario,
+        ))
+
+    db.commit()
+    db.refresh(pago)
+    db.refresh(reserva)
+
+    return PagarResponse(pago=pago, reserva=reserva)
+
+
+@router.post("/pagos/{pago_id}/confirmar", response_model=PagarResponse)
+def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
+    """
+    Confirma un pago que quedo 'procesando' (PSE/Nequi) — simula que el
+    banco o la app ya respondieron. El resultado (aprobado/rechazado) ya
+    fue decidido al iniciar el pago (ver `pagar_reserva`), aqui solo se
+    aplica y se actualiza la reserva + el historial.
+    """
+    pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if pago.estado != "procesando":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Este pago ya está en estado '{pago.estado}', no hay nada que confirmar",
+        )
+
+    reserva = ReservaRepository.get_by_id(db, pago.id_reserva)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    estado_anterior = reserva.estado
+
+    if pago.simular_rechazo:
+        pago.estado = "rechazado"
+        comentario = f"Pago confirmado como rechazado (simulado) por ${pago.monto:,.0f}"
+    else:
+        pago.estado = "pagado"
+        reserva.estado = "confirmada"
+        comentario = f"Pago confirmado y aprobado (simulado) por ${pago.monto:,.0f}"
+
+    db.add(HistorialReserva(
+        id_reserva=reserva.id_reserva,
+        estado_anterior=estado_anterior,
+        estado_nuevo=reserva.estado,
+        comentarios=comentario,
+    ))
+
+    db.commit()
+    db.refresh(pago)
+    db.refresh(reserva)
+
+    return PagarResponse(pago=pago, reserva=reserva)
 
 
 @router.put("/reservas/{reserva_id}", response_model=ReservaResponse)
