@@ -6,12 +6,20 @@ import {
   Users,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { destinoService, DestinoSugerencia } from "../services/destino.service";
 
+interface MenuRect {
+  top: number;
+  left: number;
+  width: number;
+}
+
 export default function SearchBar() {
   const navigate = useNavigate();
+  const destinoWrapperRef = useRef<HTMLDivElement>(null);
 
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -19,6 +27,10 @@ export default function SearchBar() {
   const [people, setPeople] = useState("1");
   const [showDestinations, setShowDestinations] = useState(false);
   const [filteredDestinations, setFilteredDestinations] = useState<DestinoSugerencia[]>([]);
+  // Posición del dropdown calculada en coordenadas de viewport, para
+  // renderizarlo con un portal (ver comentario más abajo) en vez de dejarlo
+  // anidado dentro de la barra.
+  const [menuRect, setMenuRect] = useState<MenuRect | null>(null);
 
   // Precarga destinos disponibles apenas se monta la barra (sin esperar a
   // que el usuario haga foco ni escriba) — así el dropdown ya tiene datos
@@ -44,6 +56,35 @@ export default function SearchBar() {
     }, 250);
     return () => clearTimeout(timeout);
   }, [destination, showDestinations]);
+
+  // El dropdown se renderiza con un portal directo a <body> (ver el bloque
+  // de sugerencias más abajo) porque la barra vive dentro del Hero, cuyo
+  // fondo (foto/video) necesita "overflow-hidden" y crea un contexto de
+  // apilamiento propio: cualquier sección normal que venga después en el
+  // HTML (ej. "Benefits") termina pintándose ENCIMA de un dropdown
+  // absolute que se sale de esa caja, aunque tenga z-index alto — es una
+  // limitación real de CSS (contextos de apilamiento), no algo que se
+  // arregle subiendo el z-index dentro del Hero. Un portal a <body> saca
+  // el dropdown de esa jerarquía por completo. Como usa position:fixed,
+  // hay que recalcular su posición en cada apertura y si la página hace
+  // scroll o cambia de tamaño mientras está abierto.
+  useEffect(() => {
+    if (!showDestinations) return;
+
+    const actualizarPosicion = () => {
+      const rect = destinoWrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuRect({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    };
+
+    actualizarPosicion();
+    window.addEventListener("scroll", actualizarPosicion, true);
+    window.addEventListener("resize", actualizarPosicion);
+    return () => {
+      window.removeEventListener("scroll", actualizarPosicion, true);
+      window.removeEventListener("resize", actualizarPosicion);
+    };
+  }, [showDestinations]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,14 +133,14 @@ export default function SearchBar() {
 
       <form
         onSubmit={handleSearch}
-        className="bg-white rounded-2xl sm:rounded-full w-full text-[#2E2E2E] relative border border-[#7B1E3A]/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80 overflow-hidden"
+        className="bg-white rounded-2xl sm:rounded-full w-full text-[#2E2E2E] relative border border-[#7B1E3A]/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80"
         style={{
           boxShadow:
             "0 24px 60px -16px rgba(123, 30, 58, 0.32), 0 4px 16px rgba(0,0,0,0.04)",
         }}
       >
         {/* DESTINO */}
-        <div className="relative flex-[1.3] min-w-0">
+        <div ref={destinoWrapperRef} className="relative flex-[1.3] min-w-0">
           <Segment label="Destino" icon={MapPin}>
             <input
               type="text"
@@ -120,71 +161,6 @@ export default function SearchBar() {
               className="w-full bg-transparent text-[13px] font-semibold outline-none truncate placeholder:text-[#b9adb2] placeholder:font-normal"
             />
           </Segment>
-
-          {/* SUGERENCIAS */}
-          <AnimatePresence>
-            {showDestinations && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                transition={{ duration: 0.16 }}
-                className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden min-w-[240px]"
-              >
-                <div className="px-3 py-2.5 border-b border-gray-100">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                    {destination.trim() ? "Destinos disponibles" : "Destinos populares"}
-                  </p>
-                </div>
-
-                {filteredDestinations.length > 0 ? (
-                  <div className="py-1.5">
-                    {filteredDestinations.map((item) => (
-                      <button
-                        key={item.id_destino}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectDestination(item.nombre_destino)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[#7B1E3A]/5 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-[#7B1E3A]/8 flex items-center justify-center shrink-0">
-                          <MapPin className="w-3.5 h-3.5 text-[#7B1E3A]" />
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="text-[12px] font-bold text-gray-800 truncate">
-                            {item.nombre_destino}
-                          </p>
-
-                          <p className="text-[10px] text-gray-400">
-                            {[item.ciudad, item.pais].filter(Boolean).join(" · ")}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="px-4 py-5 text-center">
-                    <MapPin className="w-5 h-5 text-gray-300 mx-auto mb-2" />
-
-                    <p className="text-xs font-semibold text-gray-600">
-                      Buscaremos este destino
-                    </p>
-
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Presiona Buscar para consultar los alojamientos.
-                    </p>
-                  </div>
-                )}
-
-                <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
-                  <p className="text-[9px] text-gray-400">
-                    Escribe una ciudad o país para encontrar hoteles.
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         {/* ENTRADA */}
@@ -251,6 +227,83 @@ export default function SearchBar() {
           Pagos seguros
         </span>
       </div>
+
+      {/* SUGERENCIAS — portal a <body> (ver comentario junto al useEffect
+          de arriba); position:fixed con coordenadas de viewport calculadas
+          desde el propio input, así nunca queda recortado ni tapado por
+          las secciones que vienen después del Hero. */}
+      {createPortal(
+        <AnimatePresence>
+            {showDestinations && menuRect && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                transition={{ duration: 0.16 }}
+                style={{
+                  position: "fixed",
+                  top: menuRect.top,
+                  left: menuRect.left,
+                  width: menuRect.width,
+                }}
+                className="z-[10000] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden min-w-[240px]"
+              >
+                <div className="px-3 py-2.5 border-b border-gray-100">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                    {destination.trim() ? "Destinos disponibles" : "Destinos populares"}
+                  </p>
+                </div>
+
+                {filteredDestinations.length > 0 ? (
+                  <div className="py-1.5">
+                    {filteredDestinations.map((item) => (
+                      <button
+                        key={item.id_destino}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectDestination(item.nombre_destino)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[#7B1E3A]/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-[#7B1E3A]/8 flex items-center justify-center shrink-0">
+                          <MapPin className="w-3.5 h-3.5 text-[#7B1E3A]" />
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-bold text-gray-800 truncate">
+                            {item.nombre_destino}
+                          </p>
+
+                          <p className="text-[10px] text-gray-400">
+                            {[item.ciudad, item.pais].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-5 text-center">
+                    <MapPin className="w-5 h-5 text-gray-300 mx-auto mb-2" />
+
+                    <p className="text-xs font-semibold text-gray-600">
+                      Buscaremos este destino
+                    </p>
+
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Presiona Buscar para consultar los alojamientos.
+                    </p>
+                  </div>
+                )}
+
+                <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
+                  <p className="text-[9px] text-gray-400">
+                    Escribe una ciudad o país para encontrar hoteles.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+        </AnimatePresence>,
+        document.body
+      )}
     </motion.div>
   );
 }

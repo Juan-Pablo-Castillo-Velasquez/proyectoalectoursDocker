@@ -1,7 +1,10 @@
 import {
   Building2,
+  CreditCard,
+  HeadphonesIcon,
   MapPin,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Star,
   X,
@@ -766,6 +769,41 @@ export default function SearchResults() {
 
             {/* RESULTADOS */}
             <main className="lg:col-span-3">
+              {/* BANNER COMERCIAL — el mismo beneficio real que ya se
+                  publicita en el Home (Benefits.tsx: "Paga en cuotas, sin
+                  intereses"), reutilizado aquí en formato compacto tipo
+                  Despegar. Nunca una oferta o descuento inventado. */}
+              <div className="mb-4 rounded-2xl bg-gradient-to-r from-primary to-[#5c1229] p-4 sm:p-5 text-primary-foreground flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">Paga en hasta 12 cuotas sin intereses</p>
+                  <p className="text-xs text-primary-foreground/80">
+                    El plan que mejor se acomode a tu bolsillo, no al revés.
+                  </p>
+                </div>
+              </div>
+
+              {/* FRANJA DE CONFIANZA — mismos beneficios reales del Home
+                  (asesoría humana, compra protegida) más un dato real sobre
+                  cómo funciona el propio buscador (precios/disponibilidad
+                  verificados contra la base de datos en cada consulta). */}
+              <div className="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
+                  <HeadphonesIcon className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-foreground">Asesoría humana, siempre</span>
+                </div>
+                <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
+                  <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-foreground">Compra protegida</span>
+                </div>
+                <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
+                  <Building2 className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-foreground">Disponibilidad verificada en tiempo real</span>
+                </div>
+              </div>
+
               {/* CHIPS DE FILTROS ACTIVOS — resumen rápido estilo Despegar,
                   cada uno se puede quitar sin abrir el panel de filtros. */}
               {(calificacionFilter !== "all" ||
