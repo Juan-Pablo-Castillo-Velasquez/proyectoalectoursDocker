@@ -61,6 +61,7 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
         </div>
         <Link
           to="/preferences"
+          state={{ preferencias }}
           className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:shadow-lg hover:opacity-90 hover:-translate-y-0.5 transition-all duration-200 shrink-0"
         >
           <PenSquare className="w-4 h-4" />
@@ -82,6 +83,7 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
           </p>
           <Link
             to="/preferences"
+            state={{ preferencias }}
             className="inline-block px-8 py-3.5 bg-foreground text-background rounded-full text-sm font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300 shadow-md"
           >
             Configurar preferencias ahora

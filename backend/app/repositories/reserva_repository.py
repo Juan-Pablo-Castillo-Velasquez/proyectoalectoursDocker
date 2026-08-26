@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_
-from app.models.reserva_model import Reserva, Paquete, Pago, MetodoPago, HistorialReserva, ReservaHabitacion, ReservaServicio
+from app.models.reserva_model import Reserva, Paquete, PaqueteHotel, Pago, MetodoPago, HistorialReserva, ReservaHabitacion, ReservaServicio
 from app.models.hotel_model import Habitacion
 from app.core.exceptions import (
     ReservaDependencyError, PaqueteDependencyError, NotFoundError,
@@ -69,7 +69,21 @@ class ReservaRepository:
     
     @staticmethod
     def get_by_cliente(db: Session, cliente_id: int, skip: int = 0, limit: int = 10):
-        return db.query(Reserva).filter(Reserva.id_cliente == cliente_id).offset(skip).limit(limit).all()
+        # joinedload evita N+1 al resolver Reserva.nombre_paquete / Reserva.destino
+        # / Reserva.hotel_nombre (propiedades usadas por ReservaResponse) para
+        # cada reserva del historial — incluye reserva_habitaciones porque una
+        # reserva puede no tener paquete (reserva directa de habitación).
+        return (
+            db.query(Reserva)
+            .options(
+                joinedload(Reserva.paquete).joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel),
+                joinedload(Reserva.reserva_habitaciones).joinedload(ReservaHabitacion.habitacion).joinedload(Habitacion.hotel),
+            )
+            .filter(Reserva.id_cliente == cliente_id)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
     
     @staticmethod
     def get_by_estado(db: Session, estado: str, skip: int = 0, limit: int = 10):

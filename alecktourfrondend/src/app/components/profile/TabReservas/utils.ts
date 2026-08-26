@@ -47,3 +47,44 @@ export function getEstadoViaje(
   if (h <= fin) return "en_curso";
   return "finalizado";
 }
+/**
+ * Comparte una reserva usando la Web Share API nativa (móvil / navegadores
+ * compatibles) y cae a copiar el resumen al portapapeles si no está disponible
+ * o si el usuario cierra el share sheet por error de plataforma.
+ */
+export async function compartirReserva(reserva: any): Promise<"compartido" | "copiado" | "cancelado" | "error"> {
+  const partes = [
+    `Mi reserva en AlecTours #ID-${reserva.id_reserva}`,
+    reserva.id_paquete ? `Paquete #${reserva.id_paquete}` : null,
+    reserva.fecha_inicio && reserva.fecha_fin
+      ? `${fmt(reserva.fecha_inicio)} → ${fmt(reserva.fecha_fin)}`
+      : null,
+    reserva.precio_total
+      ? `Total: $${Number(reserva.precio_total).toLocaleString("es-CO")} COP`
+      : null,
+  ].filter(Boolean);
+  const texto = partes.join("\n");
+  const url = `${window.location.origin}/profile`;
+
+  if (typeof navigator !== "undefined" && "share" in navigator) {
+    try {
+      await (navigator as any).share({
+        title: "Mi reserva en AlecTours",
+        text: texto,
+        url,
+      });
+      return "compartido";
+    } catch (err: any) {
+      // El usuario cerró el share sheet: no es un error real, no hacemos fallback.
+      if (err?.name === "AbortError") return "cancelado";
+      // Cualquier otra falla (API no soportada de facto, etc.) cae al portapapeles.
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${texto}\n${url}`);
+    return "copiado";
+  } catch {
+    return "error";
+  }
+}

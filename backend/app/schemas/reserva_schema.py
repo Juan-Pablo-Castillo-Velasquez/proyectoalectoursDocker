@@ -31,6 +31,34 @@ class PaqueteResponse(BaseModel):
         from_attributes = True
 
 
+class PaqueteHotelDetalle(BaseModel):
+    id_hotel: int
+    nombre_hotel: str
+    ciudad: Optional[str] = None
+    pais: Optional[str] = None
+    calificacion: Optional[int] = None
+    noches_incluidas: Optional[int] = None
+    caracteristicas: List[str] = []
+
+
+class PaqueteServicioDetalle(BaseModel):
+    nombre_servicio: str
+    categoria: Optional[str] = None
+    descripcion: Optional[str] = None
+    dia_actividad: Optional[int] = None
+    incluido: bool = True
+
+
+class PaqueteDetalleResponse(PaqueteResponse):
+    """PaqueteResponse enriquecido con destinos, hoteles y servicios reales
+    — usado por GET /paquetes/{id}/detalle para la página de detalle del
+    frontend, que antes mostraba datos de ejemplo hardcodeados en
+    data/packages.ts (nombres de hoteles, vuelos y horarios inventados)."""
+    destinos: List[str] = []
+    hoteles: List[PaqueteHotelDetalle] = []
+    servicios: List[PaqueteServicioDetalle] = []
+
+
 class MetodoPagoCreate(BaseModel):
     nombre_metodo: str = Field(..., min_length=1, max_length=50)
 
@@ -38,6 +66,7 @@ class MetodoPagoCreate(BaseModel):
 class MetodoPagoResponse(BaseModel):
     id_metodo: int
     nombre_metodo: str
+    codigo: str
 
     class Config:
         from_attributes = True
@@ -113,6 +142,14 @@ class ReservaResponse(BaseModel):
     numero_personas: int
     estado: str
     precio_total: float = 0
+    # Nombre del paquete y destino (ciudad/país del hotel), calculados en
+    # Reserva.nombre_paquete / Reserva.destino — para que el historial de
+    # reservas del frontend no tenga que mostrar solo el id_paquete crudo.
+    nombre_paquete: Optional[str] = None
+    destino: Optional[str] = None
+    # Nombre del hotel — respaldo para cuando la reserva no tiene paquete
+    # (reserva directa de habitación, id_paquete nulo): ver Reserva.hotel_nombre.
+    hotel_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -133,8 +170,8 @@ class PagoUpdate(BaseModel):
     @field_validator("estado")
     @classmethod
     def validate_estado(cls, v):
-        if v and v not in ["pendiente", "pagado", "rechazado"]:
-            raise ValueError("estado debe ser: pendiente, pagado o rechazado")
+        if v and v not in ["pendiente", "procesando", "pagado", "rechazado", "cancelado"]:
+            raise ValueError("estado debe ser: pendiente, procesando, pagado, rechazado o cancelado")
         return v
 
 
@@ -168,6 +205,13 @@ class AsesorResponse(BaseModel):
 class PagarRequest(BaseModel):
     id_metodo_pago: int
     tipo_pago: str = "completo"
+
+    # Campos especificos por metodo — nunca se envia el numero completo de
+    # tarjeta ni datos sensibles reales, todo esto es simulado:
+    ultimos4: Optional[str] = Field(None, max_length=4, min_length=4)   # tarjeta
+    celular: Optional[str] = Field(None, max_length=15)                 # nequi
+    banco: Optional[str] = Field(None, max_length=100)                  # pse
+    documento: Optional[str] = Field(None, max_length=20)               # pse
 
     @field_validator("tipo_pago")
     @classmethod

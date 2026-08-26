@@ -1,9 +1,23 @@
 import { apiFetch } from '../api/v1/api';
 import { ReservaCreate, ReservaResponse } from '../data/reservaTypes';
 
+export type CodigoMetodoPago =
+  | 'tarjeta_credito'
+  | 'tarjeta_debito'
+  | 'pse'
+  | 'nequi'
+  | 'paypal'
+  | 'efectivo'
+  | 'transferencia'
+  | 'cripto'
+  | 'daviplata'
+  | 'cheque'
+  | 'otro';
+
 export interface MetodoPago {
   id_metodo: number;
   nombre_metodo: string;
+  codigo: CodigoMetodoPago;
 }
 
 export interface PagoCreate {
@@ -61,6 +75,11 @@ export interface ReservaDetail {
 export interface PagarRequest {
   id_metodo_pago: number;
   tipo_pago: 'completo' | 'parcial';
+  // Especificos por metodo, nunca se manda el numero completo de tarjeta:
+  ultimos4?: string;   // tarjeta
+  celular?: string;    // nequi
+  banco?: string;      // pse
+  documento?: string;  // pse
 }
 
 export interface PagarResponse {
@@ -104,6 +123,11 @@ export const pagoService = {
     apiFetch<MetodoPago[]>('/metodos-pago'),
   create: (data: PagoCreate) =>
     apiFetch<PagoResponse>('/pagos', { method: 'POST', body: data }),
+  // Confirma un pago que quedo 'procesando' (PSE/Nequi) — simula que el
+  // banco o la app ya respondieron. Tarjeta/PayPal/otros no necesitan esto,
+  // resuelven al instante dentro de reservaService.pagar().
+  confirmar: (idPago: number) =>
+    apiFetch<PagarResponse>(`/pagos/${idPago}/confirmar`, { method: 'POST' }),
 };
 
 

@@ -6,8 +6,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-# Importación de Base y Engine para la auto-creación de tablas
-from app.core.database import Base, engine
 
 # IMPORTANTE: Importar TODOS los modelos para que SQLAlchemy conozca las relaciones
 from app.models.user_model import Usuario
@@ -15,6 +13,8 @@ from app.models.cliente_model import Cliente
 from app.models.hotel_model import Hotel
 from app.models.reserva_model import Reserva
 from app.models.resena_model import Resena
+from app.models.favorito_model import Favorito
+from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 
 # Routers
 from app.routes.auth_route import router as auth_router
@@ -29,6 +29,8 @@ from app.routes.usuario_route import router as usuario_router, roles_router
 from app.routes.destino_route import router as destino_router
 from app.routes.servicio_route import router as servicio_router
 from app.routes.solicitud_cancelacion_route import router as solicitud_cancelacion_router
+from app.routes.favorito_route import router as favorito_router
+from app.routes.metodo_pago_guardado_route import router as metodo_pago_guardado_router
 
 # ============================================================================
 # CONFIGURACIÓN LOGGING
@@ -41,8 +43,21 @@ logger = logging.getLogger(__name__)
 # CREACIÓN AUTOMÁTICA DE TABLAS
 # ============================================================================
 
-# Esto creará la tabla 'resenas' (y cualquier otra faltante) directamente en PostgreSQL
-Base.metadata.create_all(bind=engine)
+# ELIMINADO (2026-08-26): Base.metadata.create_all(bind=engine) creaba
+# directamente en Postgres cualquier tabla que SQLAlchemy detectara como
+# "faltante", en paralelo a Alembic. En dev, con uvicorn --reload y el
+# volumen bind-mount de ./backend, cualquier edición de un modelo (por
+# ejemplo al agregar Favorito) dispara un reload que reimporta este módulo
+# ANTES de que la migración de Alembic correspondiente llegue a correr,
+# así que create_all() crea la tabla primero por su cuenta. Cuando el
+# contenedor se reinicia y entrypoint.sh corre `alembic upgrade head`,
+# Alembic todavía cree que esa migración está pendiente e intenta el mismo
+# CREATE TABLE, y Postgres responde con "relation ya existe" — justo el
+# crash-loop que viste en los logs con la tabla `favoritos`.
+# Alembic (backend/alembic/versions/) ya es la única fuente de verdad del
+# esquema en este proyecto; create_all() no debería seguir compitiendo con
+# él. Si alguna vez hace falta recrear el esquema desde cero en un entorno
+# nuevo, usa `alembic upgrade head`, no create_all().
 
 # ============================================================================
 # APP
@@ -120,6 +135,8 @@ app.include_router(roles_router)
 app.include_router(destino_router)
 app.include_router(servicio_router)
 app.include_router(solicitud_cancelacion_router)
+app.include_router(favorito_router)
+app.include_router(metodo_pago_guardado_router)
 
 # ============================================================================
 # ARCHIVOS ESTÁTICOS (fotos de perfil, etc.)

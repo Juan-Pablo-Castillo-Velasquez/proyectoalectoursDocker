@@ -7,19 +7,22 @@ import {
   Loader2,
   MapPin,
   Package,
+  Share2,
   Sparkles,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   ReservaDetail,
   reservaDetailService,
   reservaService,
 } from "../../../services/reserva.service";
 import { estadoConfig } from "./constants";
-import { fmt } from "./utils";
+import { compartirReserva, fmt } from "./utils";
 
 interface HabitacionDetalle {
   id_habitacion: number;
@@ -101,6 +104,24 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
 
   const config = detalle ? estadoConfig[detalle.estado] ?? estadoConfig.pendiente : null;
 
+  const tituloHeader =
+    detalle?.paquete?.nombre_paquete ??
+    (habitaciones[0]?.nombre_hotel ? `Estadía en ${habitaciones[0].nombre_hotel}` : `Reserva #${reservaId}`);
+
+  const totalReserva = Number(detalle?.precio_total ?? 0);
+  const totalPagado = (detalle?.pagos ?? [])
+    .filter((p) => p.estado === "pagado")
+    .reduce((acc, p) => acc + Number(p.monto ?? 0), 0);
+  const saldoPendiente = Math.max(0, totalReserva - totalPagado);
+  const porcentajePagado = totalReserva > 0 ? Math.min(100, Math.round((totalPagado / totalReserva) * 100)) : 0;
+
+  const handleCompartir = async () => {
+    if (!detalle) return;
+    const resultado = await compartirReserva(detalle);
+    if (resultado === "copiado") toast.success("Resumen de la reserva copiado al portapapeles");
+    if (resultado === "error") toast.error("No se pudo compartir la reserva");
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div
@@ -118,14 +139,25 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
       >
         {/* Header */}
         <div className="bg-primary p-6 text-primary-foreground shrink-0 relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-primary-foreground/70 hover:text-primary-foreground transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <h3 className="font-bold text-lg tracking-tight pr-8">
-            {detalle?.paquete?.nombre_paquete ?? `Reserva #${reservaId}`}
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <button
+              onClick={handleCompartir}
+              disabled={!detalle}
+              aria-label="Compartir reserva"
+              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <h3 className="font-bold text-lg tracking-tight pr-14">
+            {tituloHeader}
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-primary-foreground/80 text-xs">
@@ -150,6 +182,45 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
             <p className="text-sm text-destructive text-center py-8">{error}</p>
           ) : (
             <>
+              {/* Resumen financiero */}
+              {totalReserva > 0 && (
+                <section>
+                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
+                    <Wallet className="w-3.5 h-3.5 text-primary" />
+                    Resumen de pago
+                  </h4>
+                  <div className="bg-muted/30 border border-border/50 rounded-xl p-4">
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Total reserva</p>
+                        <p className="text-sm font-bold text-foreground mt-0.5">{money(totalReserva)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Pagado</p>
+                        <p className="text-sm font-bold text-green-600 dark:text-green-400 mt-0.5">{money(totalPagado)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Saldo pendiente</p>
+                        <p className={`text-sm font-bold mt-0.5 ${saldoPendiente > 0 ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}>
+                          {money(saldoPendiente)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-border/60 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${saldoPendiente > 0 ? "bg-primary" : "bg-green-500"}`}
+                        style={{ width: `${porcentajePagado}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/80 mt-1.5">
+                      {saldoPendiente > 0
+                        ? `${porcentajePagado}% pagado — queda un saldo por cubrir`
+                        : "Reserva pagada en su totalidad"}
+                    </p>
+                  </div>
+                </section>
+              )}
+
               {/* Paquete */}
               {detalle?.paquete && (
                 <section>

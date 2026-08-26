@@ -1,6 +1,7 @@
 import {
   Building2,
   ChevronDown,
+  Compass,
   Gift,
   LogIn,
   LogOut,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { BASE_URL } from "../api/v1/api";
 import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
@@ -31,7 +32,12 @@ export default function Navbar() {
   const [cliente, setCliente] = useState<ClienteResponse | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, usuario, logout } = useAuth();
+
+  // Pestaña activa (estilo tabs de Despegar: subrayado persistente, no solo
+  // al pasar el mouse) para los enlaces directos de la barra desktop.
+  const isActivePath = (path: string) => location.pathname === path;
 
   useEffect(() => {
     if (isAuthenticated && usuario?.id_cliente) {
@@ -247,19 +253,40 @@ export default function Navbar() {
               {/* HOTELES */}
               <Link
                 to="/search?type=hotel"
-                className="
+                className={`
                   group
+                  relative
                   flex items-center gap-1.5
                   px-3 py-2.5
                   rounded-xl
-                  text-foreground/75
-                  hover:text-primary
-                  hover:bg-primary/[0.05]
                   transition-all
-                "
+                  ${isActivePath("/search") ? "text-primary bg-primary/[0.06]" : "text-foreground/75 hover:text-primary hover:bg-primary/[0.05]"}
+                `}
               >
                 <Building2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
                 Hoteles
+                <span className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/search") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
+              </Link>
+
+              {/* INFO DE VIAJE — antes escondida dentro de "Más", ahora es su
+                  propia pestaña visible para que la barra se sienta más
+                  informativa (estilo Despegar) sin inventar secciones que
+                  el sitio no tiene realmente. */}
+              <Link
+                to="/travel-info"
+                className={`
+                  group
+                  relative
+                  flex items-center gap-1.5
+                  px-3 py-2.5
+                  rounded-xl
+                  transition-all
+                  ${isActivePath("/travel-info") ? "text-primary bg-primary/[0.06]" : "text-foreground/75 hover:text-primary hover:bg-primary/[0.05]"}
+                `}
+              >
+                <Compass className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                Info de viaje
+                <span className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/travel-info") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
               </Link>
 
               {/* PAQUETES - CTA COMERCIAL */}
@@ -453,18 +480,6 @@ export default function Navbar() {
                         p-2
                       "
                     >
-                      <Link
-                        to="/travel-info"
-                        className="block px-4 py-3 rounded-xl hover:bg-accent transition-all"
-                      >
-                        <span className="block text-sm font-bold">
-                          Info para tu viaje
-                        </span>
-                        <span className="block text-[10px] text-muted-foreground mt-0.5">
-                          Todo lo que necesitas saber
-                        </span>
-                      </Link>
-
                       <Link
                         to="/faq"
                         className="block px-4 py-3 rounded-xl hover:bg-accent transition-all"
@@ -753,6 +768,23 @@ export default function Navbar() {
                   >
                     <Gift className="w-4 h-4 text-primary" />
                     Beneficios
+                  </Link>
+
+                  <Link
+                    to="/travel-info"
+                    className="
+                      flex items-center gap-3
+                      px-4 py-3
+                      text-sm font-semibold
+                      text-foreground
+                      hover:bg-muted
+                      rounded-xl
+                      transition-all
+                    "
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Compass className="w-4 h-4 text-primary" />
+                    Info de viaje
                   </Link>
 
                   <Link

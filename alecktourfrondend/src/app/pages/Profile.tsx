@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import ProfileSidebar from "../components/profile/ProfileSidebar";
 import TabCuenta from "../components/profile/TabCuenta";
+import TabFavoritos from "../components/profile/TabFavoritos";
 import TabPreferencias from "../components/profile/TabPreferencias";
 import TabReservas from "../components/profile/TabReservas";
 import { useAuth } from "../context/AuthContext";
@@ -14,7 +15,13 @@ import { ReservaResponse, reservaService } from "../services/reserva.service";
 export default function Profile() {
   const { usuario, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("reservas");
+  const location = useLocation();
+  // Permite que otras pantallas (p.ej. el wizard de /preferences al
+  // terminar) vuelvan directo a una pestaña específica en vez de caer
+  // siempre en "reservas" — ver PreferencesForm.tsx handleFinish.
+  const [activeTab, setActiveTab] = useState(
+    () => (location.state as { tab?: string } | null)?.tab ?? "reservas"
+  );
   const [reservas, setReservas] = useState<ReservaResponse[]>([]);
   const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(null);
   const [clienteData, setClienteData] = useState<ClienteResponse | null>(null);
@@ -85,6 +92,17 @@ export default function Profile() {
                     loading={loading}
                     clienteData={clienteData}
                   />
+                </motion.div>
+              )}
+              {activeTab === "favoritos" && (
+                <motion.div
+                  key="favoritos"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <TabFavoritos />
                 </motion.div>
               )}
               {activeTab === "preferencias" && (

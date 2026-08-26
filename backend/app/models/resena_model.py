@@ -19,4 +19,4 @@ class Resena(Base):
 
     reserva = relationship("Reserva")
     cliente = relationship("Cliente")
-    hotel = relationship("Hotel")
+    hotel = relationship("Hotel", back_populates="resenas")

@@ -25,8 +25,10 @@ import {
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { toast } from "sonner";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { useFavoritos } from "../context/FavoritosContext";
 import {
   HabitacionResponse,
   HotelDetailResponse,
@@ -86,6 +88,19 @@ const GALLERY_FILLERS = [
   "https://images.unsplash.com/photo-1590490359683-658d34c8f90f?w=800&q=80",
 ];
 
+// La API no guarda foto por habitación individual, así que usamos un pool
+// determinístico de fotos de habitación reales (mismo id -> misma foto siempre).
+const ROOM_IMAGES = [
+  "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=600&q=80",
+  "https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=600&q=80",
+  "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&q=80",
+  "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600&q=80",
+];
+
+function getRoomImage(idHabitacion: number) {
+  return ROOM_IMAGES[idHabitacion % ROOM_IMAGES.length];
+}
+
 function getImage(ciudad: string) {
   return CITY_IMAGES[ciudad?.toLowerCase().trim()] ?? DEFAULT_IMAGE;
 }
@@ -100,6 +115,7 @@ const ESTADO_STYLES: Record<string, string> = {
 
 export default function HotelDetail() {
   const { id } = useParams();
+  const { isFavorito, toggleFavorito, loadingIds } = useFavoritos();
   const [hotel, setHotel] = useState<HotelDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedHabitacion, setSelectedHabitacion] =
@@ -165,6 +181,28 @@ export default function HotelDetail() {
     ? `/checkout/${hotel.id_hotel}?habitacion=${selectedHabitacion.id_habitacion}`
     : "#";
 
+  const handleCompartir = async () => {
+    const texto = `${hotel.nombre_hotel} — ${hotel.ciudad}, ${hotel.pais}`;
+    const url = window.location.href;
+
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await (navigator as any).share({ title: hotel.nombre_hotel, text: texto, url });
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        // Cae al portapapeles si el share nativo falla por otra razón.
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${texto}\n${url}`);
+      toast.success("Enlace del hotel copiado al portapapeles");
+    } catch {
+      toast.error("No se pudo compartir este hotel");
+    }
+  };
+
   return (
     <>
       <div className="min-h-screen bg-background text-foreground transition-colors duration-200 pb-20">
@@ -188,11 +226,24 @@ export default function HotelDetail() {
               </span>
             </nav>
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 text-sm font-medium hover:bg-muted px-3 py-1.5 rounded-md transition-colors">
+              <button
+                type="button"
+                onClick={handleCompartir}
+                className="flex items-center gap-2 text-sm font-medium hover:bg-muted px-3 py-1.5 rounded-md transition-colors"
+              >
                 <Share className="w-4 h-4" /> Compartir
               </button>
-              <button className="flex items-center gap-2 text-sm font-medium hover:bg-muted px-3 py-1.5 rounded-md transition-colors">
-                <Heart className="w-4 h-4" /> Guardar
+              <button
+                type="button"
+                onClick={() => toggleFavorito(hotel.id_hotel)}
+                disabled={loadingIds.has(hotel.id_hotel)}
+                aria-pressed={isFavorito(hotel.id_hotel)}
+                className={`flex items-center gap-2 text-sm font-medium hover:bg-muted px-3 py-1.5 rounded-md transition-colors disabled:opacity-60 ${
+                  isFavorito(hotel.id_hotel) ? "text-primary" : ""
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${isFavorito(hotel.id_hotel) ? "fill-current" : ""}`} />
+                {isFavorito(hotel.id_hotel) ? "Guardado" : "Guardar"}
               </button>
             </div>
           </div>
@@ -280,34 +331,58 @@ export default function HotelDetail() {
 
               <hr className="border-border" />
 
-              {/* Servicios y Amenidades */}
-              {caracteristicas.length > 0 && (
+              {/* Servicios y Amenidades — tabla con lo que realmente incluye
+                  este hotel (hotel.hotel_caracteristicas, dato real, no un
+                  badge genérico repetido en cada habitación). */}
+              {caracteristicas.filter((hc) => hc.disponible).length > 0 && (
                 <section>
                   <h2 className="text-2xl font-semibold mb-6">
-                    ¿Qué ofrece este lugar?
+                    Qué incluye este hotel
                   </h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
-                    {caracteristicas.map((hc) => {
-                      const nombre =
-                        hc.caracteristica?.nombre_caracteristica ?? "";
-                      const entry = CARACTERISTICA_ICONS[nombre];
-                      const Icon = entry?.icon || CheckCircle;
-                      const color = entry?.color || "text-primary";
+                  <div className="rounded-2xl border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/40 border-b border-border">
+                          <th className="text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs px-5 py-3">
+                            Servicio
+                          </th>
+                          <th className="text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs px-5 py-3">
+                            Incluido
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {caracteristicas
+                          .filter((hc) => hc.disponible)
+                          .map((hc, idx) => {
+                            const nombre =
+                              hc.caracteristica?.nombre_caracteristica ?? "";
+                            const entry = CARACTERISTICA_ICONS[nombre];
+                            const Icon = entry?.icon || CheckCircle;
+                            const color = entry?.color || "text-primary";
 
-                      if (!hc.disponible) return null; // Solo mostramos lo disponible comercialmente
-
-                      return (
-                        <div
-                          key={hc.id_caracteristica}
-                          className="flex items-center gap-3"
-                        >
-                          <Icon className={`w-6 h-6 ${color}`} />
-                          <span className="font-medium text-foreground/80">
-                            {nombre}
-                          </span>
-                        </div>
-                      );
-                    })}
+                            return (
+                              <tr
+                                key={hc.id_caracteristica}
+                                className={idx > 0 ? "border-t border-border/60" : ""}
+                              >
+                                <td className="px-5 py-3.5">
+                                  <span className="flex items-center gap-3 font-medium text-foreground/90">
+                                    <Icon className={`w-4.5 h-4.5 ${color} shrink-0`} />
+                                    {nombre}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3.5 text-right">
+                                  <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 font-semibold text-xs">
+                                    <CheckCircle className="w-4 h-4" />
+                                    Sí
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
                   </div>
                 </section>
               )}
@@ -349,6 +424,15 @@ export default function HotelDetail() {
                                 : "border-border hover:border-primary/40 hover:shadow-md cursor-pointer"
                           }`}
                         >
+                          {/* Foto de la habitación */}
+                          <div className="relative h-40 md:h-auto md:w-48 shrink-0 overflow-hidden bg-muted">
+                            <img
+                              src={getRoomImage(hab.id_habitacion)}
+                              alt={hab.tipo_habitacion?.nombre_tipo ?? "Habitación"}
+                              className={`h-full w-full object-cover ${!disponible ? "grayscale" : ""}`}
+                            />
+                          </div>
+
                           {/* Info de la Habitación */}
                           <div className="p-5 md:p-6 flex-1">
                             <div className="flex items-start justify-between mb-2">
@@ -368,17 +452,6 @@ export default function HotelDetail() {
                                 {hab.tipo_habitacion.descripcion}
                               </p>
                             )}
-
-                            <div className="flex flex-wrap gap-2 mb-4">
-                              <span className="inline-flex items-center gap-1.5 bg-green-500/10 text-green-600 dark:text-green-400 px-2.5 py-1 rounded text-xs font-semibold">
-                                <CheckCircle className="w-3.5 h-3.5" />{" "}
-                                Cancelación Gratis
-                              </span>
-                              <span className="inline-flex items-center gap-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded text-xs font-semibold">
-                                <UtensilsCrossed className="w-3.5 h-3.5" />{" "}
-                                Desayuno Incluido
-                              </span>
-                            </div>
 
                             <div className="flex items-center gap-4 text-sm text-muted-foreground font-medium">
                               <span className="flex items-center gap-1.5">

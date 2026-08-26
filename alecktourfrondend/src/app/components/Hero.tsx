@@ -1,26 +1,95 @@
-import { Compass, PlayCircle } from "lucide-react";
+import { Compass, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { apiGetResenasDestacadas } from "../api/v1/api";
+import { HotelDetailResponse, hotelService } from "../services/hotel.service";
 import SearchBar from "./SearchBar";
 
-const stats = [
-  { value: "180K+", label: "viajeros" },
-  { value: "4.8/5", label: "satisfacción" },
-  { value: "24/7", label: "asistencia" },
-  { value: "★", label: "mejor precio" },
-];
-
-const avatarImages = [
-  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80",
-  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80",
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80",
-  "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=100&q=80",
-];
+// Clip aéreo de playa, libre de derechos (Mixkit — uso comercial y personal
+// permitido, sin atribución obligatoria). Si falla la carga, se oculta y
+// queda la foto estática de fondo (que siempre está presente debajo).
+const HERO_VIDEO_URL = "https://assets.mixkit.co/videos/5371/5371-360.mp4";
 
 export default function Hero() {
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  // Estadísticas reales del catálogo (nunca inventadas): se calculan a
+  // partir de los hoteles y reseñas que realmente existen en la base de
+  // datos, no de cifras de marketing fijas en el código.
+  const [hoteles, setHoteles] = useState<HotelDetailResponse[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [resenasPromedio, setResenasPromedio] = useState<number | null>(null);
+  const [resenasTotal, setResenasTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    let activo = true;
+
+    Promise.all([
+      hotelService.getAll(0, 100),
+      apiGetResenasDestacadas().catch(() => null),
+    ])
+      .then(([listaHoteles, resenas]) => {
+        if (!activo) return;
+        setHoteles(listaHoteles);
+        if (resenas) {
+          setResenasPromedio(resenas.promedio);
+          setResenasTotal(resenas.total);
+        }
+      })
+      .catch(() => {
+        // Si falla, el bloque de estadísticas simplemente no se muestra
+        // (mejor omitir que mostrar un número inventado).
+      })
+      .finally(() => {
+        if (activo) setStatsLoading(false);
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  const totalHoteles = hoteles.length;
+  const totalHotelesLabel = totalHoteles >= 100 ? "100+" : String(totalHoteles);
+
+  const totalDestinos = new Set(
+    hoteles.map((h) => h.ciudad).filter(Boolean)
+  ).size;
+
+  const totalHabitacionesDisponibles = hoteles.reduce(
+    (suma, h) =>
+      suma +
+      (h.habitaciones?.filter(
+        (hab) => hab.estado?.toLowerCase() === "disponible"
+      ).length ?? 0),
+    0
+  );
+
+  // El backend reporta un promedio de respaldo (5.0) cuando aún no hay
+  // ninguna reseña real — por eso el promedio solo se muestra si el total
+  // de reseñas es mayor a cero, para no aparentar un puntaje real inexistente.
+  const hayResenasReales = resenasTotal != null && resenasTotal > 0;
+
+  const stats = [
+    { value: totalHotelesLabel, label: "hoteles" },
+    { value: String(totalDestinos), label: "destinos" },
+    {
+      value:
+        hayResenasReales && resenasPromedio != null
+          ? `${resenasPromedio.toFixed(1)}★`
+          : "—",
+      label: hayResenasReales
+        ? `${resenasTotal} reseña${resenasTotal !== 1 ? "s" : ""}`
+        : "reseñas",
+    },
+    { value: String(totalHabitacionesDisponibles), label: "hab. libres" },
+  ];
+
   return (
     <section className="relative overflow-hidden bg-background transition-colors duration-300">
       {/* Fondo */}
       <div className="absolute inset-0 z-0">
+        {/* Foto fija: siempre presente, es la base y el respaldo si el video falla */}
         <motion.img
           src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=2400&auto=format&fit=crop"
           alt="Destino de viaje"
@@ -32,6 +101,24 @@ export default function Hero() {
           }}
           className="w-full h-full object-cover select-none pointer-events-none"
         />
+
+        {/* Clip de fondo: capa opcional encima de la foto, se retira sola si no carga */}
+        {!videoFailed && (
+          <motion.video
+            key={HERO_VIDEO_URL}
+            autoPlay
+            muted
+            loop
+            playsInline
+            onError={() => setVideoFailed(true)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, delay: 0.4 }}
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+          >
+            <source src={HERO_VIDEO_URL} type="video/mp4" />
+          </motion.video>
+        )}
 
         {/* Degradado adaptable a tu tema (claro/oscuro) en lugar del estilo quemado */}
         <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/30 backdrop-blur-[2px]" />
@@ -158,63 +245,25 @@ export default function Hero() {
               <Compass className="w-4 h-4" />
               Explorar destinos
             </a>
-
-            {/* <a
-              href="#como-funciona"
-              className="
-                                inline-flex
-                                items-center
-                                gap-2
-                                px-5
-                                py-3
-                                rounded-xl
-                                border
-                                border-border
-                                bg-background/50
-                                backdrop-blur-md
-                                text-foreground
-                                text-[13px]
-                                font-bold
-                                hover:bg-accent
-                                hover:text-accent-foreground
-                                transition-colors
-                            "
-            >
-              <PlayCircle className="w-4 h-4" />
-              Cómo funciona
-            </a> */}
           </div>
 
-          {/* Viajeros */}
-          <div className="flex items-center gap-3">
-            <div className="flex">
-              {avatarImages.map((src, i) => (
-                <div
-                  key={i}
-                  className="
-                                        w-8
-                                        h-8
-                                        rounded-full
-                                        border-2
-                                        border-background
-                                        bg-cover
-                                        bg-center
-                                        -ml-2
-                                        first:ml-0
-                                    "
-                  style={{
-                    backgroundImage: `url(${src})`,
-                  }}
-                />
-              ))}
+          {/* Confianza — dato real (conteo real de hoteles del catálogo),
+              no una cifra de marketing ni fotos de "viajeros" inventados. */}
+          {!statsLoading && totalHoteles > 0 && (
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[var(--chart-2)]/15 border border-[var(--chart-2)]/30 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-[var(--chart-2)]" />
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                <b className="text-foreground">
+                  +{totalHotelesLabel} hoteles verificados
+                </b>
+                <br />
+                listos para reservar hoy
+              </p>
             </div>
-
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              <b className="text-foreground">+180.000 viajeros</b>
-              <br />
-              ya viajaron con nosotros
-            </p>
-          </div>
+          )}
         </motion.div>
 
         {/* =========================
@@ -239,10 +288,12 @@ export default function Hero() {
       </div>
 
       {/* =========================
-                STATS
+                STATS — cifras reales calculadas del catálogo actual
+                (hoteles, destinos y reseñas reales), no cifras fijas.
             ========================== */}
-      <div
-        className="
+      {!statsLoading && (
+        <div
+          className="
                     hidden
                     lg:flex
                     absolute
@@ -253,11 +304,11 @@ export default function Hero() {
                     gap-2
                     z-10
                 "
-      >
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="
+        >
+          {stats.map((s) => (
+            <div
+              key={s.label}
+              className="
                             min-w-[76px]
                             px-3
                             py-2.5
@@ -267,22 +318,23 @@ export default function Hero() {
                             bg-background/60
                             backdrop-blur-md
                         "
-          >
-            <strong className="block text-foreground text-sm">{s.value}</strong>
+            >
+              <strong className="block text-foreground text-sm">{s.value}</strong>
 
-            <span
-              className="
+              <span
+                className="
                                 text-muted-foreground
                                 text-[8px]
                                 uppercase
                                 tracking-wide
                             "
-            >
-              {s.label}
-            </span>
-          </div>
-        ))}
-      </div>
+              >
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

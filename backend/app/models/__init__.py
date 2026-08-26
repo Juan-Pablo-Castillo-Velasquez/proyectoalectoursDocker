@@ -8,6 +8,7 @@ from app.models.reserva_model import (
     Reserva, Paquete, Pago, MetodoPago, HistorialReserva,
     ReservaHabitacion, ReservaServicio, PaqueteServicio, PaqueteHotel
 )
+from app.models.favorito_model import Favorito
 
 __all__ = [
     "Usuario",
@@ -37,4 +38,5 @@ __all__ = [
     "UsuarioRol",
     "SesionUsuario",
     "RecuperacionPassword",
+    "Favorito",
 ]

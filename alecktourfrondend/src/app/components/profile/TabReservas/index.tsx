@@ -1,6 +1,15 @@
-import { Calendar, Loader2, Plane, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plane,
+  Search,
+} from "lucide-react";
 import { AnimatePresence } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { ClienteResponse } from "../../../services/cliente.service";
 import CalendarioViaje from "./CalendarioViaje";
@@ -31,6 +40,13 @@ export default function TabReservas({
   const [solicitadas, setSolicitadas] = useState<Record<number, string>>({});
   const [filtro, setFiltro] = useState<FiltroEstado>("todas");
   const [busqueda, setBusqueda] = useState("");
+  // Por defecto 2 para no saturar la vista con demasiadas tarjetas de una vez.
+  const [pageSize, setPageSize] = useState(2);
+  const [page, setPage] = useState(1);
+  // Vista "calendario" (cronograma del próximo viaje) vs. "historial" (lista
+  // completa de reservas) — separadas en dos pantallas con un botón para
+  // pasar de una a otra, en vez de todo apilado en un solo scroll largo.
+  const [vista, setVista] = useState<"calendario" | "historial">("calendario");
 
   const handleCancelacionConfirmada = (id: number, motivo: string) =>
     setSolicitadas((prev) => ({ ...prev, [id]: motivo }));
@@ -100,6 +116,141 @@ export default function TabReservas({
     return lista;
   }, [reservas, filtro, busqueda]);
 
+  // Paginación del historial (estilo Despegar: secciones fijas en vez de una
+  // lista larga). Se reinicia a la página 1 cada vez que cambia el filtro,
+  // la búsqueda o el tamaño de página, para no quedar "varado" en una página
+  // vacía después de reducir el resultado.
+  const totalPaginas = Math.max(1, Math.ceil(reservasFiltradas.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [filtro, busqueda, pageSize]);
+
+  const paginaActual = Math.min(page, totalPaginas);
+  const reservasPagina = useMemo(
+    () =>
+      reservasFiltradas.slice(
+        (paginaActual - 1) * pageSize,
+        paginaActual * pageSize,
+      ),
+    [reservasFiltradas, paginaActual, pageSize],
+  );
+
+  // Contenido del historial, extraído para poder mostrarlo tanto en la vista
+  // "historial" del toggle como en el caso sin viaje próximo (sin calendario
+  // que mostrar, no tiene sentido ofrecer un botón para "volver" a él).
+  const historialContent = (
+    <>
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+        <SectionHeader
+          title="Historial de Reservas"
+          subtitle={`${counts.todas} solicitud${counts.todas !== 1 ? "es" : ""} registrada${counts.todas !== 1 ? "as" : ""}`}
+          icon={Calendar}
+        />
+
+        {reservasFiltradas.length > 0 && (
+          <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-1">
+            Ver por
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+            >
+              {[1, 2, 3, 4].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      {/* Con pocas reservas, el buscador y los filtros son ruido:
+          solo se muestran cuando aportan valor real de filtrado. */}
+      {reservas.length >= 3 && (
+        <FiltroBar
+          filtro={filtro}
+          setFiltro={setFiltro}
+          busqueda={busqueda}
+          setBusqueda={setBusqueda}
+          counts={counts}
+        />
+      )}
+
+      {reservasFiltradas.length === 0 ? (
+        <div className="bg-card text-card-foreground border border-border rounded-xl p-8 text-center">
+          <Search className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-muted-foreground">
+            No se encontraron resultados coincidentes
+          </p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            Prueba reajustando los criterios de búsqueda o filtros.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            <AnimatePresence mode="popLayout">
+              {reservasPagina.map((reserva) => (
+                <ReservaCard
+                  key={reserva.id_reserva}
+                  reserva={reserva}
+                  onVerDetalle={() => setDetalleReservaId(reserva.id_reserva)}
+                  clienteData={clienteData}
+                  solicitudMotivo={solicitadas[reserva.id_reserva]}
+                  onSolicitarCancelacion={() => setModalReserva(reserva)}
+                  onDejarResena={() => setModalResena(reserva)}
+                  hoy={hoy}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-center gap-1.5 mt-5">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={paginaActual === 1}
+                aria-label="Página anterior"
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setPage(n)}
+                  aria-current={n === paginaActual ? "page" : undefined}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-colors ${
+                    n === paginaActual
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPaginas, p + 1))}
+                disabled={paginaActual === totalPaginas}
+                aria-label="Página siguiente"
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <>
       <AnimatePresence>
@@ -168,69 +319,46 @@ export default function TabReservas({
         <div className="space-y-8">
           <MetricasResumen counts={counts} />
 
-          {proxima && diasRestantes !== null && estadoViajeProxima && (
-            <section>
-              <SectionHeader
-                title="Cronograma más cercano"
-                subtitle="Control de tiempo real para tu próximo servicio"
-                icon={Plane}
-              />
-              <CalendarioViaje
-                proxima={proxima}
-                diasRestantes={diasRestantes}
-                estadoViaje={estadoViajeProxima}
-              />
-            </section>
-          )}
+          {proxima && diasRestantes !== null && estadoViajeProxima ? (
+            vista === "calendario" ? (
+              <section>
+                <SectionHeader
+                  title="Cronograma más cercano"
+                  subtitle="Control de tiempo real para tu próximo servicio"
+                  icon={Plane}
+                />
+                <CalendarioViaje
+                  proxima={proxima}
+                  diasRestantes={diasRestantes}
+                  estadoViaje={estadoViajeProxima}
+                />
 
-          <section>
-            <SectionHeader
-              title="Historial de Reservas"
-              subtitle={`${counts.todas} solicitud${counts.todas !== 1 ? "es" : ""} registrada${counts.todas !== 1 ? "as" : ""}`}
-              icon={Calendar}
-            />
-
-            {/* Con pocas reservas, el buscador y los filtros son ruido:
-                solo se muestran cuando aportan valor real de filtrado. */}
-            {reservas.length >= 3 && (
-              <FiltroBar
-                filtro={filtro}
-                setFiltro={setFiltro}
-                busqueda={busqueda}
-                setBusqueda={setBusqueda}
-                counts={counts}
-              />
-            )}
-
-            {reservasFiltradas.length === 0 ? (
-              <div className="bg-card text-card-foreground border border-border rounded-xl p-8 text-center">
-                <Search className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-muted-foreground">
-                  No se encontraron resultados coincidentes
-                </p>
-                <p className="text-xs text-muted-foreground/60 mt-0.5">
-                  Prueba reajustando los criterios de búsqueda o filtros.
-                </p>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => setVista("historial")}
+                  className="w-full mt-5 flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-95 transition-all shadow-sm"
+                >
+                  Ver historial de reservas
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </section>
             ) : (
-              <div className="space-y-3">
-                <AnimatePresence mode="popLayout">
-                  {reservasFiltradas.map((reserva) => (
-                    <ReservaCard
-                      key={reserva.id_reserva}
-                      reserva={reserva}
-                      onVerDetalle={() => setDetalleReservaId(reserva.id_reserva)}
-                      clienteData={clienteData}
-                      solicitudMotivo={solicitadas[reserva.id_reserva]}
-                      onSolicitarCancelacion={() => setModalReserva(reserva)}
-                      onDejarResena={() => setModalResena(reserva)}
-                      hoy={hoy}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-          </section>
+              <section>
+                <button
+                  type="button"
+                  onClick={() => setVista("calendario")}
+                  className="flex items-center gap-2 mb-4 text-sm font-semibold text-primary hover:opacity-80 transition-opacity"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Volver al calendario
+                </button>
+
+                {historialContent}
+              </section>
+            )
+          ) : (
+            <section>{historialContent}</section>
+          )}
         </div>
       )}
     </>

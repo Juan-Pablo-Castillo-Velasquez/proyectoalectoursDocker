@@ -8,6 +8,17 @@ import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import { HabitacionResponse, HotelResponse, hotelService } from "../services/hotel.service";
 import { MetodoPago, pagoService, reservaService } from "../services/reserva.service";
+import CardPayment from "../components/payment/CardPayment";
+import PSEPayment from "../components/payment/PSEPayment";
+import NequiPayment from "../components/payment/NequiPayment";
+import PayPalPayment from "../components/payment/PayPalPayment";
+import PaymentSelector from "../components/payment/PaymentSelector";
+import PaymentStatus from "../components/payment/PaymentStatus";
+import {
+  CardPaymentValue, NequiPaymentValue, PSEPaymentValue, PaymentOutcome,
+  cardLast4, emptyCardValue, emptyNequiValue, emptyPSEValue,
+  isCardValueValid, isNequiValueValid, isPSEValueValid,
+} from "../components/payment/types";
 
 const STEPS = [
   { n: 1, label: "Datos del viajero" },
@@ -48,14 +59,18 @@ export default function Checkout() {
   const [metodoPago, setMetodoPago] = useState<number>(1);
   const [paymentOption, setPaymentOption] = useState<'full' | 'partial'>('full');
 
-  // ── Simulación realista del método de pago (nunca se envía al backend:
-  //    el backend solo recibe id_metodo_pago y tipo_pago, ver handleSubmit) ──
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  // ── Datos por método de pago (nunca se envía el número completo de
+  //    tarjeta al backend, solo los últimos 4 — ver construirDatosMetodo) ──
+  const [cardValue, setCardValue] = useState<CardPaymentValue>(emptyCardValue);
+  const [pseValue, setPseValue] = useState<PSEPaymentValue>(emptyPSEValue);
+  const [nequiValue, setNequiValue] = useState<NequiPaymentValue>(emptyNequiValue);
   const [securityPin, setSecurityPin] = useState('');
   const DEMO_PIN = '1234';
+
+  // ── Estado visual del pago: idle mientras se llena el formulario,
+  //    processing/approved/rejected una vez enviado (ver PaymentStatus) ──
+  const [paymentStatus, setPaymentStatus] = useState<PaymentOutcome>('idle');
+  const [reservaActual, setReservaActual] = useState<any>(null);
 
   // Precio real de la habitación elegida (viene de la BD, no inventado)
   const precioPorNoche = habitacion?.precio_noche ?? 0;
@@ -66,35 +81,28 @@ export default function Checkout() {
   const paymentAmount = paymentOption === 'full' ? totalPrice : totalPrice * 0.5;
 
   const metodoSeleccionado = metodos.find((m) => m.id_metodo === metodoPago);
-  const esTarjeta = /tarjeta/i.test(metodoSeleccionado?.nombre_metodo ?? '');
+  const codigoMetodo = metodoSeleccionado?.codigo ?? 'otro';
+  const esTarjeta = codigoMetodo === 'tarjeta_credito' || codigoMetodo === 'tarjeta_debito';
+  const esPSE = codigoMetodo === 'pse';
+  const esNequi = codigoMetodo === 'nequi';
+  const esPayPal = codigoMetodo === 'paypal';
 
-  const formatCardNumber = (v: string) =>
-    v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
-
-  const formatExpiry = (v: string) => {
-    const digits = v.replace(/\D/g, '').slice(0, 4);
-    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-  };
-
-  const expiryValida = (() => {
-    const match = /^(\d{2})\/(\d{2})$/.exec(cardExpiry);
-    if (!match) return false;
-    const mes = parseInt(match[1], 10);
-    const anio = 2000 + parseInt(match[2], 10);
-    if (mes < 1 || mes > 12) return false;
-    const ahora = new Date();
-    const finMes = new Date(anio, mes, 0);
-    return finMes >= new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-  })();
-
-  const tarjetaValida =
-    !esTarjeta ||
-    (cardNumber.replace(/\s/g, '').length === 16 &&
-      cardName.trim().length > 2 &&
-      expiryValida &&
-      cardCvv.length >= 3);
+  // PayPal y el resto de métodos (efectivo, transferencia, etc.) no piden
+  // datos adicionales en este entorno simulado — se consideran válidos.
+  const metodoValido =
+    (esTarjeta && isCardValueValid(cardValue)) ||
+    (esPSE && isPSEValueValid(pseValue)) ||
+    (esNequi && isNequiValueValid(nequiValue)) ||
+    (!esTarjeta && !esPSE && !esNequi);
 
   const pinValido = securityPin === DEMO_PIN;
+
+  const construirDatosMetodo = () => {
+    if (esTarjeta) return { ultimos4: cardLast4(cardValue) };
+    if (esPSE) return { banco: pseValue.banco, documento: pseValue.documento };
+    if (esNequi) return { celular: nequiValue.celular };
+    return {};
+  };
 
   useEffect(() => {
     if (!isAuthenticated) { navigate('/login'); return; }
@@ -123,7 +131,16 @@ export default function Checkout() {
         return;
       }
       setHabitacion(hab);
-    }).catch(console.error)
+    }).catch((err) => {
+      // Si `id` no corresponde a ningún hotel real (por ejemplo, un enlace
+      // viejo o mal construido que mandaba aquí un id de paquete en vez de
+      // un id de hotel), antes esto solo se registraba en consola y la
+      // página se quedaba cargando en blanco para siempre. Ahora se avisa
+      // y se manda a un lugar siempre válido.
+      console.error(err);
+      toast.error('No pudimos encontrar ese alojamiento para reservar.');
+      navigate('/search');
+    })
       .finally(() => setLoading(false));
   }, [id, idHabitacion, isAuthenticated]);
 
@@ -144,6 +161,54 @@ export default function Checkout() {
         .catch(() => setCliente(null));
     }
   }, [isAuthenticated, usuario?.id_cliente]);
+
+  // Aplica el resultado final del pago (ya sea inmediato -tarjeta/PayPal- o
+  // tras confirmar uno asíncrono -PSE/Nequi-): navega a la confirmación si
+  // fue aprobado, o muestra el estado de rechazo si no.
+  const finalizarPago = (estadoPago: string, reservaFinal: any, pago: any) => {
+    if (estadoPago === 'pagado') {
+      setPaymentStatus('approved');
+      toast.success('¡Reserva confirmada!', { id: 'checkout' });
+      setTimeout(() => {
+        navigate('/confirmation', {
+          state: {
+            reserva: reservaFinal,
+            hotel,
+            habitacion,
+            people,
+            totalPrice,
+            paymentAmount: pago.monto,
+            paymentOption,
+            referencia: pago.referencia,
+          },
+        });
+      }, 900);
+    } else {
+      setPaymentStatus('rejected');
+      toast.error('El pago fue rechazado. Revisa los datos o elige otro método.', { id: 'checkout' });
+    }
+  };
+
+  // Inicia el pago sobre una reserva ya creada. PSE/Nequi quedan
+  // 'procesando' y se confirman aparte (simula la respuesta asíncrona del
+  // banco/app); tarjeta/PayPal/otros resuelven al instante, como antes.
+  const ejecutarPago = async (reservaId: number) => {
+    const { pago, reserva: reservaActualizada } = await reservaService.pagar(reservaId, {
+      id_metodo_pago: metodoPago,
+      tipo_pago: paymentOption === 'full' ? 'completo' : 'parcial',
+      ...construirDatosMetodo(),
+    });
+
+    if (pago.estado === 'procesando') {
+      setPaymentStatus('processing');
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+      const confirmado = await pagoService.confirmar(pago.id_pago);
+      finalizarPago(confirmado.pago.estado, confirmado.reserva, confirmado.pago);
+      return;
+    }
+
+    finalizarPago(pago.estado, reservaActualizada, pago);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,8 +231,8 @@ export default function Checkout() {
       toast.error('No hay una habitación válida seleccionada.');
       return;
     }
-    if (esTarjeta && !tarjetaValida) {
-      toast.error('Revisa los datos de tu tarjeta: número, nombre, vencimiento y CVV.');
+    if (!metodoValido) {
+      toast.error('Revisa los datos del método de pago elegido.');
       return;
     }
     if (!pinValido) {
@@ -176,52 +241,36 @@ export default function Checkout() {
     }
 
     setIsProcessing(true);
+    setPaymentStatus('idle');
     toast.loading('Verificando disponibilidad y creando reserva...', { id: 'checkout' });
 
     try {
-      // 1. Crear reserva con la habitación real.
-      //    El precio NO se manda: el backend lo calcula con precio_noche de la BD
-      //    y valida que la habitación siga disponible en esas fechas (409 si no).
-      const reserva = await reservaService.create({
-        id_cliente: usuario.id_cliente,
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-        numero_personas: people,
-        habitaciones: [
-          {
-            id_habitacion: habitacion.id_habitacion,
-            fecha_checkin: fechaInicio,
-            fecha_checkout: fechaFin,
-          },
-        ],
-      });
+      // Si ya existe una reserva de un intento anterior (p. ej. un pago
+      // rechazado), se reutiliza en vez de crear una segunda.
+      let reservaId: number | undefined = reservaActual?.id_reserva;
+      if (!reservaId) {
+        // El precio NO se manda: el backend lo calcula con precio_noche de
+        // la BD y valida que la habitación siga disponible (409 si no).
+        const reserva = await reservaService.create({
+          id_cliente: usuario.id_cliente,
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+          numero_personas: people,
+          habitaciones: [
+            {
+              id_habitacion: habitacion.id_habitacion,
+              fecha_checkin: fechaInicio,
+              fecha_checkout: fechaFin,
+            },
+          ],
+        });
+        setReservaActual(reserva);
+        reservaId = reserva.id_reserva;
+      }
 
       toast.loading('Procesando pago...', { id: 'checkout' });
-
-      // 2. Registrar el pago — el backend calcula y valida el monto real
-      //    (habitaciones/servicios de la reserva) y confirma la reserva.
-      const { pago, reserva: reservaConfirmada } = await reservaService.pagar(reserva.id_reserva, {
-        id_metodo_pago: metodoPago,
-        tipo_pago: paymentOption === 'full' ? 'completo' : 'parcial',
-      });
-
-      toast.success('¡Reserva confirmada!', { id: 'checkout' });
-
-      setTimeout(() => {
-        navigate('/confirmation', {
-          state: {
-            reserva: reservaConfirmada,
-            hotel,
-            habitacion,
-            people,
-            totalPrice,
-            paymentAmount: pago.monto,
-            paymentOption,
-            referencia: pago.referencia,
-          },
-        });
-      }, 500);
-
+      await ejecutarPago(reservaId);
+      toast.dismiss('checkout');
     } catch (err: any) {
       // El backend devuelve 409 con mensaje claro si alguien más reservó la habitación primero
       toast.error(err.message || 'Error al procesar la reserva', { id: 'checkout' });
@@ -229,6 +278,8 @@ export default function Checkout() {
       setIsProcessing(false);
     }
   };
+
+  const handleRetryPago = () => setPaymentStatus('idle');
 
   const goNext = () => {
     if (step === 2 && (!fechaInicio || !fechaFin)) {
@@ -652,124 +703,24 @@ export default function Checkout() {
                   transition={{ duration: 0.25 }}
                   className="space-y-6"
                 >
-                  {/* Métodos de pago */}
-                  <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center border border-green-500/20">
-                        <CreditCard className="w-4 h-4 text-green-500" />
-                      </div>
-                      <h2 className="text-lg font-medium text-foreground">Método de pago</h2>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {metodos.map(m => (
-                        <motion.label key={m.id_metodo} whileHover={{ y: -1 }}
-                          className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer border transition-all ${metodoPago === m.id_metodo
-                            ? 'border-primary bg-primary/5 shadow-xs'
-                            : 'border-border bg-card hover:border-border/80'
-                            }`}>
-                          <input type="radio" name="metodo" checked={metodoPago === m.id_metodo}
-                            onChange={() => setMetodoPago(m.id_metodo)}
-                            className="w-4 h-4 text-primary focus:ring-primary border-border bg-input-background" />
-                          <span className="text-sm font-medium text-foreground">{m.nombre_metodo}</span>
-                        </motion.label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Datos de la tarjeta (solo si el método elegido es tarjeta) */}
-                  <AnimatePresence>
-                    {esTarjeta && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
-                          <div className="flex items-center gap-3 mb-5">
-                            <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
-                              <CreditCard className="w-4 h-4 text-primary" />
-                            </div>
-                            <h2 className="text-lg font-medium text-foreground">Datos de la tarjeta</h2>
-                          </div>
-
-                          {/* Tarjeta visual */}
-                          <div className="relative w-full max-w-sm mx-auto sm:mx-0 mb-6 rounded-2xl p-5 text-white shadow-lg"
-                            style={{ background: 'linear-gradient(135deg, var(--primary) 0%, #2E2E2E 100%)' }}>
-                            <div className="flex justify-between items-start mb-8">
-                              <div className="w-10 h-7 rounded bg-white/20" />
-                              <span className="text-xs font-semibold tracking-widest opacity-80">
-                                {metodoSeleccionado?.nombre_metodo}
-                              </span>
-                            </div>
-                            <p className="text-lg tracking-[0.2em] font-mono mb-4">
-                              {cardNumber || '•••• •••• •••• ••••'}
-                            </p>
-                            <div className="flex justify-between text-xs opacity-90">
-                              <span className="uppercase truncate max-w-[60%]">{cardName || 'NOMBRE DEL TITULAR'}</span>
-                              <span>{cardExpiry || 'MM/YY'}</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-4">
-                            <div>
-                              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Número de tarjeta</label>
-                              <input
-                                type="text" inputMode="numeric" placeholder="0000 0000 0000 0000"
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                                maxLength={19}
-                                className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nombre del titular</label>
-                              <input
-                                type="text" placeholder="Como aparece en la tarjeta"
-                                value={cardName}
-                                onChange={(e) => setCardName(e.target.value.toUpperCase())}
-                                className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Vencimiento</label>
-                                <input
-                                  type="text" inputMode="numeric" placeholder="MM/YY"
-                                  value={cardExpiry}
-                                  onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
-                                  maxLength={5}
-                                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">CVV</label>
-                                <input
-                                  type="password" inputMode="numeric" placeholder="•••"
-                                  value={cardCvv}
-                                  onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                  maxLength={4}
-                                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground mt-4 flex items-center gap-1.5">
-                            <Shield className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                            Datos de prueba: no se procesa ni se guarda ningún cobro real.
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Fraccionamiento de Pago */}
+                  {paymentStatus !== 'idle' ? (
+                    <PaymentStatus
+                      state={paymentStatus}
+                      amount={paymentAmount}
+                      onRetry={paymentStatus === 'rejected' ? handleRetryPago : undefined}
+                    />
+                  ) : (
+                  <>
+                  {/* Paso 1: Fraccionamiento de Pago */}
                   <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-9 h-9 bg-chart-2/10 rounded-lg flex items-center justify-center border border-chart-2/20">
                         <Zap className="w-4 h-4 text-chart-2" />
                       </div>
-                      <h2 className="text-lg font-medium text-foreground">Opciones de financiamiento</h2>
+                      <div>
+                        <h2 className="text-lg font-medium text-foreground">1. Elige cuánto pagar hoy</h2>
+                        <p className="text-xs text-muted-foreground">Define el monto antes de asignar tu método de pago.</p>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       <motion.label whileHover={{ y: -1 }}
@@ -814,14 +765,59 @@ export default function Checkout() {
                     </div>
                   </div>
 
-                  {/* PIN de seguridad */}
+                  {/* Paso 2: Métodos de pago */}
+                  <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center border border-green-500/20">
+                        <CreditCard className="w-4 h-4 text-green-500" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-medium text-foreground">2. Elige tu método de pago</h2>
+                        <p className="text-xs text-muted-foreground">Selecciona cómo quieres pagar {paymentOption === 'partial' ? 'el anticipo' : 'tu reserva'}.</p>
+                      </div>
+                    </div>
+                    <PaymentSelector metodos={metodos} selectedId={metodoPago} onSelect={setMetodoPago} />
+                  </div>
+
+                  {/* Datos específicos del método elegido — cada uno vive en su propio
+                      componente aislado dentro de components/payment/ */}
+                  <AnimatePresence>
+                    {(esTarjeta || esPSE || esNequi || esPayPal) && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
+                          <div className="flex items-center gap-3 mb-5">
+                            <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
+                              <CreditCard className="w-4 h-4 text-primary" />
+                            </div>
+                            <h2 className="text-lg font-medium text-foreground">
+                              {esTarjeta ? 'Datos de la tarjeta' : esPSE ? 'Datos de PSE' : esNequi ? 'Datos de Nequi' : 'PayPal'}
+                            </h2>
+                          </div>
+
+                          {esTarjeta && (
+                            <CardPayment value={cardValue} onChange={setCardValue} brand={metodoSeleccionado?.nombre_metodo} />
+                          )}
+                          {esPSE && <PSEPayment value={pseValue} onChange={setPseValue} />}
+                          {esNequi && <NequiPayment value={nequiValue} onChange={setNequiValue} />}
+                          {esPayPal && <PayPalPayment amount={paymentAmount} />}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Paso 3: PIN de seguridad */}
                   <div className="bg-card rounded-xl border border-border p-6 shadow-xs">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
                         <Lock className="w-4 h-4 text-primary" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-medium text-foreground">Confirma con tu PIN de seguridad</h2>
+                        <h2 className="text-lg font-medium text-foreground">3. Confirma con tu PIN de seguridad</h2>
                         <p className="text-xs text-muted-foreground">Entorno de prueba: tu PIN es <span className="font-mono font-bold">1234</span></p>
                       </div>
                     </div>
@@ -839,6 +835,8 @@ export default function Checkout() {
                     <Shield className="w-4 h-4 text-green-500 flex-shrink-0" />
                     <span className="text-xs text-muted-foreground font-medium">Transacción protegida mediante encriptación SSL de 256 bits</span>
                   </div>
+                  </>
+                  )}
                 </motion.section>
               )}
             </AnimatePresence>
@@ -864,15 +862,24 @@ export default function Checkout() {
                   {step === 3 ? "Ir al pago" : "Continuar"} →
                 </button>
               ) : (
-                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                  type="submit" disabled={isProcessing || (esTarjeta && !tarjetaValida) || !pinValido}
-                  className="min-w-[220px] py-3.5 px-6 bg-primary text-primary-foreground text-sm font-semibold rounded-xl border border-transparent shadow-md hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden">
-                  <span className="relative flex items-center justify-center gap-2.5">
-                    {isProcessing ? 'Garantizando transacciones...' : (
-                      <><Lock className="w-4 h-4" />Confirmar y autorizar ${paymentAmount.toLocaleString('es-CO')}</>
-                    )}
-                  </span>
-                </motion.button>
+                <div className="flex flex-col items-end gap-1.5">
+                  {(!metodoValido || !pinValido) && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {!metodoValido
+                        ? 'Completa los datos del método de pago para continuar.'
+                        : 'Ingresa tu PIN de seguridad (1234 en este entorno de prueba).'}
+                    </p>
+                  )}
+                  <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                    type="submit" disabled={isProcessing || paymentStatus === 'processing' || paymentStatus === 'approved'}
+                    className="min-w-[220px] py-3.5 px-6 bg-primary text-primary-foreground text-sm font-semibold rounded-xl border border-transparent shadow-md hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden">
+                    <span className="relative flex items-center justify-center gap-2.5">
+                      {isProcessing ? 'Garantizando transacciones...' : (
+                        <><Lock className="w-4 h-4" />Confirmar y autorizar ${paymentAmount.toLocaleString('es-CO')}</>
+                      )}
+                    </span>
+                  </motion.button>
+                </div>
               )}
             </div>
           </div>

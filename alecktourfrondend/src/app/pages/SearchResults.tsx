@@ -12,13 +12,13 @@ import { useSearchParams } from "react-router";
 import Footer from "../components/Footer";
 import HotelCard from "../components/HotelCard";
 import Navbar from "../components/Navbar";
-import { HotelResponse, hotelService } from "../services/hotel.service";
+import { HotelDetailResponse, hotelService } from "../services/hotel.service";
 
 export default function SearchResults() {
   const [searchParams] = useSearchParams();
 
-  const [hoteles, setHoteles] = useState<HotelResponse[]>([]);
-  const [filtrados, setFiltrados] = useState<HotelResponse[]>([]);
+  const [hoteles, setHoteles] = useState<HotelDetailResponse[]>([]);
+  const [filtrados, setFiltrados] = useState<HotelDetailResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [calificacionFilter, setCalificacionFilter] =
@@ -35,6 +35,28 @@ export default function SearchResults() {
 
   const [showFilters, setShowFilters] =
     useState(false);
+
+  type PrecioBucket = "all" | "lt300" | "300-600" | "600-1000" | "gt1000";
+  const [precioFilter, setPrecioFilter] = useState<PrecioBucket>("all");
+
+  // Filtro de servicios populares (estilo Despegar: checkboxes con conteo
+  // real de cuántos hoteles del resultado tienen cada servicio).
+  const [caracteristicasFilter, setCaracteristicasFilter] = useState<string[]>([]);
+  const toggleCaracteristica = (nombre: string) =>
+    setCaracteristicasFilter((prev) =>
+      prev.includes(nombre) ? prev.filter((c) => c !== nombre) : [...prev, nombre]
+    );
+
+  const PRECIO_BUCKETS: { id: PrecioBucket; label: string; test: (p: number) => boolean }[] = [
+    { id: "all", label: "Cualquier precio", test: () => true },
+    { id: "lt300", label: "Menos de $300.000", test: (p) => p < 300000 },
+    { id: "300-600", label: "$300.000 – $600.000", test: (p) => p >= 300000 && p < 600000 },
+    { id: "600-1000", label: "$600.000 – $1.000.000", test: (p) => p >= 600000 && p < 1000000 },
+    { id: "gt1000", label: "Más de $1.000.000", test: (p) => p >= 1000000 },
+  ];
+
+  type OrdenPor = "relevancia" | "precio_asc" | "precio_desc" | "calificacion";
+  const [ordenPor, setOrdenPor] = useState<OrdenPor>("relevancia");
 
   const [startDate, setStartDate] =
     useState<string>("");
@@ -54,6 +76,15 @@ export default function SearchResults() {
    */
   const destinationSearch =
     searchParams.get("destination")?.trim() ?? "";
+
+  function precioMinimo(h: HotelDetailResponse): number | null {
+    const disponibles =
+      h.habitaciones?.filter(
+        (hab) => hab.estado?.toLowerCase() === "disponible"
+      ) ?? [];
+    if (!disponibles.length) return null;
+    return Math.min(...disponibles.map((hab) => hab.precio_noche));
+  }
 
   /*
    * CARGAR HOTELES
@@ -126,21 +157,62 @@ export default function SearchResults() {
         ciudadFilter === "all" ||
         h.ciudad === ciudadFilter;
 
+      /*
+       * FILTRO PRECIO POR NOCHE
+       */
+      const bucket = PRECIO_BUCKETS.find((b) => b.id === precioFilter)!;
+      const precio = precioMinimo(h);
+      const matchesPrecio =
+        precioFilter === "all" ||
+        (precio != null && bucket.test(precio));
+
+      /*
+       * FILTRO SERVICIOS POPULARES
+       */
+      const nombresServicios = new Set(
+        h.hotel_caracteristicas
+          ?.filter((hc) => hc.disponible && hc.caracteristica)
+          .map((hc) => hc.caracteristica!.nombre_caracteristica) ?? []
+      );
+      const matchesCaracteristicas =
+        caracteristicasFilter.length === 0 ||
+        caracteristicasFilter.every((c) => nombresServicios.has(c));
+
       return (
         matchesDestination &&
         matchesCal &&
         matchesPais &&
-        matchesCiudad
+        matchesCiudad &&
+        matchesPrecio &&
+        matchesCaracteristicas
       );
     });
 
-    setFiltrados(resultado);
+    const ordenado = [...resultado].sort((a, b) => {
+      if (ordenPor === "precio_asc" || ordenPor === "precio_desc") {
+        const pa = precioMinimo(a);
+        const pb = precioMinimo(b);
+        // Los hoteles sin precio disponible se mandan al final, sin importar la dirección.
+        if (pa == null) return pb == null ? 0 : 1;
+        if (pb == null) return -1;
+        return ordenPor === "precio_asc" ? pa - pb : pb - pa;
+      }
+      if (ordenPor === "calificacion") {
+        return (b.calificacion ?? 0) - (a.calificacion ?? 0);
+      }
+      return 0; // relevancia: se respeta el orden que entrega la API
+    });
+
+    setFiltrados(ordenado);
   }, [
     hoteles,
     destinationSearch,
     calificacionFilter,
     paisFilter,
     ciudadFilter,
+    precioFilter,
+    caracteristicasFilter,
+    ordenPor,
   ]);
 
   /*
@@ -151,6 +223,8 @@ export default function SearchResults() {
     setPaisFilter("all");
     setCiudadFilter("all");
     setCiudadSearch("");
+    setPrecioFilter("all");
+    setCaracteristicasFilter([]);
   }
 
   /*
@@ -179,13 +253,63 @@ export default function SearchResults() {
       )
     );
 
+  // Servicios populares del resultado actual: conteo real de cuántos
+  // hoteles ofrecen cada característica (estilo Despegar: checkboxes con
+  // número al lado), no una lista inventada — se deriva de los hoteles
+  // que ya trajo la API para esta búsqueda.
+  const serviciosPopulares = (() => {
+    const counts = new Map<string, number>();
+    hoteles.forEach((h) => {
+      const nombres = new Set(
+        h.hotel_caracteristicas
+          ?.filter((hc) => hc.disponible && hc.caracteristica)
+          .map((hc) => hc.caracteristica!.nombre_caracteristica) ?? []
+      );
+      nombres.forEach((nombre) => {
+        counts.set(nombre, (counts.get(nombre) ?? 0) + 1);
+      });
+    });
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+  })();
+
   /*
    * FILTROS
    */
   const FilterContent = () => (
     <>
-      {/* CALIFICACIÓN */}
+      {/* PRECIO POR NOCHE */}
       <div className="mb-6">
+        <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-muted-foreground/80">
+          Precio por noche
+        </h3>
+
+        <div className="space-y-2.5">
+          {PRECIO_BUCKETS.map((bucket) => (
+            <motion.label
+              key={bucket.id}
+              whileHover={{ x: 3 }}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <input
+                type="radio"
+                name="precio"
+                checked={precioFilter === bucket.id}
+                onChange={() => setPrecioFilter(bucket.id)}
+                className="w-4 h-4 text-primary focus:ring-primary border-border bg-input-background cursor-pointer"
+              />
+
+              <span className="text-sm text-foreground/90 group-hover:text-primary transition-colors">
+                {bucket.label}
+              </span>
+            </motion.label>
+          ))}
+        </div>
+      </div>
+
+      {/* CALIFICACIÓN */}
+      <div className="mb-6 border-t border-border/60 pt-5">
         <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-muted-foreground/80">
           Calificación
         </h3>
@@ -412,6 +536,40 @@ export default function SearchResults() {
         </div>
       </div>
 
+      {/* SERVICIOS POPULARES */}
+      {serviciosPopulares.length > 0 && (
+        <div className="mb-6 border-t border-border/60 pt-5">
+          <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-muted-foreground/80">
+            Servicios populares
+          </h3>
+
+          <div className="space-y-2.5">
+            {serviciosPopulares.map(([nombre, cantidad]) => (
+              <motion.label
+                key={nombre}
+                whileHover={{ x: 3 }}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <input
+                  type="checkbox"
+                  checked={caracteristicasFilter.includes(nombre)}
+                  onChange={() => toggleCaracteristica(nombre)}
+                  className="w-4 h-4 rounded text-primary focus:ring-primary border-border bg-input-background cursor-pointer"
+                />
+
+                <span className="flex-1 text-sm text-foreground/90 group-hover:text-primary transition-colors">
+                  {nombre}
+                </span>
+
+                <span className="text-xs text-muted-foreground/70 font-medium tabular-nums">
+                  ({cantidad})
+                </span>
+              </motion.label>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* LIMPIAR */}
       <motion.button
         whileHover={{ scale: 1.01 }}
@@ -608,6 +766,94 @@ export default function SearchResults() {
 
             {/* RESULTADOS */}
             <main className="lg:col-span-3">
+              {/* CHIPS DE FILTROS ACTIVOS — resumen rápido estilo Despegar,
+                  cada uno se puede quitar sin abrir el panel de filtros. */}
+              {(calificacionFilter !== "all" ||
+                paisFilter !== "all" ||
+                ciudadFilter !== "all" ||
+                precioFilter !== "all" ||
+                caracteristicasFilter.length > 0) && (
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  {calificacionFilter !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setCalificacionFilter("all")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
+                    >
+                      {calificacionFilter} estrellas
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  {paisFilter !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setPaisFilter("all")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
+                    >
+                      {paisFilter}
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  {ciudadFilter !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setCiudadFilter("all")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
+                    >
+                      {ciudadFilter}
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  {precioFilter !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setPrecioFilter("all")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
+                    >
+                      {PRECIO_BUCKETS.find((b) => b.id === precioFilter)?.label}
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  {caracteristicasFilter.map((nombre) => (
+                    <button
+                      key={nombre}
+                      type="button"
+                      onClick={() => toggleCaracteristica(nombre)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
+                    >
+                      {nombre}
+                      <X className="w-3 h-3" />
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={limpiarFiltros}
+                    className="text-xs font-semibold text-muted-foreground hover:text-foreground underline underline-offset-2 ml-1"
+                  >
+                    Limpiar todo
+                  </button>
+                </div>
+              )}
+
+              {!loading && filtrados.length > 0 && (
+                <div className="flex items-center justify-end gap-2 mb-4">
+                  <label htmlFor="ordenar-por" className="text-xs font-medium text-muted-foreground">
+                    Ordenar por
+                  </label>
+                  <select
+                    id="ordenar-por"
+                    value={ordenPor}
+                    onChange={(e) => setOrdenPor(e.target.value as OrdenPor)}
+                    className="text-sm font-semibold bg-card border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                  >
+                    <option value="relevancia">Más relevantes</option>
+                    <option value="precio_asc">Precio: menor a mayor</option>
+                    <option value="precio_desc">Precio: mayor a menor</option>
+                    <option value="calificacion">Mejor calificados</option>
+                  </select>
+                </div>
+              )}
+
               {loading ? (
                 <div className="bg-card rounded-2xl border border-border p-16 text-center">
                   <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-primary border-r-transparent" />
@@ -617,7 +863,7 @@ export default function SearchResults() {
                   </p>
                 </div>
               ) : filtrados.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-5">
                   {filtrados.map(
                     (hotel, index) => (
                       <HotelCard

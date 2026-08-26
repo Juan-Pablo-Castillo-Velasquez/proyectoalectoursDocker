@@ -8,13 +8,15 @@ import {
   Phone,
   Plane,
   Settings,
+  SlidersHorizontal,
   Star,
   User
 } from "lucide-react";
 import { BASE_URL } from "../../api/v1/api";
 const tabs = [
   { id: "reservas", label: "Mis Reservas", icon: Calendar },
-  { id: "preferencias", label: "Preferencias", icon: Heart },
+  { id: "favoritos", label: "Favoritos", icon: Heart },
+  { id: "preferencias", label: "Preferencias", icon: SlidersHorizontal },
   { id: "cuenta", label: "Mi Cuenta", icon: Settings },
 ];
 

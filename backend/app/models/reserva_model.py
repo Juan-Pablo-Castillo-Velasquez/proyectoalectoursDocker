@@ -81,6 +81,43 @@ class Reserva(Base):
         total += sum((rs.precio_acordado or 0) for rs in self.reserva_servicios)
         return float(total)
 
+    @property
+    def nombre_paquete(self):
+        """Nombre real del paquete reservado, para mostrar en las tarjetas de
+        Mis Reservas en vez de solo el id_paquete (ver ReservaCard.tsx)."""
+        return self.paquete.nombre_paquete if self.paquete else None
+
+    @property
+    def _primer_hotel(self):
+        """Hotel de referencia para esta reserva: el del paquete si lo hay,
+        y si no (reserva directa de habitación, sin paquete — id_paquete es
+        nullable) el de la primera habitación reservada. Usado por
+        `destino` y `hotel_nombre` para no depender solo de id_paquete."""
+        if self.paquete and self.paquete.paquete_hotel:
+            return self.paquete.paquete_hotel[0].hotel
+        if self.reserva_habitaciones:
+            habitacion = self.reserva_habitaciones[0].habitacion
+            return habitacion.hotel if habitacion else None
+        return None
+
+    @property
+    def destino(self):
+        """Ciudad/país del hotel de esta reserva (por paquete o directo),
+        para dar contexto rápido en el historial de reservas."""
+        hotel = self._primer_hotel
+        if not hotel:
+            return None
+        partes = [p for p in (hotel.ciudad, hotel.pais) if p]
+        return ", ".join(partes) if partes else None
+
+    @property
+    def hotel_nombre(self):
+        """Nombre del hotel de esta reserva — se usa como título de
+        respaldo en el frontend cuando la reserva no tiene paquete (reserva
+        directa de una habitación), para no mostrar "Paquete #None"."""
+        hotel = self._primer_hotel
+        return hotel.nombre_hotel if hotel else None
+
 
 class ReservaHabitacion(Base):
     __tablename__ = "reserva_habitaciones"
@@ -113,6 +150,11 @@ class MetodoPago(Base):
 
     id_metodo = Column(Integer, primary_key=True, index=True)
     nombre_metodo = Column(String(50), nullable=False)
+    # Identificador estable para decidir el flujo de pago simulado sin
+    # comparar el nombre en español con regex (ver app/services/payment_service.py).
+    # Valores conocidos: tarjeta_credito, tarjeta_debito, pse, nequi, paypal,
+    # efectivo, transferencia, cripto, daviplata, cheque, otro.
+    codigo = Column(String(30), nullable=False, default="otro")
 
     pagos = relationship("Pago", back_populates="metodo_pago")
 
@@ -126,11 +168,16 @@ class Pago(Base):
     monto = Column(Numeric(10, 2), CheckConstraint("monto >= 0"), nullable=False)
     fecha_pago = Column(TIMESTAMP, server_default=func.now())
     referencia = Column(String(100))
+    # 'procesando' es el estado intermedio que usan PSE y Nequi mientras se
+    # simula la confirmacion externa (ver POST /api/pagos/{id}/confirmar).
     estado = Column(
         String(20),
-        CheckConstraint("estado IN ('pendiente', 'pagado', 'rechazado')"),
+        CheckConstraint("estado IN ('pendiente', 'procesando', 'pagado', 'rechazado', 'cancelado')"),
         nullable=False
     )
+    # Decidido al iniciar el pago (con los valores de prueba de tarjeta,
+    # celular o documento) y aplicado al confirmar. No se expone al cliente.
+    simular_rechazo = Column(Boolean, nullable=False, default=False)
 
     reserva = relationship("Reserva", back_populates="pagos")
     metodo_pago = relationship("MetodoPago", back_populates="pagos")
