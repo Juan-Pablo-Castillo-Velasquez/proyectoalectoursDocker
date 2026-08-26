@@ -45,8 +45,10 @@ export interface Cliente {
   cedula: string;
   correo: string;
   celular: string;
+  direccion?: string;
   ciudad: string;
   pais: string;
+  fecha_nacimiento?: string;
 }
 
 export interface Empleado {
@@ -69,13 +71,38 @@ export interface Pago {
   };
 }
 
+export interface Usuario {
+  id_usuario: number;
+  username: string;
+  correo_electronico: string;
+  activo: boolean;
+  verificado: boolean;
+  nombre_completo: string | null;
+  roles: string[];
+}
+
+export interface Rol {
+  id_rol: number;
+  nombre_rol: string;
+}
+
+// Colores de estado consistentes con la paleta de marca (mismo criterio que
+// ModuleDashboard: dorado/granate/rosa para los estados normales, rojo
+// reservado solo para "cancelada"). Usan opacidad en vez de mapas dark/light
+// separados para que se vean bien en ambos temas sin duplicar clases.
 export const ESTADO_COLOR: Record<string, string> = {
-  pendiente: "bg-amber-100 text-amber-700",
-  confirmada: "bg-green-100 text-green-700",
-  cancelada:  "bg-red-100 text-red-700",
-  finalizada: "bg-blue-100 text-blue-700",
+  pendiente: "bg-[#C9A227]/15 text-[#C9A227]",
+  confirmada: "bg-primary/10 text-primary",
+  cancelada: "bg-destructive/10 text-destructive",
+  finalizada: "bg-[#A13B55]/15 text-[#A13B55]",
 };
 
 export const inputCls =
-  "w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm";
-export const labelCls = "block text-sm font-medium text-gray-700 mb-1";
+  "w-full px-4 py-2.5 border border-border bg-input-background text-foreground rounded-xl focus:ring-2 focus:ring-primary/40 focus:border-primary focus:outline-none outline-none text-sm placeholder:text-muted-foreground/60";
+export const labelCls = "block text-sm font-medium text-muted-foreground mb-1";
+
+// Estilo de tarjeta compartido por todos los módulos de admin (misma
+// convención visual que ModuleDashboard: tokens de marca, no grises sueltos).
+export const cardCls = "bg-card rounded-2xl p-6 shadow-sm border border-border";
+export const primaryBtnCls =
+  "w-full py-2.5 bg-gradient-to-r from-primary to-[#A13B55] text-primary-foreground font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all disabled:opacity-50 text-sm";

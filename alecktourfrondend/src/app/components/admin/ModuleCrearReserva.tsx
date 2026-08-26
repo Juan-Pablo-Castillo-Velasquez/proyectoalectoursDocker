@@ -41,11 +41,11 @@ export default function ModuleCrearReserva({ clientes, paquetes, onSubmit, loadi
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Crear Reserva</h2>
-        <p className="text-gray-500 text-sm">Registra una nueva reserva para un cliente</p>
+        <h2 className="text-2xl font-bold text-foreground">Crear Reserva</h2>
+        <p className="text-muted-foreground text-sm">Registra una nueva reserva para un cliente</p>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+      <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
         <form onSubmit={handleSubmit} className="space-y-4">
           {msg && (
             <div className={`p-3 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
@@ -117,12 +117,12 @@ export default function ModuleCrearReserva({ clientes, paquetes, onSubmit, loadi
           </div>
 
           {paqueteSeleccionado && (
-            <div className="bg-blue-50 rounded-xl p-4 text-sm space-y-1">
-              <p className="font-semibold text-blue-800">Resumen de reserva</p>
-              {clienteSeleccionado && <p className="text-blue-700">Cliente: {clienteSeleccionado.nombre} {clienteSeleccionado.apellido}</p>}
-              <p className="text-blue-700">Paquete: {paqueteSeleccionado.nombre_paquete}</p>
-              <p className="text-blue-700">Duración: {paqueteSeleccionado.duracion_dias} días</p>
-              <p className="font-bold text-blue-900 text-base">Total estimado: ${total.toLocaleString()}</p>
+            <div className="bg-accent rounded-xl p-4 text-sm space-y-1">
+              <p className="font-semibold text-primary">Resumen de reserva</p>
+              {clienteSeleccionado && <p className="text-accent-foreground">Cliente: {clienteSeleccionado.nombre} {clienteSeleccionado.apellido}</p>}
+              <p className="text-accent-foreground">Paquete: {paqueteSeleccionado.nombre_paquete}</p>
+              <p className="text-accent-foreground">Duración: {paqueteSeleccionado.duracion_dias} días</p>
+              <p className="font-bold text-primary text-base">Total estimado: ${total.toLocaleString()}</p>
             </div>
           )}
 

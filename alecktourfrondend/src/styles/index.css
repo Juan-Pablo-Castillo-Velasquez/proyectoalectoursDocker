@@ -1,3 +1,5 @@
 @import './fonts.css';
 @import './tailwind.css';
+/* aquí está el único import de tailwindcss + @source */
 @import './theme.css';
+/* aquí solo quedan las variables y @layer base */

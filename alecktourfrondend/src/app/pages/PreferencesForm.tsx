@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronLeft, ChevronRight, Plane, Sparkles, Ticket } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { toast, Toaster } from "sonner";
 import {
   budgetOptions,
@@ -15,11 +15,20 @@ import { preferenciasService } from "../services/preferencias.service";
 export default function PreferencesForm() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // TabPreferencias manda las preferencias ya guardadas (si existen) por
+  // location.state al hacer clic en "Actualizar perfil" — antes este
+  // formulario siempre arrancaba en blanco incluso al "actualizar".
+  const preferenciasExistentes = (location.state as { preferencias?: any } | null)?.preferencias;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    interests: [] as string[],
-    company: "", budget: "", weather: "", pace: "", transport: ""
+    interests: (preferenciasExistentes?.intereses as string[]) ?? [],
+    company: preferenciasExistentes?.compania ?? "",
+    budget: preferenciasExistentes?.presupuesto ?? "",
+    weather: preferenciasExistentes?.clima ?? "",
+    pace: preferenciasExistentes?.ritmo ?? "",
+    transport: preferenciasExistentes?.transporte ?? "",
   });
 
   const toggleInterest = (id: string) =>
@@ -49,7 +58,11 @@ export default function PreferencesForm() {
     try {
       await preferenciasService.savePreferences(idCliente, formData);
       toast.success("✅ ¡Preferencias guardadas! Estamos creando tu perfil personalizado.");
-      setTimeout(() => navigate("/profile"), 2000);
+      // Antes esto mandaba siempre a /profile con la pestaña "reservas" por
+      // defecto — el usuario terminaba el asistente y aparecía en su
+      // historial de reservas en vez de ver las preferencias recién
+      // guardadas, lo que se percibía como "me redirige mal".
+      setTimeout(() => navigate("/profile", { state: { tab: "preferencias" } }), 2000);
     } catch (error: any) {
       console.error("❌ Error al guardar preferencias:", error);
       const mensajeError = error.message || error?.detail || "Hubo un error guardando tus preferencias. Intenta de nuevo.";

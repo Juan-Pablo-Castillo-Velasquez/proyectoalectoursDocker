@@ -20,4 +20,6 @@ export const clienteService = {
     apiFetch<ClienteResponse>('/clientes', { method: 'POST', body: data }),
   update: (id: number, data: Partial<ClienteResponse>) =>
     apiFetch<ClienteResponse>(`/clientes/${id}`, { method: 'PUT', body: data }),
+  cambiarContrasena: (id: number, data: { contrasena_actual: string; nueva_contrasena: string }) =>
+    apiFetch<{ message: string }>(`/clientes/${id}/cambiar-contrasena`, { method: 'PUT', body: data }),
 };

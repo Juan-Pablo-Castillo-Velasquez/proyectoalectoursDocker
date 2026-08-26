@@ -16,6 +16,7 @@ class Usuario(Base):
     id_empleado = Column(Integer, ForeignKey("empleados.id_empleado", ondelete="CASCADE"), unique=True)
     activo = Column(Boolean, default=True)
     verificado = Column(Boolean, default=False)
+    foto_perfil = Column(String(255), nullable=True)
     ultimo_login = Column(TIMESTAMP)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())
 

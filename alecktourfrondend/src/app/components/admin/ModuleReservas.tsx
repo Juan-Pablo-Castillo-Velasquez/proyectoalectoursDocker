@@ -45,17 +45,8 @@ function EstadoBadge({ estado }: { estado: string }) {
     cancelada: <XCircle className="w-3 h-3" />,
     finalizada: <FileText className="w-3 h-3" />,
   };
-  // Clases dark específicas por estado
-  const darkMap: Record<string, string> = {
-    pendiente:  "dark:bg-amber-900/40  dark:text-amber-300  dark:border dark:border-amber-700/50",
-    confirmada: "dark:bg-emerald-900/40 dark:text-emerald-300 dark:border dark:border-emerald-700/50",
-    cancelada:  "dark:bg-red-900/40    dark:text-red-300    dark:border dark:border-red-700/50",
-    finalizada: "dark:bg-gray-700/40   dark:text-gray-300   dark:border dark:border-gray-600/50",
-  };
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
-      ${ESTADO_COLOR[estado] ?? "bg-gray-100 text-gray-600"}
-      ${darkMap[estado] ?? ""}`}>
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${ESTADO_COLOR[estado] ?? "bg-muted text-muted-foreground"}`}>
       {icons[estado]}
       {estado}
     </span>
@@ -71,22 +62,20 @@ function CanalBadge({ canal }: { canal?: CanalOrigen }) {
   const entry = canal ? map[canal] : map.web;
   const { label, Icon } = entry;
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
-      bg-gray-100 text-gray-600 border border-gray-200
-      dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600/50">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
       <Icon className="w-3 h-3" />
       {label}
     </span>
   );
 }
 
-function Avatar({ name, apellido, color = "blue" }: {
-  name: string; apellido?: string; color?: "blue" | "green";
+function Avatar({ name, apellido, color = "primary" }: {
+  name: string; apellido?: string; color?: "primary" | "gold";
 }) {
   const initials = `${name[0] ?? ""}${apellido?.[0] ?? ""}`.toUpperCase();
-  const cls = color === "blue"
-    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300";
+  const cls = color === "primary"
+    ? "bg-primary/10 text-primary"
+    : "bg-[#C9A227]/15 text-[#C9A227]";
   return (
     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${cls}`}>
       {initials}
@@ -100,27 +89,26 @@ function DetailRow({ icon: Icon, label, value }: {
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 dark:border-gray-700/50">
-      <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-      <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px]">{label}</span>
-      <span className="text-xs font-medium text-gray-800 dark:text-gray-200 text-right ml-auto">{value ?? "—"}</span>
+    <div className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0">
+      <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+      <span className="text-xs text-muted-foreground min-w-[100px]">{label}</span>
+      <span className="text-xs font-medium text-foreground text-right ml-auto">{value ?? "—"}</span>
     </div>
   );
 }
 
 function MetricCard({ label, value, color = "default" }: {
-  label: string; value: number; color?: "default" | "green" | "amber" | "red" | "blue";
+  label: string; value: number; color?: "default" | "green" | "amber" | "red";
 }) {
   const colorCls: Record<string, string> = {
-    default: "text-gray-900 dark:text-white",
-    green:   "text-emerald-700 dark:text-emerald-400",
-    amber:   "text-amber-700   dark:text-amber-400",
-    red:     "text-red-600     dark:text-red-400",
-    blue:    "text-blue-700    dark:text-blue-400",
+    default: "text-foreground",
+    green:   "text-primary",
+    amber:   "text-[#C9A227]",
+    red:     "text-destructive",
   };
   return (
-    <div className="bg-gray-50 dark:bg-[#1a1d2e] rounded-xl p-3 border border-gray-100 dark:border-[#252840]">
-      <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">{label}</p>
+    <div className="bg-muted/40 rounded-xl p-3 border border-border">
+      <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
       <p className={`text-xl font-semibold ${colorCls[color]}`}>{value}</p>
     </div>
   );
@@ -133,35 +121,30 @@ const ESTADO_OPTIONS: {
   label: string;
   icon: React.ReactNode;
   cls: string;
-  darkCls: string;
 }[] = [
   {
     value: "pendiente",
     label: "Pendiente",
     icon: <Clock className="w-3.5 h-3.5" />,
-    cls:     "border-amber-200  bg-amber-50  text-amber-700  ring-amber-400",
-    darkCls: "dark:border-amber-700/60 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-500",
+    cls: "border-[#C9A227]/40 bg-[#C9A227]/10 text-[#C9A227] ring-[#C9A227]/50",
   },
   {
     value: "confirmada",
     label: "Confirmada",
     icon: <CheckCircle className="w-3.5 h-3.5" />,
-    cls:     "border-emerald-200 bg-emerald-50 text-emerald-700 ring-emerald-400",
-    darkCls: "dark:border-emerald-700/60 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-500",
+    cls: "border-primary/40 bg-primary/10 text-primary ring-primary/50",
   },
   {
     value: "cancelada",
     label: "Cancelada",
     icon: <XCircle className="w-3.5 h-3.5" />,
-    cls:     "border-red-200  bg-red-50  text-red-600  ring-red-400",
-    darkCls: "dark:border-red-700/60 dark:bg-red-900/30 dark:text-red-300 dark:ring-red-500",
+    cls: "border-destructive/40 bg-destructive/10 text-destructive ring-destructive/50",
   },
   {
     value: "finalizada",
     label: "Finalizada",
     icon: <FileText className="w-3.5 h-3.5" />,
-    cls:     "border-gray-200 bg-gray-50 text-gray-600 ring-gray-400",
-    darkCls: "dark:border-gray-600/60 dark:bg-gray-700/30 dark:text-gray-300 dark:ring-gray-500",
+    cls: "border-[#A13B55]/40 bg-[#A13B55]/10 text-[#A13B55] ring-[#A13B55]/50",
   },
 ];
 
@@ -177,8 +160,8 @@ function EstadoPicker({ current, onChange }: {
           onClick={() => onChange(opt.value)}
           className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-medium transition-all
             ${current === opt.value
-              ? `${opt.cls} ${opt.darkCls} ring-2 ring-offset-1 dark:ring-offset-gray-800 shadow-sm`
-              : "border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500 dark:hover:border-gray-600 dark:hover:text-gray-300"
+              ? `${opt.cls} ring-2 ring-offset-1 ring-offset-card shadow-sm`
+              : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
             }`}
         >
           {opt.icon}
@@ -210,9 +193,9 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
   const pct = totalEstimado > 0 ? Math.min(100, Math.round((montoPagado / totalEstimado) * 100)) : 0;
 
   const pagoColor: Record<string, string> = {
-    pagado:    "text-emerald-700 dark:text-emerald-400",
-    pendiente: "text-amber-700   dark:text-amber-400",
-    rechazado: "text-red-600     dark:text-red-400",
+    pagado:    "text-primary",
+    pendiente: "text-[#C9A227]",
+    rechazado: "text-destructive",
   };
 
   const [habitaciones, setHabitaciones] = useState<any[]>([]);
@@ -259,34 +242,34 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
     }
   }
 
-  const card = "bg-white dark:bg-[#1a1d2e] rounded-xl border border-gray-100 dark:border-[#252840] p-3";
-  const section = "text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5";
+  const card = "bg-card rounded-xl border border-border p-3";
+  const section = "text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5";
 
   return (
     <>
       <div className="fixed inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-[1px] z-40" onClick={onClose} />
 
       <div className="fixed top-0 right-0 h-full w-[380px] z-50 flex flex-col overflow-hidden
-        bg-white dark:bg-[#13151f] shadow-2xl dark:shadow-black/60
-        border-l border-gray-100 dark:border-[#1e2130]">
+        bg-card shadow-2xl dark:shadow-black/60
+        border-l border-border">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-[#1e2130]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <span className="text-base font-semibold text-gray-900 dark:text-white">
+            <span className="text-base font-semibold text-foreground">
               Reserva #{reserva.id_reserva}
             </span>
             <EstadoBadge estado={estadoLocal} />
           </div>
           <button onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Canal */}
-        <div className="px-5 py-2.5 bg-gray-50 dark:bg-[#0f1117] border-b border-gray-100 dark:border-[#1e2130] flex items-center gap-2">
-          <span className="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium">
+        <div className="px-5 py-2.5 bg-muted/40 border-b border-border flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
             Canal de origen
           </span>
           <CanalBadge canal={reserva.canal_origen} />
@@ -315,8 +298,8 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                 disabled={!hasChanges || savingEstado}
                 className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all
                   ${hasChanges
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white hover:shadow-md hover:shadow-blue-500/20"
-                    : "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"
+                    ? "bg-gradient-to-r from-primary to-[#A13B55] text-white hover:shadow-md hover:shadow-primary/20"
+                    : "bg-muted text-muted-foreground/60 cursor-not-allowed"
                   } disabled:opacity-60`}
               >
                 <Save className="w-3.5 h-3.5" />
@@ -332,12 +315,12 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
               {cliente ? (
                 <>
                   <div className="flex items-center gap-2.5 mb-3">
-                    <Avatar name={cliente.nombre} apellido={cliente.apellido} color="blue" />
+                    <Avatar name={cliente.nombre} apellido={cliente.apellido} color="primary" />
                     <div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      <p className="text-sm font-semibold text-foreground">
                         {cliente.nombre} {cliente.apellido}
                       </p>
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500">CC {cliente.cedula}</p>
+                      <p className="text-[11px] text-muted-foreground">CC {cliente.cedula}</p>
                     </div>
                   </div>
                   <DetailRow icon={Mail}   label="Correo"  value={cliente.correo} />
@@ -345,7 +328,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                   <DetailRow icon={MapPin} label="Ciudad"  value={`${cliente.ciudad}, ${cliente.pais}`} />
                 </>
               ) : (
-                <p className="text-xs text-gray-400 dark:text-gray-500">Cliente #{reserva.id_cliente}</p>
+                <p className="text-xs text-muted-foreground">Cliente #{reserva.id_cliente}</p>
               )}
             </div>
           </section>
@@ -356,7 +339,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
             <div className={card}>
               {paquete ? (
                 <>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{paquete.nombre_paquete}</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">{paquete.nombre_paquete}</p>
                   <DetailRow icon={Calendar} label="Check-in"  value={reserva.fecha_inicio} />
                   <DetailRow icon={Calendar} label="Check-out" value={reserva.fecha_fin} />
                   <DetailRow icon={Clock}    label="Duración"  value={`${paquete.duracion_dias} días`} />
@@ -379,15 +362,15 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
               {totalEstimado > 0 && (
                 <div className="mb-3">
                   <div className="flex justify-between items-baseline mb-1.5">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Total estimado</span>
-                    <span className="text-base font-semibold text-gray-900 dark:text-white">
+                    <span className="text-xs text-muted-foreground">Total estimado</span>
+                    <span className="text-base font-semibold text-foreground">
                       ${totalEstimado.toLocaleString("es-CO")}
                     </span>
                   </div>
-                  <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{pct}% pagado</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">{pct}% pagado</p>
                 </div>
               )}
               {pago ? (
@@ -398,7 +381,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                     icon={CheckCircle}
                     label="Estado pago"
                     value={
-                      <span className={`font-semibold ${pagoColor[pago.estado] ?? "text-gray-700"}`}>
+                      <span className={`font-semibold ${pagoColor[pago.estado] ?? "text-foreground"}`}>
                         {pago.estado}
                       </span>
                     }
@@ -406,7 +389,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                   <DetailRow icon={CreditCard} label="Monto pagado" value={`$${pago.monto.toLocaleString("es-CO")}`} />
                 </>
               ) : (
-                <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
                   Sin información de pago registrada
                 </p>
@@ -420,19 +403,19 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
             <div className={card}>
               {empleado ? (
                 <div className="flex items-center gap-2.5">
-                  <Avatar name={empleado.nombre} apellido={empleado.apellido} color="green" />
+                  <Avatar name={empleado.nombre} apellido={empleado.apellido} color="gold" />
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    <p className="text-sm font-semibold text-foreground">
                       {empleado.nombre} {empleado.apellido}
                     </p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
+                    <p className="text-[11px] text-muted-foreground truncate">
                       {empleado.correo_electronico}
                     </p>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-blue-400 dark:text-blue-500" />
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-primary/70" />
                   Reserva realizada directamente por el cliente (web)
                 </p>
               )}
@@ -456,11 +439,11 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                   <div className="space-y-2">
                     {habitaciones.map((h, i) => (
                       <div key={i} className={`${card} text-xs`}>
-                        <p className="font-semibold text-gray-800 dark:text-gray-100">
+                        <p className="font-semibold text-foreground">
                           {h.nombre_hotel} — Hab. {h.numero_habitacion}
                         </p>
-                        <p className="text-gray-500 dark:text-gray-400">{h.nombre_tipo} · ${h.precio_acordado?.toLocaleString("es-CO")}</p>
-                        <p className="text-gray-400 dark:text-gray-500">{h.fecha_checkin} → {h.fecha_checkout}</p>
+                        <p className="text-muted-foreground">{h.nombre_tipo} · ${h.precio_acordado?.toLocaleString("es-CO")}</p>
+                        <p className="text-muted-foreground">{h.fecha_checkin} → {h.fecha_checkout}</p>
                       </div>
                     ))}
                   </div>
@@ -473,9 +456,9 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                   <div className="space-y-2">
                     {servicios.map((s, i) => (
                       <div key={i} className={`${card} text-xs`}>
-                        <p className="font-semibold text-gray-800 dark:text-gray-100">{s.nombre_servicio}</p>
-                        <p className="text-gray-500 dark:text-gray-400">{s.nombre_categoria} · {s.duracion_horas}h</p>
-                        <p className="text-gray-400 dark:text-gray-500">{s.fecha_servicio} · {s.numero_personas} personas</p>
+                        <p className="font-semibold text-foreground">{s.nombre_servicio}</p>
+                        <p className="text-muted-foreground">{s.nombre_categoria} · {s.duracion_horas}h</p>
+                        <p className="text-muted-foreground">{s.fecha_servicio} · {s.numero_personas} personas</p>
                       </div>
                     ))}
                   </div>
@@ -488,13 +471,13 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                   <div className="space-y-2">
                     {historial.map((h, i) => (
                       <div key={i} className={`${card} text-xs`}>
-                        <p className="font-semibold text-gray-800 dark:text-gray-100">
+                        <p className="font-semibold text-foreground">
                           {h.estado_anterior} → {h.estado_nuevo}
                         </p>
-                        <p className="text-gray-500 dark:text-gray-400">{h.nombre_empleado}</p>
-                        <p className="text-gray-400 dark:text-gray-500">{h.fecha_cambio}</p>
+                        <p className="text-muted-foreground">{h.nombre_empleado}</p>
+                        <p className="text-muted-foreground">{h.fecha_cambio}</p>
                         {h.comentarios && (
-                          <p className="text-gray-600 dark:text-gray-300 mt-1 italic">"{h.comentarios}"</p>
+                          <p className="text-foreground/80 mt-1 italic">"{h.comentarios}"</p>
                         )}
                       </div>
                     ))}
@@ -503,7 +486,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
               )}
 
               {habitaciones.length === 0 && servicios.length === 0 && historial.length === 0 && (
-                <p className="text-xs text-gray-400 dark:text-gray-600 text-center py-2">
+                <p className="text-xs text-muted-foreground text-center py-2">
                   No hay detalles adicionales registrados
                 </p>
               )}
@@ -512,7 +495,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-100 dark:border-[#1e2130] flex gap-2">
+        <div className="px-5 py-4 border-t border-border flex gap-2">
           <button
             onClick={() => onDelete(reserva.id_reserva)}
             className="flex items-center gap-1.5 px-3 py-2 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs font-medium transition-colors"
@@ -522,7 +505,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
           <button
             onClick={loadDetail}
             disabled={loadingDetail}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg text-xs font-semibold hover:shadow-md hover:shadow-blue-500/20 transition-all disabled:opacity-60"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-lg text-xs font-semibold hover:shadow-md hover:shadow-primary/20 transition-all disabled:opacity-60"
           >
             <ChevronRight className="w-3.5 h-3.5" />
             {loadingDetail ? "Cargando..." : showDetail ? "Actualizar detalles" : "Ver detalle completo"}
@@ -583,7 +566,7 @@ export default function ModuleReservas({
   }, {} as Record<string, number>);
 
   const CANAL_ICON: Record<CanalOrigen, React.ReactNode> = {
-    web:      <Globe      className="w-3.5 h-3.5 text-blue-400"    />,
+    web:      <Globe      className="w-3.5 h-3.5 text-primary/70"    />,
     empleado: <UserCheck  className="w-3.5 h-3.5 text-emerald-500" />,
     telefono: <PhoneCall  className="w-3.5 h-3.5 text-purple-400"  />,
   };
@@ -594,12 +577,12 @@ export default function ModuleReservas({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Reservas</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">{reservas.length} reservas en total</p>
+          <h2 className="text-2xl font-bold text-foreground">Reservas</h2>
+          <p className="text-muted-foreground text-sm">{reservas.length} reservas en total</p>
         </div>
         <button
           onClick={onNueva}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/20 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-primary/20 transition-all"
         >
           <PlusCircle className="w-4 h-4" /> Nueva
         </button>
@@ -616,28 +599,28 @@ export default function ModuleReservas({
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por cliente, paquete o ID..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none
-              bg-white dark:bg-[#1a1d2e]
-              text-gray-900 dark:text-gray-100
-              placeholder:text-gray-400 dark:placeholder:text-gray-600
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm outline-none
+              bg-card
+              text-foreground
+              placeholder:text-muted-foreground/60
+              focus:ring-2 focus:ring-primary/40 focus:border-transparent"
           />
         </div>
 
-        <div className="flex gap-1 bg-gray-100 dark:bg-[#1a1d2e] p-1 rounded-xl border dark:border-[#252840]">
+        <div className="flex gap-1 bg-muted p-1 rounded-xl border border-border">
           {ESTADOS.map(e => (
             <button
               key={e}
               onClick={() => setEstadoFilter(e)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
                 estadoFilter === e
-                  ? "bg-white dark:bg-[#252840] text-gray-900 dark:text-white shadow-sm"
-                  : "text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {e}
@@ -647,18 +630,18 @@ export default function ModuleReservas({
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-[#13151f] rounded-2xl shadow-sm border border-gray-100 dark:border-[#1e2130] overflow-hidden">
+      <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-[#0f1117] border-b border-gray-100 dark:border-[#1e2130]">
+          <thead className="bg-muted/40 border-b border-border">
             <tr>
               {["ID", "Cliente", "Paquete", "Check-in", "Check-out", "Pax", "Canal", "Estado", ""].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50 dark:divide-[#1e2130]">
+          <tbody className="divide-y divide-border/50">
             {filtered.map(r => {
               const cl = clienteMap[r.id_cliente];
               const pk = paqueteMap[r.id_paquete];
@@ -666,9 +649,9 @@ export default function ModuleReservas({
                 <tr
                   key={r.id_reserva}
                   onClick={() => setSelectedId(r.id_reserva)}
-                  className="hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-colors cursor-pointer group"
+                  className="hover:bg-accent transition-colors cursor-pointer group"
                 >
-                  <td className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">
+                  <td className="px-4 py-3 font-semibold text-foreground">
                     #{r.id_reserva}
                   </td>
 
@@ -676,16 +659,16 @@ export default function ModuleReservas({
                     <div className="flex items-center gap-2 min-w-0">
                       {cl ? (
                         <>
-                          <Avatar name={cl.nombre} apellido={cl.apellido} color="blue" />
+                          <Avatar name={cl.nombre} apellido={cl.apellido} color="primary" />
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">
+                            <p className="text-xs font-semibold text-foreground truncate">
                               {cl.nombre} {cl.apellido}
                             </p>
-                            <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{cl.correo}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{cl.correo}</p>
                           </div>
                         </>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-600 text-xs">#{r.id_cliente}</span>
+                        <span className="text-muted-foreground text-xs">#{r.id_cliente}</span>
                       )}
                     </div>
                   </td>
@@ -693,21 +676,21 @@ export default function ModuleReservas({
                   <td className="px-4 py-3">
                     {pk ? (
                       <div>
-                        <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate max-w-[140px]">
+                        <p className="text-xs font-medium text-foreground truncate max-w-[140px]">
                           {pk.nombre_paquete}
                         </p>
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                        <p className="text-[11px] text-muted-foreground">
                           {pk.duracion_dias}d · ${pk.precio_base.toLocaleString("es-CO")}
                         </p>
                       </div>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-600 text-xs">#{r.id_paquete}</span>
+                      <span className="text-muted-foreground text-xs">#{r.id_paquete}</span>
                     )}
                   </td>
 
-                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{r.fecha_inicio}</td>
-                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{r.fecha_fin}</td>
-                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{r.numero_personas}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{r.fecha_inicio}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{r.fecha_fin}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{r.numero_personas}</td>
 
                   <td className="px-4 py-3">
                     <span title={r.canal_origen ?? "web"}>
@@ -722,7 +705,7 @@ export default function ModuleReservas({
                   <td className="px-4 py-3">
                     <button
                       onClick={e => { e.stopPropagation(); onDelete(r.id_reserva); }}
-                      className="p-1.5 text-red-300 dark:text-red-800 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      className="p-1.5 text-destructive/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -734,8 +717,8 @@ export default function ModuleReservas({
         </table>
 
         {filtered.length === 0 && (
-          <div className="text-center py-14 text-gray-400 dark:text-gray-600 text-sm">
-            <Search className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-700" />
+          <div className="text-center py-14 text-muted-foreground text-sm">
+            <Search className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
             No se encontraron reservas
           </div>
         )}

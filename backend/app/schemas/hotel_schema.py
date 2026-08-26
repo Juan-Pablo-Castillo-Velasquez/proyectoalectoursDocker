@@ -119,6 +119,10 @@ class HotelResponse(BaseModel):
     codigo_postal: Optional[str]
     correo_electronico: Optional[str]
     telefono: Optional[str]
+    # Reseñas reales de clientes (propiedades calculadas en el modelo Hotel a
+    # partir de la tabla `resenas`) — nunca cifras inventadas en el frontend.
+    total_resenas: int = 0
+    calificacion_promedio: Optional[float] = None
 
     class Config:
         from_attributes = True

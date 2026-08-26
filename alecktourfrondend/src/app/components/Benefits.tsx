@@ -10,7 +10,7 @@ const perks = [
     {
         icon: HeadphonesIcon,
         title: "Asesoría humana, siempre",
-        desc: "Un asesor AleckTours te acompaña antes, durante y después del viaje. Sin bots que no resuelven.",
+        desc: "Un asesor AlecTours te acompaña antes, durante y después del viaje. Sin bots que no resuelven.",
     },
     {
         icon: ShieldCheck,
@@ -21,7 +21,7 @@ const perks = [
 
 export default function Benefits() {
     return (
-        <section className="bg-[#f6eef0]">
+        <section className="bg-muted/30 transition-colors duration-300">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {perks.map((p, i) => (
@@ -34,16 +34,25 @@ export default function Benefits() {
                             className="flex flex-col items-start"
                         >
                             <div
-                                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-                                style={{
-                                    background: "linear-gradient(135deg, #7B1E3A 0%, #A13B55 100%)",
-                                    boxShadow: "0 8px 20px -6px rgba(123,30,58,0.4)",
-                                }}
+                                className="
+                                    w-14 h-14 
+                                    rounded-2xl 
+                                    flex items-center justify-center 
+                                    mb-5
+                                    bg-gradient-to-br from-primary to-primary/80
+                                    shadow-lg shadow-primary/30
+                                "
                             >
-                                <p.icon className="w-6 h-6 text-white" strokeWidth={1.75} />
+                                <p.icon className="w-6 h-6 text-primary-foreground" strokeWidth={1.75} />
                             </div>
-                            <h3 className="text-[#2E2E2E] font-semibold text-lg mb-2">{p.title}</h3>
-                            <p className="text-[#6b6b6b] leading-relaxed text-[15px]">{p.desc}</p>
+
+                            <h3 className="text-foreground font-semibold text-lg mb-2">
+                                {p.title}
+                            </h3>
+
+                            <p className="text-muted-foreground leading-relaxed text-[15px]">
+                                {p.desc}
+                            </p>
                         </motion.div>
                     ))}
                 </div>

@@ -39,6 +39,11 @@ export interface HotelResponse {
   codigo_postal?: string;
   correo_electronico: string;
   telefono: string;
+  // Reseñas reales de clientes (calculadas en el backend desde la tabla
+  // `resenas`) — total_resenas siempre viene, calificacion_promedio es
+  // null si el hotel todavía no tiene ninguna reseña real.
+  total_resenas: number;
+  calificacion_promedio: number | null;
 }
 
 export interface HotelDetailResponse extends HotelResponse {
@@ -47,8 +52,12 @@ export interface HotelDetailResponse extends HotelResponse {
 }
 
 export const hotelService = {
+  // El backend ya responde con HotelDetailResponse (incluye habitaciones y
+  // hotel_caracteristicas) también en el listado, no solo en el detalle —
+  // el tipo aquí reflejaba solo un subconjunto y forzaba casts `as any`
+  // en SearchResults.tsx/HotelCard.tsx para leer esos campos.
   getAll: (skip = 0, limit = 50) =>
-    apiFetch<HotelResponse[]>(`/hoteles/?skip=${skip}&limit=${limit}`),
+    apiFetch<HotelDetailResponse[]>(`/hoteles/?skip=${skip}&limit=${limit}`),
 
   getById: (id: number) =>
     apiFetch<HotelDetailResponse>(`/hoteles/${id}`),

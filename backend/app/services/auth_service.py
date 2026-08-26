@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.repositories.user_repository import get_user_by_username, create_user
+from app.repositories.user_repository import get_user_by_username, get_user_by_email, create_user
 from app.core.security import (
     hash_password,
     verify_password,
@@ -49,11 +49,12 @@ def register_user(db: Session, username: str, email: str, password: str):
     }
 
 
-def login_user(db: Session, username: str, password: str):
+def login_user(db: Session, correo_electronico: str, password: str):
     """
-    Autentica un usuario y retorna tokens JWT + datos del usuario (con roles).
+    Autentica un usuario por su correo electrónico (único método de login
+    soportado: nunca por username) y retorna tokens JWT + datos del usuario.
     """
-    user = get_user_by_username(db, username)
+    user = get_user_by_email(db, correo_electronico)
     if not user:
         return None
 
@@ -81,6 +82,7 @@ def login_user(db: Session, username: str, password: str):
         "username": user.username,
         "id_cliente": user.id_cliente,
         "roles": roles,
+        "foto_perfil": user.foto_perfil,
     })
     return tokens
 

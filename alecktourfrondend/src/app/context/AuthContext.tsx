@@ -1,10 +1,17 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 interface Usuario {
   username: string;
   user_id?: number;
   id_cliente?: number;
   roles?: string[];
+  foto_perfil?: string | null;
 }
 
 interface AuthContextType {
@@ -12,6 +19,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string, usuario: Usuario) => void;
   logout: () => void;
+  updateUsuario: (partial: Partial<Usuario>) => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isEmpleado: boolean;
@@ -26,23 +34,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authLoading, setAuthLoading] = useState(true); // ← empieza en true
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('usuario');
+    const savedToken = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("usuario");
     if (savedToken && savedUser) {
       try {
         setToken(savedToken);
         setUsuario(JSON.parse(savedUser));
       } catch {
         // JSON inválido — limpiar
-        localStorage.removeItem('token');
-        localStorage.removeItem('usuario');
+        localStorage.removeItem("token");
+        localStorage.removeItem("usuario");
       }
     }
     setAuthLoading(false); // ← ya terminó de leer
   }, []);
 
+  useEffect(() => {
+    // apiFetch dispara esto cuando un endpoint protegido responde 401
+    // (token expirado/inválido) — sincroniza el estado de React con el storage.
+    function handleSessionExpired() {
+      setToken(null);
+      setUsuario(null);
+    }
+    window.addEventListener("auth:session-expired", handleSessionExpired);
+    return () =>
+      window.removeEventListener("auth:session-expired", handleSessionExpired);
+  }, []);
+
   function login(newToken: string, newUsuario: Usuario) {
-    const savedUser = localStorage.getItem('usuario');
+    const savedUser = localStorage.getItem("usuario");
     const idClienteExistente = savedUser
       ? JSON.parse(savedUser).id_cliente
       : undefined;
@@ -54,22 +74,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(newToken);
     setUsuario(usuarioFinal);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('usuario', JSON.stringify(usuarioFinal));
-    sessionStorage.setItem('token', newToken);
+    localStorage.setItem("token", newToken);
+    localStorage.setItem("usuario", JSON.stringify(usuarioFinal));
+  }
+
+  function updateUsuario(partial: Partial<Usuario>) {
+    setUsuario((prev) => {
+      if (!prev) return prev;
+      const actualizado = { ...prev, ...partial };
+      localStorage.setItem("usuario", JSON.stringify(actualizado));
+      return actualizado;
+    });
   }
 
   function logout() {
     setToken(null);
     setUsuario(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('id_cliente_pendiente');
+    localStorage.removeItem("token");
+    localStorage.removeItem("usuario");
+    sessionStorage.removeItem("id_cliente_pendiente");
   }
 
-  const isAdmin = usuario?.roles?.includes('admin') ?? false;
-  const isEmpleado = usuario?.roles?.includes('empleado') ?? false;
+  const isAdmin = usuario?.roles?.includes("admin") ?? false;
+  const isEmpleado = usuario?.roles?.includes("empleado") ?? false;
 
   return (
     <AuthContext.Provider
@@ -78,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         login,
         logout,
+        updateUsuario,
         isAuthenticated: !!token,
         isAdmin,
         isEmpleado,
@@ -91,6 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth debe usarse dentro de AuthProvider');
+  if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
   return ctx;
 }

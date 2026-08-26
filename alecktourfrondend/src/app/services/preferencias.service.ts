@@ -11,10 +11,24 @@ export interface PreferenciaResponse {
   transporte: string;
 }
 
+export interface PaqueteSugerido {
+  id_paquete: number;
+  nombre_paquete: string;
+  descripcion: string | null;
+  duracion_dias: number | null;
+  precio_base: number;
+  activo: boolean;
+  destinos: string[];
+  hoteles: string[];
+}
+
 export const preferenciasService = {
   getByCliente: (id: number) =>
     apiFetch<PreferenciaResponse>(`/preferencias-cliente/${id}`),
-  
+
+  getSugerencias: (id: number, limit = 6) =>
+    apiFetch<PaqueteSugerido[]>(`/preferencias-cliente/${id}/sugerencias?limit=${limit}`),
+
   save: (id_cliente: number | string, data: any) =>
     apiFetch<PreferenciaResponse>('/preferencias-cliente/', { 
       method: 'POST', 
