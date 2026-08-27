@@ -2,6 +2,7 @@ import { CheckCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { resenaService } from "../../../services/resena.service";
+import { ModalOverlay } from "../../ui/ModalBackdrop";
 
 interface Props {
   reserva: any;
@@ -40,13 +41,7 @@ export default function ModalResena({ reserva, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <ModalOverlay onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

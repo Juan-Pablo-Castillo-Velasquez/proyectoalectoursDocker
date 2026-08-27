@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { MOTIVOS } from "./constants";
 import { solicitudCancelacionService } from "../../../services/solicitudCancelacion.service";
+import { ModalOverlay } from "../../ui/ModalBackdrop";
 
 interface Props {
   reserva: any;
@@ -55,13 +56,7 @@ export default function ModalCancelacion({ reserva, onClose, onConfirm }: Props)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <ModalOverlay onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

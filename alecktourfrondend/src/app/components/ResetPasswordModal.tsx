@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { authService } from "../services/auth.service";
+import ModalBackdrop from "./ui/ModalBackdrop";
 
 interface ResetPasswordModalProps {
     isOpen: boolean;
@@ -58,13 +59,7 @@ export default function ResetPasswordModal({ isOpen, onClose, token }: ResetPass
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
-                    onClick={msg ? undefined : handleClose}
-                >
+                <ModalBackdrop zIndex={100} onClick={msg ? undefined : handleClose}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.92, y: 24 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -143,7 +138,7 @@ export default function ResetPasswordModal({ isOpen, onClose, token }: ResetPass
                             </>
                         )}
                     </motion.div>
-                </motion.div>
+                </ModalBackdrop>
             )}
         </AnimatePresence>
     );

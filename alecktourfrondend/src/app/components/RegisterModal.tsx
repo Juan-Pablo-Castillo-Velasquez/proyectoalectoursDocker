@@ -7,6 +7,7 @@ import { apiFetch } from "../api/v1/api";
 import { authService } from "../services/auth.service";
 import PrivacidadModal from "./PrivacidadModal";
 import TerminosModal from "./TerminosModal";
+import ModalBackdrop from "./ui/ModalBackdrop";
 
 interface RegisterModalProps {
     isOpen: boolean;
@@ -247,13 +248,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
 
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 flex items-center justify-center z-[100] p-4 bg-black/40 backdrop-blur-md overflow-y-auto"
-                        onClick={handleClose}
-                    >
+                    <ModalBackdrop zIndex={100} onClick={handleClose}>
                         <motion.div
                             initial={{ opacity: 0, scale: 0.96, y: 15 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -562,7 +557,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                 )}
                             </div>
                         </motion.div>
-                    </motion.div>
+                    </ModalBackdrop>
                 )}
             </AnimatePresence>
         </>

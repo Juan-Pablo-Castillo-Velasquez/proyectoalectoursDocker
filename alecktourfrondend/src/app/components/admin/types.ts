@@ -71,6 +71,25 @@ export interface ReservaExtended extends Reserva {
   canal_origen?: CanalOrigen;
 }
 
+export interface TipoHabitacionAdmin {
+  id_tipo_habitacion: number;
+  nombre_tipo: string;
+  descripcion?: string | null;
+  capacidad_personas: number;
+}
+
+// Antes solo declaraba { id_habitacion: number } — el backend (HotelDetailResponse)
+// ya manda la habitación completa en cada hotel de GET /hoteles/, solo faltaba
+// declararlo acá. Usado por el selector de hotel/habitación de Crear Reserva.
+export interface HabitacionAdmin {
+  id_habitacion: number;
+  id_hotel: number;
+  numero_habitacion: string;
+  precio_noche: number;
+  estado: "disponible" | "ocupada" | "mantenimiento";
+  tipo_habitacion?: TipoHabitacionAdmin | null;
+}
+
 export interface HotelData {
   id_hotel: number;
   nombre_hotel: string;
@@ -85,7 +104,7 @@ export interface HotelData {
   // desde la tabla resenas (ver Hotel.total_resenas en hotel_model.py).
   total_resenas?: number;
   calificacion_promedio?: number | null;
-  habitaciones?: { id_habitacion: number }[];
+  habitaciones?: HabitacionAdmin[];
 }
 
 export interface Paquete {

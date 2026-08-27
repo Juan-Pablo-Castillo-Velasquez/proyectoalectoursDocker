@@ -13,6 +13,7 @@ import ModuleDashboard from "../components/admin/ModuleDashboard";
 import ModuleReservas from "../components/admin/ModuleReservas";
 import ModuleCancelaciones from "../components/admin/ModuleCancelaciones";
 import ModuleCrearReserva from "../components/admin/ModuleCrearReserva";
+import { getLocalCache, setLocalCache } from "../utils/localCache";
 import ModuleHoteles from "../components/admin/ModuleHoteles";
 import ModulePaquetes from "../components/admin/ModulePaquetes";
 import ModuleClientes from "../components/admin/ModuleClientes";
@@ -117,12 +118,40 @@ export default function AdminDashboard() {
   }, [isAdmin]);
 
   const fetchReservas  = async () => { try { setReservas(await apiFetch<Reserva[]>("/reservas?limit=100"));      } catch {} };
-  const fetchHoteles   = async () => { try { setHoteles(await apiFetch<HotelData[]>("/hoteles/?limit=100"));     } catch {} };
+  // TTL de 120s: mismo valor que usa el backend para cachear estas listas en
+  // Redis (GET /hoteles, /clientes) — no tiene sentido que el navegador
+  // guarde una copia "más fresca" que la que el propio backend serviría.
+  const ADMIN_CACHE_TTL = 120;
+  const fetchHoteles   = async () => {
+    const cached = getLocalCache<HotelData[]>("admin_cache_hoteles");
+    if (cached) setHoteles(cached);
+    try {
+      const fresh = await apiFetch<HotelData[]>("/hoteles/?limit=100");
+      setHoteles(fresh);
+      setLocalCache("admin_cache_hoteles", fresh, ADMIN_CACHE_TTL);
+    } catch {}
+  };
   // incluir_inactivos=true: el admin necesita ver y poder reactivar los
   // paquetes desactivados (ver PaqueteRepository.get_all), a diferencia del
   // sitio público que solo debe listar los activos.
-  const fetchPaquetes  = async () => { try { setPaquetes(await apiFetch<Paquete[]>("/paquetes?limit=100&incluir_inactivos=true")); } catch {} };
-  const fetchClientes  = async () => { try { setClientes(await apiFetch<Cliente[]>("/clientes?limit=100"));      } catch {} };
+  const fetchPaquetes  = async () => {
+    const cached = getLocalCache<Paquete[]>("admin_cache_paquetes");
+    if (cached) setPaquetes(cached);
+    try {
+      const fresh = await apiFetch<Paquete[]>("/paquetes?limit=100&incluir_inactivos=true");
+      setPaquetes(fresh);
+      setLocalCache("admin_cache_paquetes", fresh, ADMIN_CACHE_TTL);
+    } catch {}
+  };
+  const fetchClientes  = async () => {
+    const cached = getLocalCache<Cliente[]>("admin_cache_clientes");
+    if (cached) setClientes(cached);
+    try {
+      const fresh = await apiFetch<Cliente[]>("/clientes?limit=100");
+      setClientes(fresh);
+      setLocalCache("admin_cache_clientes", fresh, ADMIN_CACHE_TTL);
+    } catch {}
+  };
   const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch {} };
   const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=100"));               } catch {} };
   const fetchMetodosPago = async () => { try { setMetodosPago(await apiFetch<MetodoPago[]>("/metodos-pago"));    } catch {} };
@@ -432,7 +461,7 @@ export default function AdminDashboard() {
       />
     ),
     "crear-reserva": (
-      <ModuleCrearReserva clientes={clientes} paquetes={paquetes} onSubmit={submitReserva} loading={loading} />
+      <ModuleCrearReserva clientes={clientes} paquetes={paquetes} hoteles={hoteles} onSubmit={submitReserva} loading={loading} />
     ),
     hoteles: (
       <ModuleHoteles hoteles={hoteles} onDelete={deleteHotel} onSubmit={submitHotel} loading={loading} />

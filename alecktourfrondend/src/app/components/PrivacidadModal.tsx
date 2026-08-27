@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import ModalBackdrop from "./ui/ModalBackdrop";
 
 interface PrivacidadModalProps {
     isOpen: boolean;
@@ -20,10 +21,7 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
     if (!isOpen) return null;
 
     return (
-        <div
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        <ModalBackdrop zIndex={200} onClick={onClose}>
             <div
                 className="bg-card text-card-foreground rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-border"
                 onClick={(e) => e.stopPropagation()}
@@ -128,7 +126,7 @@ export default function PrivacidadModal({ isOpen, onClose }: PrivacidadModalProp
                     </button>
                 </div>
             </div>
-        </div>
+        </ModalBackdrop>
     );
 }
 

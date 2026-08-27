@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import ModalBackdrop from "./ui/ModalBackdrop";
 
 interface TerminosModalProps {
     isOpen: boolean;
@@ -38,10 +39,7 @@ export default function TerminosModal({ isOpen, onClose }: TerminosModalProps) {
         }
       `}</style>
 
-            <div
-                className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/40 dark:bg-black/70 backdrop-blur-md transition-all duration-300 animate-in fade-in zoom-in-95"
-                onClick={onClose}
-            >
+            <ModalBackdrop zIndex={200} onClick={onClose}>
                 <div
                     className="bg-card text-card-foreground rounded-2xl shadow-2xl dark:shadow-[0_10px_40px_rgba(0,0,0,0.6)] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-border dark:border-white/10"
                     onClick={(e) => e.stopPropagation()}
@@ -148,7 +146,7 @@ export default function TerminosModal({ isOpen, onClose }: TerminosModalProps) {
                         </button>
                     </div>
                 </div>
-            </div>
+            </ModalBackdrop>
         </>
     );
 }

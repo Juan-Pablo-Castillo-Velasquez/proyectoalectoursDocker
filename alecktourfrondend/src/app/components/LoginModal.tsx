@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import ModalBackdrop from "./ui/ModalBackdrop";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/auth.service";
 
@@ -79,7 +80,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
             // Cerrar y navegar después de 1.8s
             setTimeout(() => {
                 resetAndClose();
-                navigate(isAdmin ? "/admin" : "/");
+                navigate(isAdmin ? "/admin" : "/profile");
             }, 1800);
         } catch (err: any) {
             const message = err?.message || "Usuario o contraseña incorrectos";
@@ -112,15 +113,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    // FIX 1: items-start con pt para evitar que el autoFocus mueva la página,
-                    // y align-center solo en pantallas más grandes
-                    className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto"
-                    onClick={resetAndClose}
-                >
+                <ModalBackdrop zIndex={100} onClick={resetAndClose}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.94, y: 24 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -367,7 +360,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                             )}
                         </AnimatePresence>
                     </motion.div>
-                </motion.div>
+                </ModalBackdrop>
             )}
         </AnimatePresence>
     );
