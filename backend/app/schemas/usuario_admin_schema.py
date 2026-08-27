@@ -10,6 +10,7 @@ class UsuarioAdminResponse(BaseModel):
     verificado: bool
     nombre_completo: Optional[str] = None
     roles: List[str] = []
+    foto_perfil: Optional[str] = None
 
     class Config:
         from_attributes = True

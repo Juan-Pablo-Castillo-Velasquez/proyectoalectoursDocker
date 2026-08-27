@@ -8,6 +8,7 @@ import {
 import type {
   Module, Reserva, HotelData, Paquete, Cliente, Usuario,
 } from "./types";
+import { resolveFotoUrl } from "./types";
 import { NAV_SECTIONS } from "./AdminSidebar";
 import QuickActions, { type QuickAction } from "./ui/QuickActions";
 
@@ -25,6 +26,9 @@ interface AdminHeaderProps {
   dark: boolean;
   onToggleDark: () => void;
   usuarioNombre?: string;
+  // Real (Usuario.foto_perfil vía /me) — si no hay foto o falla al cargar,
+  // se cae de vuelta al círculo con el ícono genérico de siempre.
+  usuarioFoto?: string | null;
   onLogout: () => void;
   pendingCancelaciones: number;
   quickActions: QuickAction[];
@@ -50,6 +54,7 @@ export default function AdminHeader({
   dark,
   onToggleDark,
   usuarioNombre,
+  usuarioFoto,
   onLogout,
   pendingCancelaciones,
   quickActions,
@@ -58,7 +63,9 @@ export default function AdminHeader({
 }: AdminHeaderProps) {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [fotoError, setFotoError] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const fotoUrl = resolveFotoUrl(usuarioFoto);
 
   const breadcrumb = useMemo(() => {
     for (const section of NAV_SECTIONS) {
@@ -231,9 +238,18 @@ export default function AdminHeader({
           <p className="text-white text-sm font-medium">{usuarioNombre}</p>
           <p className="text-white/60 text-xs">Administrador</p>
         </div>
-        <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-          <Users className="w-5 h-5 text-white" />
-        </div>
+        {fotoUrl && !fotoError ? (
+          <img
+            src={fotoUrl}
+            alt={usuarioNombre ?? "Administrador"}
+            onError={() => setFotoError(true)}
+            className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-white/30"
+          />
+        ) : (
+          <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <Users className="w-5 h-5 text-white" />
+          </div>
+        )}
         <button
           onClick={onLogout}
           className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all"

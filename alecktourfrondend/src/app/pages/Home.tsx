@@ -9,8 +9,16 @@ import OffersHighlight from "../components/OffersHighlight";
 import PromoBar from "../components/PromoBar";
 import Testimonials from "../components/Testimonials";
 import WhyChooseUs from "../components/WhyChooseUs";
+import { useSeoMeta } from "../hooks/useSeoMeta";
 
 export default function Home() {
+  useSeoMeta({
+    title: "Agencia de Viajes y Turismo en Colombia",
+    description:
+      "Descubre los mejores destinos turísticos de Colombia con AleckTours. Reserva hoteles, paquetes turísticos, tours y experiencias de viaje de forma rápida y segura.",
+    path: "/",
+  });
+
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       <PromoBar />

@@ -5,11 +5,12 @@ import {
   Globe, UserCheck, PhoneCall, ChevronRight, AlertCircle,
   CheckCircle, Clock, XCircle, FileText, Save, MoreHorizontal,
 } from "lucide-react";
-import { Reserva, Cliente, Paquete, ESTADO_COLOR, inputCls, labelCls } from "./types";
+import { Reserva, Cliente, Paquete, ESTADO_COLOR, inputCls, labelCls, resolveFotoUrl } from "./types";
 import { reservaDetailService } from "../../services/reserva.service";
 import AdminModal from "./ui/AdminModal";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import Avatar from "./ui/Avatar";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
 import {
   DropdownMenu,
@@ -35,6 +36,9 @@ export interface Empleado {
   apellido: string;
   correo_electronico: string;
   celular?: string;
+  // Ver Cliente.foto_perfil en types.ts — misma foto real vía la cuenta de
+  // Usuario del asesor, usada por el Avatar compartido en este módulo.
+  foto_perfil?: string | null;
 }
 
 export interface Pago {
@@ -127,20 +131,6 @@ function CanalBadge({ canal }: { canal?: CanalOrigen }) {
       <Icon className="w-3 h-3" />
       {label}
     </span>
-  );
-}
-
-function Avatar({ name, apellido, color = "primary" }: {
-  name: string; apellido?: string; color?: "primary" | "gold";
-}) {
-  const initials = `${name[0] ?? ""}${apellido?.[0] ?? ""}`.toUpperCase();
-  const cls = color === "primary"
-    ? "bg-primary/10 text-primary"
-    : "bg-[#C9A227]/15 text-[#C9A227]";
-  return (
-    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${cls}`}>
-      {initials}
-    </div>
   );
 }
 
@@ -376,7 +366,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
               {cliente ? (
                 <>
                   <div className="flex items-center gap-2.5 mb-3">
-                    <Avatar name={cliente.nombre} apellido={cliente.apellido} color="primary" />
+                    <Avatar nombre={cliente.nombre} apellido={cliente.apellido} fotoUrl={resolveFotoUrl(cliente.foto_perfil)} color="primary" />
                     <div>
                       <p className="text-sm font-semibold text-foreground">
                         {cliente.nombre} {cliente.apellido}
@@ -456,7 +446,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
             <div className={`${card} space-y-3`}>
               {empleado ? (
                 <div className="flex items-center gap-2.5">
-                  <Avatar name={empleado.nombre} apellido={empleado.apellido} color="gold" />
+                  <Avatar nombre={empleado.nombre} apellido={empleado.apellido} fotoUrl={resolveFotoUrl(empleado.foto_perfil)} color="gold" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">
                       {empleado.nombre} {empleado.apellido}
@@ -880,7 +870,7 @@ export default function ModuleReservas({
                         <div className="flex items-center gap-2 min-w-0">
                           {cl ? (
                             <>
-                              <Avatar name={cl.nombre} apellido={cl.apellido} color="primary" />
+                              <Avatar nombre={cl.nombre} apellido={cl.apellido} fotoUrl={resolveFotoUrl(cl.foto_perfil)} color="primary" />
                               <div className="min-w-0">
                                 <p className="text-xs font-semibold text-foreground truncate">
                                   {cl.nombre} {cl.apellido}

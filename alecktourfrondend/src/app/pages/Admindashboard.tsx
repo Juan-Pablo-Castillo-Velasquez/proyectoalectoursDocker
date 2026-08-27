@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
-  PlusCircle, Hotel, Package, Users, Building2, Wallet, Bell,
+  PlusCircle, Hotel, Package, Users, Building2, Bell,
   ShieldCheck, Activity, Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -17,6 +17,7 @@ import ModuleHoteles from "../components/admin/ModuleHoteles";
 import ModulePaquetes from "../components/admin/ModulePaquetes";
 import ModuleClientes from "../components/admin/ModuleClientes";
 import ModuleUsuarios from "../components/admin/ModuleUsuarios";
+import ModulePagos, { type MetodoPago } from "../components/admin/ModulePagos";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
@@ -30,7 +31,8 @@ type PendingDelete =
   | { kind: "hotel"; id: number; label: string }
   | { kind: "paquete"; id: number; label: string }
   | { kind: "cliente"; id: number; label: string }
-  | { kind: "usuario"; id: number; label: string };
+  | { kind: "usuario"; id: number; label: string }
+  | { kind: "pago"; id: number; label: string };
 
 export default function AdminDashboard() {
   const { usuario, logout, isAdmin } = useAuth();
@@ -46,6 +48,7 @@ export default function AdminDashboard() {
   const [clientes,  setClientes]  = useState<Cliente[]>([]);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [pagos,     setPagos]     = useState<Pago[]>([]);
+  const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
   const [roles,     setRoles]     = useState<Rol[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudCancelacionResponse[]>([]);
@@ -79,6 +82,7 @@ export default function AdminDashboard() {
     fetchClientes();
     fetchEmpleados();
     fetchPagos();
+    fetchMetodosPago();
     fetchUsuarios();
     fetchSolicitudes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,6 +97,7 @@ export default function AdminDashboard() {
   const fetchClientes  = async () => { try { setClientes(await apiFetch<Cliente[]>("/clientes?limit=100"));      } catch {} };
   const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch {} };
   const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=100"));               } catch {} };
+  const fetchMetodosPago = async () => { try { setMetodosPago(await apiFetch<MetodoPago[]>("/metodos-pago"));    } catch {} };
   const fetchUsuarios  = async () => {
     try {
       const [u, r] = await Promise.all([usuarioAdminService.getAll(), usuarioAdminService.getRoles()]);
@@ -112,6 +117,7 @@ export default function AdminDashboard() {
   const deletePaquete = (id: number) => setConfirmDelete({ kind: "paquete", id, label: "este paquete" });
   const deleteCliente = (id: number) => setConfirmDelete({ kind: "cliente", id, label: "este cliente" });
   const deleteUsuario = (id: number) => setConfirmDelete({ kind: "usuario", id, label: "este usuario" });
+  const deletePago    = (id: number) => setConfirmDelete({ kind: "pago", id, label: `el pago #${id}` });
 
   const executeDelete = async () => {
     if (!confirmDelete) return;
@@ -137,6 +143,10 @@ export default function AdminDashboard() {
         await usuarioAdminService.delete(id);
         await fetchUsuarios();
         toast.success("Usuario eliminado correctamente");
+      } else if (kind === "pago") {
+        await apiFetch(`/pagos/${id}`, { method: "DELETE" });
+        await fetchPagos();
+        toast.success("Pago eliminado correctamente");
       }
     } catch (e: any) {
       toast.error(e?.message || "No se pudo completar la eliminación");
@@ -151,6 +161,17 @@ export default function AdminDashboard() {
       toast.success("Estado de la reserva actualizado");
     } catch (e: any) {
       toast.error(e?.message || "No se pudo actualizar el estado de la reserva");
+      throw e;
+    }
+  };
+
+  const updatePagoEstado = async (id: number, estado: string) => {
+    try {
+      await apiFetch(`/pagos/${id}`, { method: "PUT", body: { estado } });
+      setPagos(prev => prev.map(p => p.id_pago === id ? { ...p, estado: estado as Pago["estado"] } : p));
+      toast.success("Estado del pago actualizado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo actualizar el estado del pago");
       throw e;
     }
   };
@@ -315,10 +336,9 @@ export default function AdminDashboard() {
       />
     ),
     pagos: (
-      <EmptyState
-        icon={Wallet}
-        title="Centro de pagos"
-        description="La vista dedicada de pagos (recaudo total, pendientes, transacciones recientes) se habilita en una próxima actualización. Mientras tanto, los ingresos y pagos ya se resumen en el Dashboard."
+      <ModulePagos
+        pagos={pagos} reservas={reservas} clientes={clientes} metodos={metodosPago}
+        onUpdateEstado={updatePagoEstado} onDelete={deletePago}
       />
     ),
     notificaciones: (
@@ -362,6 +382,7 @@ export default function AdminDashboard() {
         dark={dark}
         onToggleDark={() => setDark(d => !d)}
         usuarioNombre={usuario?.username}
+        usuarioFoto={usuario?.foto_perfil}
         onLogout={handleLogout}
         pendingCancelaciones={pendingCancelaciones}
         quickActions={quickActions}

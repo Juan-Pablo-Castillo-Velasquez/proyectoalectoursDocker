@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useFavoritos } from "../context/FavoritosContext";
+import { useSeoMeta } from "../hooks/useSeoMeta";
 import {
   HabitacionResponse,
   HotelDetailResponse,
@@ -129,6 +130,19 @@ export default function HotelDetail() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Antes esta página (y todas las demás) compartían el mismo <title>
+  // genérico de index.html — cada hotel real ahora tiene su propio título
+  // y descripción para SEO, con datos reales del hotel (nunca inventados).
+  useSeoMeta({
+    title: hotel ? `${hotel.nombre_hotel} en ${hotel.ciudad}` : "Hotel",
+    description: hotel
+      ? `Reserva ${hotel.nombre_hotel} en ${hotel.ciudad}, ${hotel.pais} con AleckTours.${
+          hotel.calificacion ? ` Calificación ${hotel.calificacion}/5.` : ""
+        } Tarifas y disponibilidad real, reserva segura en línea.`
+      : undefined,
+    path: id ? `/hotel/${id}` : undefined,
+  });
 
   if (loading)
     return (

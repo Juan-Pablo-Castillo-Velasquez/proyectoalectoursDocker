@@ -8,6 +8,9 @@ export interface UsuarioAdminResponse {
   verificado: boolean;
   nombre_completo: string | null;
   roles: string[];
+  // Real (ver _shape_usuario_admin en usuario_route.py) — para mostrar la
+  // foto real del usuario en el listado de Usuarios del admin.
+  foto_perfil?: string | null;
 }
 
 export interface RolResponse {

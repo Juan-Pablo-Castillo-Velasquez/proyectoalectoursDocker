@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.security import get_user_from_token
-from app.core.cache import redis_client, get_cached, set_cached
+from app.core.cache import redis_client, get_cached, set_cached, delete_pattern
 from app.models.user_model import Usuario
 from app.models.reserva_model import Reserva
 from app.models.resena_model import Resena
@@ -125,10 +125,14 @@ def crear_resena(
         foto_url=data.foto_url,
     )
 
-    # Invalidar caches afectados: el listado del hotel y el bloque de
-    # testimonios del home (que puede incluir esta reseña si califica bien).
+    # Invalidar caches afectados: el listado del hotel, el bloque de
+    # testimonios del home (que puede incluir esta reseña si califica bien),
+    # y el listado de hoteles del panel de admin/home — una reseña nueva
+    # cambia Hotel.total_resenas/calificacion_promedio, que viaja en cada
+    # hotel de GET /hoteles/ (ver hotel_route.py).
     redis_client.delete(f"hotel:{id_hotel}:resenas")
     redis_client.delete(HOME_CACHE_KEY)
+    delete_pattern("hoteles:list:*")
 
     return ResenaResponse(
         id_resena=resena.id_resena,

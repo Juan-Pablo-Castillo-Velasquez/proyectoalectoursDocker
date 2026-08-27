@@ -1,3 +1,15 @@
+import { BASE_URL } from "../../api/v1/api";
+
+// Convierte una ruta relativa de foto de perfil (ej. "/uploads/perfiles/xxx.jpg",
+// tal como la devuelve Usuario.foto_perfil / Cliente.foto_perfil /
+// Empleado.foto_perfil) en una URL completa que un <img> pueda cargar. Los
+// componentes de avatar la usan para decidir si muestran la foto real o
+// caen de vuelta a las iniciales — nunca inventa una URL cuando no hay foto.
+export function resolveFotoUrl(foto_perfil?: string | null): string | undefined {
+  if (!foto_perfil) return undefined;
+  return foto_perfil.startsWith("http") ? foto_perfil : `${BASE_URL}${foto_perfil}`;
+}
+
 // Identificadores de cada pantalla del admin — compartido por
 // Admindashboard.tsx (qué módulo renderizar) y AdminSidebar.tsx (qué ítem
 // de navegación resaltar). Los que todavía no tienen módulo real construido
@@ -41,6 +53,12 @@ export interface Reserva {
   // de Reservas del admin.
   precio_total?: number;
   fecha_ultima_actualizacion?: string | null;
+  // BUG real corregido en el backend (ver ReservaResponse en
+  // reserva_schema.py): antes GET /reservas nunca devolvía canal_origen
+  // (solo el detalle lo hacía), así que la columna "Canal" del módulo de
+  // Reservas siempre mostraba "Web" para todas las filas sin importar el
+  // valor real. Ahora sí viaja en la lista.
+  canal_origen?: CanalOrigen | null;
 }
 
 export type CanalOrigen = "web" | "empleado" | "telefono";
@@ -90,6 +108,9 @@ export interface Cliente {
   ciudad: string;
   pais: string;
   fecha_nacimiento?: string;
+  // Real, tomada de la cuenta de Usuario vinculada (ver Cliente.foto_perfil
+  // en cliente_model.py) — None si el cliente no tiene cuenta o no subió foto.
+  foto_perfil?: string | null;
 }
 
 export interface Empleado {
@@ -98,14 +119,20 @@ export interface Empleado {
   apellido: string;
   correo_electronico: string;
   celular?: string;
+  // Ver Cliente.foto_perfil — mismo criterio, vía la cuenta de Usuario del asesor.
+  foto_perfil?: string | null;
 }
 
 export interface Pago {
   id_pago: number;
   id_reserva: number;
   monto: number;
-  estado: "pendiente" | "pagado" | "rechazado";
+  // Enum real de Pago.estado (ver PagoUpdate en reserva_schema.py) — antes
+  // este tipo solo tenía 3 de los 5 valores reales, así que un pago
+  // 'procesando' o 'cancelado' no calzaba con el tipo declarado acá.
+  estado: "pendiente" | "procesando" | "pagado" | "rechazado" | "cancelado";
   referencia?: string;
+  fecha_pago?: string;
   metodo_pago?: {
     id_metodo: number;
     nombre_metodo: string;
@@ -120,6 +147,9 @@ export interface Usuario {
   verificado: boolean;
   nombre_completo: string | null;
   roles: string[];
+  // Real (UsuarioAdminResponse.foto_perfil, ver usuario_route.py) — para
+  // mostrar la foto real del usuario en vez de solo sus iniciales.
+  foto_perfil?: string | null;
 }
 
 export interface Rol {

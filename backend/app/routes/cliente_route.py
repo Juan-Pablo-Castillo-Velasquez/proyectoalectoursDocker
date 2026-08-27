@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import verify_password, hash_password
+from app.core.cache import get_cached, set_cached, delete_pattern
 from app.core.exceptions import ClienteDependencyError, EmpleadoDependencyError, NotFoundError
 from app.schemas.cliente_schema import ClienteCreate, ClienteUpdate, ClienteResponse, EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse
 from app.repositories.cliente_repository import ClienteRepository, EmpleadoRepository
@@ -16,7 +17,18 @@ router = APIRouter(prefix="/api", tags=["Clientes y Empleados"])
 
 @router.get("/clientes", response_model=list[ClienteResponse])
 def get_clientes(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db)):
-    return ClienteRepository.get_all(db, skip, limit)
+    # Cacheado 2 min: este listado lo pide el panel de admin completo
+    # (?limit=100) cada vez que se abre — invalidado en cualquier escritura
+    # de cliente (crear/editar/eliminar) o de su foto de perfil (usuario_route.py).
+    cache_key = f"clientes:list:{skip}:{limit}"
+    cached = get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    clientes = ClienteRepository.get_all(db, skip, limit)
+    data = [ClienteResponse.model_validate(c).model_dump(mode="json") for c in clientes]
+    set_cached(cache_key, data, ttl_seconds=120)
+    return data
 
 
 @router.get("/clientes/{cliente_id}", response_model=ClienteResponse)
@@ -33,7 +45,9 @@ def create_cliente(cliente: ClienteCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Cliente con esa cédula ya existe")
     if cliente.correo and ClienteRepository.get_by_email(db, cliente.correo):
         raise HTTPException(status_code=400, detail="Email ya registrado")
-    return ClienteRepository.create(db, cliente.dict())
+    nuevo = ClienteRepository.create(db, cliente.dict())
+    delete_pattern("clientes:list:*")
+    return nuevo
 
 
 # IMPORTANTE: esta ruta debe ir ANTES de PUT /clientes/{cliente_id}
@@ -78,13 +92,16 @@ def vincular_cliente(usuario_id: int, data: VincularClienteRequest, db: Session 
 def update_cliente(cliente_id: int, cliente: ClienteUpdate, db: Session = Depends(get_db)):
     if not ClienteRepository.get_by_id(db, cliente_id):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return ClienteRepository.update(db, cliente_id, cliente.dict(exclude_unset=True))
+    actualizado = ClienteRepository.update(db, cliente_id, cliente.dict(exclude_unset=True))
+    delete_pattern("clientes:list:*")
+    return actualizado
 
 
 @router.delete("/clientes/{cliente_id}")
 def delete_cliente(cliente_id: int, db: Session = Depends(get_db)):
     try:
-        ClienteRepository.delete(db, cliente_id)
+        resultado = ClienteRepository.delete(db, cliente_id)
+        delete_pattern("clientes:list:*")
         return {"message": "Cliente eliminado exitosamente"}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)
@@ -98,7 +115,15 @@ def delete_cliente(cliente_id: int, db: Session = Depends(get_db)):
 
 @router.get("/empleados", response_model=list[EmpleadoResponse])
 def get_empleados(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db)):
-    return EmpleadoRepository.get_all(db, skip, limit)
+    cache_key = f"empleados:list:{skip}:{limit}"
+    cached = get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    empleados = EmpleadoRepository.get_all(db, skip, limit)
+    data = [EmpleadoResponse.model_validate(e).model_dump(mode="json") for e in empleados]
+    set_cached(cache_key, data, ttl_seconds=120)
+    return data
 
 
 @router.get("/empleados/activos/lista", response_model=list[EmpleadoResponse])
@@ -120,20 +145,25 @@ def create_empleado(empleado: EmpleadoCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Empleado con esa cédula ya existe")
     if empleado.correo_electronico and EmpleadoRepository.get_by_email(db, empleado.correo_electronico):
         raise HTTPException(status_code=400, detail="Email ya registrado")
-    return EmpleadoRepository.create(db, empleado.dict())
+    nuevo = EmpleadoRepository.create(db, empleado.dict())
+    delete_pattern("empleados:list:*")
+    return nuevo
 
 
 @router.put("/empleados/{empleado_id}", response_model=EmpleadoResponse)
 def update_empleado(empleado_id: int, empleado: EmpleadoUpdate, db: Session = Depends(get_db)):
     if not EmpleadoRepository.get_by_id(db, empleado_id):
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
-    return EmpleadoRepository.update(db, empleado_id, empleado.dict(exclude_unset=True))
+    actualizado = EmpleadoRepository.update(db, empleado_id, empleado.dict(exclude_unset=True))
+    delete_pattern("empleados:list:*")
+    return actualizado
 
 
 @router.delete("/empleados/{empleado_id}")
 def delete_empleado(empleado_id: int, db: Session = Depends(get_db)):
     try:
         EmpleadoRepository.delete(db, empleado_id)
+        delete_pattern("empleados:list:*")
         return {"message": "Empleado eliminado exitosamente"}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)

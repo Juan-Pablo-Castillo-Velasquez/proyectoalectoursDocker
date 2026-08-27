@@ -154,6 +154,12 @@ class ReservaResponse(BaseModel):
     # fecha_reserva si aún no hay historial) — ver Reserva.fecha_ultima_actualizacion.
     # Usado por la columna "Última actualización" del panel de admin.
     fecha_ultima_actualizacion: Optional[datetime] = None
+    # BUG real corregido: esta columna ya existía en el modelo (Reserva.canal_origen)
+    # pero solo se exponía en ReservaDetailResponse, nunca en la lista base — el
+    # resultado era que GET /reservas (el que usa la tabla del panel de admin)
+    # siempre mandaba canal_origen=None, y el frontend lo interpretaba como "web"
+    # para TODAS las filas sin importar el valor real en la base de datos.
+    canal_origen: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -236,7 +242,8 @@ class ReservaDetailResponse(ReservaResponse):
     # OJO: el modelo SQLAlchemy llama a esta relación "reserva_habitaciones", por eso el alias.
     habitaciones: List[HabitacionReservaResponse] = Field(default=[], validation_alias="reserva_habitaciones")
     empleado: Optional[AsesorResponse] = None
-    canal_origen: Optional[str] = None
+    # canal_origen ya viene heredado de ReservaResponse (ver arriba) — se
+    # quitó la redeclaración duplicada que había acá.
 
     class Config:
         from_attributes = True

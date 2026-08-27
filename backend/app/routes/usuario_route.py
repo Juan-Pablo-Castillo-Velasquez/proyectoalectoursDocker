@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.core.database import get_db
 from app.core.security import get_user_from_token, hash_password, require_admin
+from app.core.cache import delete_pattern
 from app.models.user_model import Usuario
 from app.models.auth_model import Rol, UsuarioRol
 from app.schemas.user_schema import UsuarioResponse
@@ -67,6 +68,7 @@ def _shape_usuario_admin(db: Session, usuario: Usuario) -> UsuarioAdminResponse:
         verificado=bool(usuario.verificado),
         nombre_completo=nombre_completo,
         roles=roles,
+        foto_perfil=usuario.foto_perfil,
     )
 
 
@@ -208,6 +210,7 @@ async def subir_foto_perfil(
     usuario.foto_perfil = f"{PUBLIC_PATH_PREFIX}/{nombre_archivo}"
     db.commit()
     db.refresh(usuario)
+    _invalidar_cache_foto(usuario)
     return usuario
 
 
@@ -217,4 +220,16 @@ def eliminar_foto_perfil(db: Session = Depends(get_db), usuario: Usuario = Depen
     usuario.foto_perfil = None
     db.commit()
     db.refresh(usuario)
+    _invalidar_cache_foto(usuario)
     return usuario
+
+
+def _invalidar_cache_foto(usuario: Usuario) -> None:
+    """Usuario.foto_perfil se expone también en ClienteResponse/EmpleadoResponse
+    (ver Cliente.foto_perfil / Empleado.foto_perfil) — al subir o borrar la
+    foto hay que invalidar el listado del que sea dueño de la cuenta, si no
+    el panel de admin seguiría mostrando la foto vieja hasta que expire el TTL."""
+    if usuario.id_cliente:
+        delete_pattern("clientes:list:*")
+    if usuario.id_empleado:
+        delete_pattern("empleados:list:*")

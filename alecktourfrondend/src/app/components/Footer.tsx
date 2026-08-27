@@ -99,10 +99,10 @@ export default function Footer() {
             © {currentYear} AlecTours. Todos los derechos reservados.
           </p>
           <div className="flex gap-6 text-sm">
-            <Link to="/faq" className="footer-link">
+            <Link to="/terms" className="footer-link">
               Términos y Condiciones
             </Link>
-            <Link to="/faq" className="footer-link">
+            <Link to="/privacy" className="footer-link">
               Política de Privacidad
             </Link>
           </div>

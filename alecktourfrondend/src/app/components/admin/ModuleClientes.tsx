@@ -4,12 +4,13 @@ import {
   Calendar, CreditCard, ChevronRight,
 } from "lucide-react";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
-import { Cliente, Reserva, inputCls, labelCls } from "./types";
+import { Cliente, Reserva, inputCls, labelCls, resolveFotoUrl } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import Avatar from "./ui/Avatar";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
 
 const EMPTY_FORM = {
@@ -168,7 +169,10 @@ export default function ModuleClientes({
                   onClick={() => setProfileId(c.id_cliente)}
                 >
                   <td className="px-4 py-3">
-                    <p className="text-xs font-semibold text-foreground">{c.nombre} {c.apellido}</p>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Avatar nombre={c.nombre} apellido={c.apellido} fotoUrl={resolveFotoUrl(c.foto_perfil)} color="primary" size="sm" />
+                      <p className="text-xs font-semibold text-foreground truncate">{c.nombre} {c.apellido}</p>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{c.cedula}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
@@ -284,7 +288,12 @@ export default function ModuleClientes({
         <AdminModal
           open={!!profile}
           onOpenChange={(o) => { if (!o) setProfileId(null); }}
-          title={`${profile.nombre} ${profile.apellido}`}
+          title={
+            <span className="inline-flex items-center gap-2.5">
+              <Avatar nombre={profile.nombre} apellido={profile.apellido} fotoUrl={resolveFotoUrl(profile.foto_perfil)} color="primary" />
+              {profile.nombre} {profile.apellido}
+            </span>
+          }
           description={`Cédula ${profile.cedula}`}
           maxWidth="sm:max-w-2xl"
         >

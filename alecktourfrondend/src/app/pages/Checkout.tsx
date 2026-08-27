@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import { HabitacionResponse, HotelResponse, hotelService } from "../services/hotel.service";
 import { MetodoPago, pagoService, reservaService } from "../services/reserva.service";
+import { MetodoPagoGuardado, metodoPagoGuardadoService } from "../services/metodoPagoGuardado.service";
 import CardPayment from "../components/payment/CardPayment";
 import PSEPayment from "../components/payment/PSEPayment";
 import NequiPayment from "../components/payment/NequiPayment";
@@ -37,6 +38,11 @@ export default function Checkout() {
   const [hotel, setHotel] = useState<HotelResponse | null>(null);
   const [habitacion, setHabitacion] = useState<HabitacionResponse | null>(null);
   const [metodos, setMetodos] = useState<MetodoPago[]>([]);
+  // Métodos de pago guardados por el cliente (billetera real, ver
+  // MetodoPagoGuardado en el backend) — se usan solo para preseleccionar
+  // el método marcado como predeterminado en el paso de pago, nunca para
+  // saltarse la elección: el cliente sigue pudiendo cambiarlo.
+  const [metodosGuardados, setMetodosGuardados] = useState<MetodoPagoGuardado[]>([]);
   const [cliente, setCliente] = useState<ClienteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -114,6 +120,9 @@ export default function Checkout() {
     ]).then(([h, m]) => {
       setHotel(h);
       setMetodos(m);
+      // La preselección real (predeterminado del cliente si tiene uno, si no
+      // el primero) la resuelve el useEffect de más abajo una vez también
+      // cargan metodosGuardados — acá solo evitamos dejar 0 seleccionado.
       if (m.length > 0) setMetodoPago(m[0].id_metodo);
 
       // Buscamos la habitación exacta que el usuario eligió en HotelDetail
@@ -161,6 +170,29 @@ export default function Checkout() {
         .catch(() => setCliente(null));
     }
   }, [isAuthenticated, usuario?.id_cliente]);
+
+  // Trae la billetera real del cliente (métodos de pago que ya registró) —
+  // en checkout solo nos interesa para preseleccionar el que marcó como
+  // predeterminado; si falla o no tiene ninguno guardado, no rompe nada,
+  // el flujo sigue igual que antes (elige él manualmente).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    metodoPagoGuardadoService.getAll()
+      .then(setMetodosGuardados)
+      .catch(() => setMetodosGuardados([]));
+  }, [isAuthenticated]);
+
+  // Une los métodos de pago reales (GET /metodos-pago) con la billetera del
+  // cliente: si tiene un método guardado marcado como predeterminado, y su
+  // `tipo` coincide con el `codigo` de alguno de los métodos reales, ese
+  // queda preseleccionado en vez del primero de la lista — así el checkout
+  // usa de verdad la información que el cliente ya registró.
+  useEffect(() => {
+    if (metodos.length === 0) return;
+    const predeterminado = metodosGuardados.find((g) => g.predeterminado);
+    const match = predeterminado ? metodos.find((m) => m.codigo === predeterminado.tipo) : undefined;
+    setMetodoPago(match ? match.id_metodo : metodos[0].id_metodo);
+  }, [metodos, metodosGuardados]);
 
   // Aplica el resultado final del pago (ya sea inmediato -tarjeta/PayPal- o
   // tras confirmar uno asíncrono -PSE/Nequi-): navega a la confirmación si
@@ -776,6 +808,12 @@ export default function Checkout() {
                         <p className="text-xs text-muted-foreground">Selecciona cómo quieres pagar {paymentOption === 'partial' ? 'el anticipo' : 'tu reserva'}.</p>
                       </div>
                     </div>
+                    {metodosGuardados.some((g) => g.predeterminado) && (
+                      <p className="text-[11px] text-muted-foreground mb-3 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                        Preseleccionamos tu método de pago predeterminado — puedes cambiarlo si prefieres usar otro.
+                      </p>
+                    )}
                     <PaymentSelector metodos={metodos} selectedId={metodoPago} onSelect={setMetodoPago} />
                   </div>
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from app.core.database import get_db
+from app.core.cache import get_cached, set_cached, delete_pattern
 from app.core.exceptions import (
     ReservaDependencyError, PaqueteDependencyError, NotFoundError,
     HabitacionNoDisponibleError, HabitacionNoEncontradaError, PaqueteNoEncontradoError,
@@ -30,6 +31,14 @@ from app.services import payment_service
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 
+PAQUETES_CACHE_PATTERN = "paquetes:list:*"
+RESERVAS_CACHE_PATTERN = "reservas:list:*"
+PAGOS_CACHE_PATTERN = "pagos:list:*"
+# Los métodos de pago casi nunca cambian (se crean una vez al configurar el
+# sistema), así que van con TTL largo y una sola clave fija en vez de
+# parametrizada — no hay skip/limit en este endpoint.
+METODOS_PAGO_CACHE_KEY = "metodos_pago:list"
+
 
 # ===================== PAQUETES CRUD =====================
 
@@ -40,8 +49,17 @@ def get_paquetes(
     incluir_inactivos: bool = Query(False, description="Solo para el panel de admin: incluye paquetes desactivados"),
     db: Session = Depends(get_db)
 ):
-    """Obtiene lista de paquetes activos (o todos, si incluir_inactivos=true)"""
-    return PaqueteRepository.get_all(db, skip, limit, incluir_inactivos)
+    """Obtiene lista de paquetes activos (o todos, si incluir_inactivos=true).
+    Cacheada 2 min — invalidada en cualquier alta/edición/baja de paquete."""
+    cache_key = f"paquetes:list:{skip}:{limit}:{incluir_inactivos}"
+    cached = get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    paquetes = PaqueteRepository.get_all(db, skip, limit, incluir_inactivos)
+    data = [PaqueteResponse.model_validate(p).model_dump(mode="json") for p in paquetes]
+    set_cached(cache_key, data, ttl_seconds=120)
+    return data
 
 @router.get("/paquetes/populares")
 def get_paquetes_populares(limit: int = 6, db: Session = Depends(get_db)):
@@ -134,7 +152,9 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
 @router.post("/paquetes", response_model=PaqueteResponse, status_code=201)
 def create_paquete(paquete: PaqueteCreate, db: Session = Depends(get_db)):
     """Crea un nuevo paquete turístico"""
-    return PaqueteRepository.create(db, paquete.dict())
+    nuevo = PaqueteRepository.create(db, paquete.dict())
+    delete_pattern(PAQUETES_CACHE_PATTERN)
+    return nuevo
 
 
 @router.put("/paquetes/{paquete_id}", response_model=PaqueteResponse)
@@ -143,7 +163,9 @@ def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depend
     db_paquete = PaqueteRepository.get_by_id(db, paquete_id)
     if not db_paquete:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
-    return PaqueteRepository.update(db, paquete_id, paquete.dict(exclude_unset=True))
+    actualizado = PaqueteRepository.update(db, paquete_id, paquete.dict(exclude_unset=True))
+    delete_pattern(PAQUETES_CACHE_PATTERN)
+    return actualizado
 
 
 @router.delete("/paquetes/{paquete_id}")
@@ -151,6 +173,7 @@ def delete_paquete(paquete_id: int, db: Session = Depends(get_db)):
     """Desactiva un paquete"""
     try:
         PaqueteRepository.delete(db, paquete_id)
+        delete_pattern(PAQUETES_CACHE_PATTERN)
         return {"message": "Paquete desactivado exitosamente"}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)
@@ -168,8 +191,21 @@ def get_reservas(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Obtiene lista de reservas"""
-    return ReservaRepository.get_all(db, skip, limit)
+    """Obtiene lista de reservas. Cacheada solo 60s (más corto que
+    hoteles/paquetes/clientes) porque una reserva cambia por muchos caminos
+    distintos — crear/editar/eliminar, pagar, confirmar un pago, y aprobar
+    una solicitud de cancelación (ver los `delete_pattern` en cada uno más
+    abajo y en solicitud_cancelacion_route.py) — un TTL corto acota el
+    impacto de cualquier camino de escritura que se nos escape."""
+    cache_key = f"reservas:list:{skip}:{limit}"
+    cached = get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    reservas = ReservaRepository.get_all(db, skip, limit)
+    data = [ReservaResponse.model_validate(r).model_dump(mode="json") for r in reservas]
+    set_cached(cache_key, data, ttl_seconds=60)
+    return data
 
 
 @router.get("/reservas/cliente/{cliente_id}", response_model=list[ReservaResponse])
@@ -254,7 +290,9 @@ def create_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
       precio que mande el frontend, para evitar manipulación)
     """
     try:
-        return ReservaRepository.create(db, reserva.dict())
+        nueva = ReservaRepository.create(db, reserva.dict())
+        delete_pattern(RESERVAS_CACHE_PATTERN)
+        return nueva
     except HabitacionNoDisponibleError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     except HabitacionNoEncontradaError as e:
@@ -341,6 +379,8 @@ def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get
     db.commit()
     db.refresh(pago)
     db.refresh(reserva)
+    delete_pattern(RESERVAS_CACHE_PATTERN)
+    delete_pattern(PAGOS_CACHE_PATTERN)
 
     return PagarResponse(pago=pago, reserva=reserva)
 
@@ -386,6 +426,8 @@ def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(pago)
     db.refresh(reserva)
+    delete_pattern(RESERVAS_CACHE_PATTERN)
+    delete_pattern(PAGOS_CACHE_PATTERN)
 
     return PagarResponse(pago=pago, reserva=reserva)
 
@@ -396,7 +438,9 @@ def update_reserva(reserva_id: int, reserva: ReservaUpdate, db: Session = Depend
     db_reserva = ReservaRepository.get_by_id(db, reserva_id)
     if not db_reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
-    return ReservaRepository.update(db, reserva_id, reserva.dict(exclude_unset=True))
+    actualizada = ReservaRepository.update(db, reserva_id, reserva.dict(exclude_unset=True))
+    delete_pattern(RESERVAS_CACHE_PATTERN)
+    return actualizada
 
 
 @router.delete("/reservas/{reserva_id}")
@@ -404,6 +448,7 @@ def delete_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Elimina una reserva"""
     try:
         ReservaRepository.delete(db, reserva_id)
+        delete_pattern(RESERVAS_CACHE_PATTERN)
         return {"message": "Reserva eliminada exitosamente"}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)
@@ -417,14 +462,24 @@ def delete_reserva(reserva_id: int, db: Session = Depends(get_db)):
 
 @router.get("/metodos-pago", response_model=list[MetodoPagoResponse])
 def get_metodos_pago(db: Session = Depends(get_db)):
-    """Obtiene todos los métodos de pago disponibles"""
-    return MetodoPagoRepository.get_all(db)
+    """Obtiene todos los métodos de pago disponibles. Cacheada 300s — lista
+    casi estática, se invalida solo si se crea un método nuevo."""
+    cached = get_cached(METODOS_PAGO_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    metodos = MetodoPagoRepository.get_all(db)
+    data = [MetodoPagoResponse.model_validate(m).model_dump(mode="json") for m in metodos]
+    set_cached(METODOS_PAGO_CACHE_KEY, data, ttl_seconds=300)
+    return data
 
 
 @router.post("/metodos-pago", response_model=MetodoPagoResponse, status_code=201)
 def create_metodo_pago(metodo: MetodoPagoCreate, db: Session = Depends(get_db)):
     """Crea un nuevo método de pago"""
-    return MetodoPagoRepository.create(db, metodo.dict())
+    nuevo = MetodoPagoRepository.create(db, metodo.dict())
+    delete_pattern(METODOS_PAGO_CACHE_KEY)
+    return nuevo
 
 
 # ===================== PAGOS CRUD =====================
@@ -435,8 +490,17 @@ def get_pagos(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Obtiene lista de pagos"""
-    return PagoRepository.get_all(db, skip, limit)
+    """Obtiene lista de pagos. Cacheada 60s — mismo criterio de TTL corto que
+    reservas, ya que un pago cambia de estado por varios caminos."""
+    cache_key = f"pagos:list:{skip}:{limit}"
+    cached = get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    pagos = PagoRepository.get_all(db, skip, limit)
+    data = [PagoResponse.model_validate(p).model_dump(mode="json") for p in pagos]
+    set_cached(cache_key, data, ttl_seconds=60)
+    return data
 
 
 @router.get("/pagos/reserva/{reserva_id}", response_model=list[PagoResponse])
@@ -470,7 +534,9 @@ def get_pago(pago_id: int, db: Session = Depends(get_db)):
 @router.post("/pagos", response_model=PagoResponse, status_code=201)
 def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     """Crea un nuevo pago"""
-    return PagoRepository.create(db, pago.dict())
+    nuevo = PagoRepository.create(db, pago.dict())
+    delete_pattern(PAGOS_CACHE_PATTERN)
+    return nuevo
 
 
 @router.put("/pagos/{pago_id}", response_model=PagoResponse)
@@ -479,7 +545,10 @@ def update_pago(pago_id: int, pago: PagoUpdate, db: Session = Depends(get_db)):
     db_pago = PagoRepository.get_by_id(db, pago_id)
     if not db_pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
-    return PagoRepository.update(db, pago_id, pago.dict(exclude_unset=True))
+    actualizado = PagoRepository.update(db, pago_id, pago.dict(exclude_unset=True))
+    delete_pattern(PAGOS_CACHE_PATTERN)
+    delete_pattern(RESERVAS_CACHE_PATTERN)  # el estado de pago se ve en la tabla de Reservas
+    return actualizado
 
 
 @router.delete("/pagos/{pago_id}")
@@ -487,6 +556,8 @@ def delete_pago(pago_id: int, db: Session = Depends(get_db)):
     """Elimina un pago"""
     try:
         PagoRepository.delete(db, pago_id)
+        delete_pattern(PAGOS_CACHE_PATTERN)
+        delete_pattern(RESERVAS_CACHE_PATTERN)
         return {"message": "Pago eliminado exitosamente"}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)

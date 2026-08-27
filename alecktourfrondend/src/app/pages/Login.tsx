@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Lock, User, Plane, Mail } from "lucide-react";
+import { Lock, User, Plane, Mail, Eye, EyeOff } from "lucide-react";
 import { authService } from "../services/auth.service";
 import { useAuth } from "../context/AuthContext";
 import { toast, Toaster } from "sonner";
@@ -11,6 +11,7 @@ export default function Login() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ username: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
   // Forgot password
   const [showForgot, setShowForgot] = useState(false);
@@ -100,10 +101,18 @@ export default function Login() {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="password" name="password" value={formData.password}
+                  type={showPassword ? "text" : "password"} name="password" value={formData.password}
                   onChange={handleChange} placeholder="••••••••" required
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none"
+                  className="w-full pl-12 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
               {/* ← Botón olvidé contraseña */}
               <button

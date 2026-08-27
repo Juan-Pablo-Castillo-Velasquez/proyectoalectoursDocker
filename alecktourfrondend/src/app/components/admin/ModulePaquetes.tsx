@@ -8,6 +8,7 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import { Switch } from "../ui/switch";
 
 const EMPTY_FORM = {
   nombre_paquete: "", descripcion: "", duracion_dias: "1", precio_base: "", activo: true,
@@ -21,31 +22,6 @@ interface Props {
   onDelete: (id: number) => void;
   onSubmit: (data: any, id?: number) => Promise<void>;
   loading: boolean;
-}
-
-// Toggle simple sin dependencias externas (no hay evidencia confirmada de
-// que exista un componente Switch instalado en este proyecto — con
-// node_modules vacío no se puede verificar, así que se prefiere un control
-// accesible hecho con un <button role="switch"> plano antes que arriesgar
-// un import roto).
-function ActivoToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-        checked ? "bg-primary" : "bg-muted border border-border"
-      }`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-          checked ? "translate-x-6" : "translate-x-1"
-        }`}
-      />
-    </button>
-  );
 }
 
 export default function ModulePaquetes({ paquetes, onDelete, onSubmit, loading }: Props) {
@@ -278,7 +254,7 @@ export default function ModulePaquetes({ paquetes, onDelete, onSubmit, loading }
               <p className="text-sm font-medium text-foreground">Paquete activo</p>
               <p className="text-xs text-muted-foreground">Visible y reservable en el sitio público</p>
             </div>
-            <ActivoToggle checked={form.activo} onChange={v => setForm({ ...form, activo: v })} />
+            <Switch checked={form.activo} onCheckedChange={v => setForm({ ...form, activo: v })} />
           </div>
           <button type="submit" disabled={loading}
             className="w-full py-2.5 bg-gradient-to-r from-primary to-[#A13B55] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all disabled:opacity-50 text-sm">

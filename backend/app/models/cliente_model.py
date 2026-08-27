@@ -23,6 +23,15 @@ class Cliente(Base):
     usuario = relationship("Usuario", back_populates="cliente", uselist=False, foreign_keys="Usuario.id_cliente")
     preferencias = relationship("PreferenciaCliente", back_populates="cliente", uselist=False)
 
+    @property
+    def foto_perfil(self):
+        """Foto de perfil real del cliente, tomada de su cuenta de Usuario
+        vinculada (Usuario.foto_perfil, subida vía POST /api/usuarios/me/foto).
+        No todos los clientes tienen cuenta de usuario (algunos los crea un
+        asesor a mano) ni foto subida, así que puede ser None — nunca se
+        inventa un avatar acá, el frontend decide el respaldo (iniciales)."""
+        return self.usuario.foto_perfil if self.usuario else None
+
 
 class Empleado(Base):
     __tablename__ = "empleados"
@@ -43,6 +52,14 @@ class Empleado(Base):
     reservas = relationship("Reserva", back_populates="empleado")
     usuario = relationship("Usuario", back_populates="empleado", uselist=False, foreign_keys="Usuario.id_empleado")
     historial_reservas = relationship("HistorialReserva", back_populates="empleado_responsable")
+
+    @property
+    def foto_perfil(self):
+        """Mismo criterio que Cliente.foto_perfil, vía la cuenta de Usuario
+        del empleado (asesor) — usado en el panel de admin para mostrar la
+        foto real del asesor en Reservas/Cancelaciones en vez de un ícono
+        genérico, cuando la tiene subida."""
+        return self.usuario.foto_perfil if self.usuario else None
 
 
 class PreferenciaCliente(Base):

@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   CheckCircle,
   Loader2,
   MessageSquare,
@@ -8,6 +9,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { MOTIVOS } from "./constants";
+import { solicitudCancelacionService } from "../../../services/solicitudCancelacion.service";
 
 interface Props {
   reserva: any;
@@ -20,22 +22,35 @@ export default function ModalCancelacion({ reserva, onClose, onConfirm }: Props)
   const [motivoCustom, setMotivoCustom] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
+  const [error, setError] = useState("");
   const motivoFinal = motivo === "Otro motivo" ? motivoCustom : motivo;
 
-  // NOTA: esto sigue siendo el mock original (setTimeout falso). Cuando
-  // conectes el backend, reemplaza este handleEnviar por la versión que
-  // llama a solicitudCancelacionService.crear(...) — es el único cambio
-  // de comportamiento, el resto del archivo queda igual.
+  // Antes esto era un mock (setTimeout falso) que nunca llamaba al backend
+  // — la solicitud se veía "enviada" en pantalla pero jamás se insertaba
+  // en la tabla solicitudes_cancelacion, así que nunca le llegaba al admin.
+  // Ahora sí llama a POST /reservas/{id}/solicitud-cancelacion de verdad;
+  // el mensaje de éxito solo se muestra tras una respuesta real del
+  // servidor, y un error real (ej. ya existe una solicitud pendiente para
+  // esta reserva) se muestra en vez de fingir que se envió.
   const handleEnviar = async () => {
     if (!motivoFinal.trim()) return;
     setEnviando(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setEnviando(false);
-    setEnviado(true);
-    setTimeout(() => {
-      onConfirm(reserva.id_reserva, motivoFinal);
-      onClose();
-    }, 1800);
+    setError("");
+    try {
+      await solicitudCancelacionService.crear(reserva.id_reserva, {
+        motivo,
+        motivo_detalle: motivo === "Otro motivo" ? motivoCustom.trim() : undefined,
+      });
+      setEnviando(false);
+      setEnviado(true);
+      setTimeout(() => {
+        onConfirm(reserva.id_reserva, motivoFinal);
+        onClose();
+      }, 1800);
+    } catch (err: any) {
+      setEnviando(false);
+      setError(err?.message || "No se pudo enviar la solicitud. Intenta de nuevo.");
+    }
   };
 
   return (
@@ -118,6 +133,12 @@ export default function ModalCancelacion({ reserva, onClose, onConfirm }: Props)
                   </motion.div>
                 )}
               </AnimatePresence>
+              {error && (
+                <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4 text-xs text-destructive">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={onClose}

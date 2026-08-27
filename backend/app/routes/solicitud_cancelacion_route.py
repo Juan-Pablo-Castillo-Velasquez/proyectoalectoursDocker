@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_user_from_token, require_admin
 from app.core.mail import send_email
+from app.core.cache import delete_pattern
 from app.models.user_model import Usuario
 from app.models.reserva_model import Reserva, HistorialReserva
 from app.schemas.solicitud_cancelacion_schema import (
@@ -186,4 +187,9 @@ def admin_resolver_solicitud(
 
     db.commit()
     db.refresh(solicitud)
+    if data.estado == "aprobada":
+        # Aprobar cancela de verdad la reserva vinculada (arriba) — el
+        # listado de Reservas del admin (reserva_route.py) queda cacheado
+        # hasta 60s si no se invalida acá.
+        delete_pattern("reservas:list:*")
     return solicitud

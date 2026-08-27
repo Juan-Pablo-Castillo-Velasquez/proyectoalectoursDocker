@@ -37,6 +37,10 @@ class ClienteResponse(BaseModel):
     ciudad: Optional[str]
     pais: Optional[str]
     fecha_nacimiento: Optional[date]
+    # Ruta relativa real (ej. "/uploads/perfiles/xxx.jpg") tomada de la
+    # cuenta de Usuario vinculada — ver Cliente.foto_perfil. None si el
+    # cliente no tiene cuenta o no ha subido foto; nunca se inventa.
+    foto_perfil: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -80,6 +84,8 @@ class EmpleadoResponse(BaseModel):
     fecha_nacimiento: Optional[date]
     fecha_contratacion: date
     activo: bool
+    # Ver Empleado.foto_perfil / ClienteResponse.foto_perfil — mismo criterio.
+    foto_perfil: Optional[str] = None
 
     class Config:
         from_attributes = True

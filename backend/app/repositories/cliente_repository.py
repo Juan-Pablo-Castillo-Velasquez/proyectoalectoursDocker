@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.models.cliente_model import Cliente, Empleado
 from app.models.reserva_model import Reserva, HistorialReserva
@@ -6,14 +6,16 @@ from app.core.exceptions import ClienteDependencyError, EmpleadoDependencyError,
 
 
 class ClienteRepository:
-    
+
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Cliente).offset(skip).limit(limit).all()
-    
+        # joinedload(Cliente.usuario) evita N+1 al resolver Cliente.foto_perfil
+        # (propiedad usada por ClienteResponse) para cada cliente de la lista.
+        return db.query(Cliente).options(joinedload(Cliente.usuario)).offset(skip).limit(limit).all()
+
     @staticmethod
     def get_by_id(db: Session, cliente_id: int):
-        return db.query(Cliente).filter(Cliente.id_cliente == cliente_id).first()
+        return db.query(Cliente).options(joinedload(Cliente.usuario)).filter(Cliente.id_cliente == cliente_id).first()
     
     @staticmethod
     def get_by_cedula(db: Session, cedula: str):
@@ -65,23 +67,24 @@ class EmpleadoRepository:
     
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Empleado).offset(skip).limit(limit).all()
-    
+        # Mismo criterio que ClienteRepository.get_all — evita N+1 en Empleado.foto_perfil.
+        return db.query(Empleado).options(joinedload(Empleado.usuario)).offset(skip).limit(limit).all()
+
     @staticmethod
     def get_by_id(db: Session, empleado_id: int):
-        return db.query(Empleado).filter(Empleado.id_empleado == empleado_id).first()
-    
+        return db.query(Empleado).options(joinedload(Empleado.usuario)).filter(Empleado.id_empleado == empleado_id).first()
+
     @staticmethod
     def get_by_cedula(db: Session, cedula: str):
         return db.query(Empleado).filter(Empleado.cedula == cedula).first()
-    
+
     @staticmethod
     def get_by_email(db: Session, correo: str):
         return db.query(Empleado).filter(Empleado.correo_electronico == correo).first()
-    
+
     @staticmethod
     def get_activos(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Empleado).filter(Empleado.activo == True).offset(skip).limit(limit).all()
+        return db.query(Empleado).options(joinedload(Empleado.usuario)).filter(Empleado.activo == True).offset(skip).limit(limit).all()
     
     @staticmethod
     def create(db: Session, empleado_data: dict):

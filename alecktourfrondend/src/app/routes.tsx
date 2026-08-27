@@ -23,6 +23,8 @@ import SearchResults from "./pages/SearchResults";
 import Testimonios from "./pages/Testimonios";
 import TravelInfo from "./pages/TravelInfo";
 import VerifyEmail from "./pages/VerifyEmail";
+import TermsAndConditions from "./pages/TermsAndConditions";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 export const router = createBrowserRouter([
   {
     Component: RootLayout,
@@ -43,6 +45,8 @@ export const router = createBrowserRouter([
       { path: "/contact", Component: Contact },
       { path: "/testimonios", Component: Testimonios },
       { path: "/reset-password", Component: ResetPassword },
+      { path: "/terms", Component: TermsAndConditions },
+      { path: "/privacy", Component: PrivacyPolicy },
       { path: "*", Component: NotFound },
 
       // Rutas protegidas (requieren login)
