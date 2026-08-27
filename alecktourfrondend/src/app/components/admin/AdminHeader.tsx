@@ -31,6 +31,10 @@ interface AdminHeaderProps {
   usuarioFoto?: string | null;
   onLogout: () => void;
   pendingCancelaciones: number;
+  /** Conteo real de Notificacion.leido = false (ver notificacion_route.py) —
+   * cubre cancelaciones, contacto, solicitudes corporativas y pagos, no
+   * solo cancelaciones como antes. */
+  notificacionesNoLeidas: number;
   quickActions: QuickAction[];
   onNavigate: (m: Module) => void;
   searchData: {
@@ -57,6 +61,7 @@ export default function AdminHeader({
   usuarioFoto,
   onLogout,
   pendingCancelaciones,
+  notificacionesNoLeidas,
   quickActions,
   onNavigate,
   searchData,
@@ -208,14 +213,14 @@ export default function AdminHeader({
         <QuickActions actions={quickActions} />
 
         <button
-          onClick={() => onNavigate("cancelaciones")}
+          onClick={() => onNavigate("notificaciones")}
           title="Notificaciones"
           className="relative p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all"
         >
           <Bell className="w-5 h-5" />
-          {pendingCancelaciones > 0 && (
+          {notificacionesNoLeidas > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#C9A227] text-[#2E2E2E] text-[10px] font-bold flex items-center justify-center">
-              {pendingCancelaciones > 9 ? "9+" : pendingCancelaciones}
+              {notificacionesNoLeidas > 9 ? "9+" : notificacionesNoLeidas}
             </span>
           )}
         </button>

@@ -1,9 +1,45 @@
-import { Building2, Calendar, Check, Headphones, Shield, Sparkles, TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { Building2, Calendar, Check, Headphones, Shield, Sparkles, TrendingDown, AlertCircle, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { empresaService } from "../services/empresa.service";
 
 export default function Corporate() {
+  // El formulario de acá abajo antes era decorativo (sin onSubmit, sin
+  // estado) — al hacer clic en "Enviar solicitud" el navegador intentaba
+  // un submit nativo que recargaba la página y perdía todo lo escrito, sin
+  // avisarle nada a nadie. Ahora llama a POST /api/solicitudes-corporativas
+  // (público, sin login) y esa solicitud queda real en el panel de admin.
+  const [form, setForm] = useState({
+    nombreEmpresa: "", numeroEmpleados: "1 - 50", nombreContacto: "",
+    email: "", telefono: "", mensaje: "",
+  });
+  const [enviando, setEnviando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmitCorporativo(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setError("");
+    try {
+      await empresaService.crear({
+        nombre_empresa: form.nombreEmpresa,
+        numero_empleados: form.numeroEmpleados,
+        nombre_contacto: form.nombreContacto,
+        email_corporativo: form.email,
+        telefono: form.telefono,
+        mensaje: form.mensaje.trim() || undefined,
+      });
+      setEnviado(true);
+    } catch (err: any) {
+      setError(err?.message || "No pudimos enviar tu solicitud. Intenta de nuevo.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   const partners = [
     { name: "Bancolombia", logo: "🏦" },
     { name: "Éxito", logo: "🛒" },
@@ -311,85 +347,117 @@ export default function Corporate() {
                 </p>
               </div>
 
-              <form className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-card-foreground mb-2">
-                      Nombre empresa
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-muted-foreground/60"
-                      placeholder="Tu Empresa S.A.S"
-                    />
+              {enviado ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                    <Check className="w-8 h-8 text-emerald-600" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-card-foreground mb-2">
-                      Número de empleados
-                    </label>
-                    <select className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
-                      <option>1 - 50</option>
-                      <option>51 - 200</option>
-                      <option>200+</option>
-                    </select>
-                  </div>
+                  <h3 className="text-2xl font-bold text-foreground mb-2">¡Solicitud recibida!</h3>
+                  <p className="text-muted-foreground">Nuestro equipo se pondrá en contacto contigo en menos de 24 horas.</p>
                 </div>
+              ) : (
+                <form className="space-y-6" onSubmit={handleSubmitCorporativo}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-card-foreground mb-2">
+                        Nombre empresa
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.nombreEmpresa}
+                        onChange={e => setForm({ ...form, nombreEmpresa: e.target.value })}
+                        className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-muted-foreground/60"
+                        placeholder="Tu Empresa S.A.S"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-card-foreground mb-2">
+                        Número de empleados
+                      </label>
+                      <select
+                        value={form.numeroEmpleados}
+                        onChange={e => setForm({ ...form, numeroEmpleados: e.target.value })}
+                        className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                      >
+                        <option>1 - 50</option>
+                        <option>51 - 200</option>
+                        <option>200+</option>
+                      </select>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-card-foreground mb-2">
+                        Nombre contacto
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.nombreContacto}
+                        onChange={e => setForm({ ...form, nombreContacto: e.target.value })}
+                        className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-card-foreground mb-2">
+                        Email corporativo
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={form.email}
+                        onChange={e => setForm({ ...form, email: e.target.value })}
+                        className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-card-foreground mb-2">
-                      Nombre contacto
+                      Teléfono
                     </label>
                     <input
-                      type="text"
+                      type="tel"
                       required
+                      value={form.telefono}
+                      onChange={e => setForm({ ...form, telefono: e.target.value })}
                       className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                     />
                   </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-card-foreground mb-2">
-                      Email corporativo
+                      Mensaje (opcional)
                     </label>
-                    <input
-                      type="email"
-                      required
-                      className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                    <textarea
+                      rows={4}
+                      value={form.mensaje}
+                      onChange={e => setForm({ ...form, mensaje: e.target.value })}
+                      className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none placeholder:text-muted-foreground/60"
+                      placeholder="Cuéntanos más sobre tus necesidades..."
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-card-foreground mb-2">
-                    Teléfono
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
-                  />
-                </div>
+                  {error && (
+                    <p className="text-sm text-red-500 dark:text-red-400 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+                    </p>
+                  )}
 
-                <div>
-                  <label className="block text-sm font-semibold text-card-foreground mb-2">
-                    Mensaje (opcional)
-                  </label>
-                  <textarea
-                    rows={4}
-                    className="w-full px-4 py-4 bg-background text-foreground border-2 border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none placeholder:text-muted-foreground/60"
-                    placeholder="Cuéntanos más sobre tus necesidades..."
-                  />
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  className="w-full py-5 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xl font-bold rounded-2xl shadow-md hover:shadow-xl transition-all cursor-pointer"
-                >
-                  Enviar solicitud
-                </motion.button>
-              </form>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={enviando}
+                    className="w-full py-5 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xl font-bold rounded-2xl shadow-md hover:shadow-xl transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {enviando && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {enviando ? "Enviando..." : "Enviar solicitud"}
+                  </motion.button>
+                </form>
+              )}
             </motion.div>
           </div>
         </section>

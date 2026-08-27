@@ -8,7 +8,11 @@ interface SeoMetaOptions {
 }
 
 const SITE_NAME = "AleckTours";
-const SITE_URL = "https://www.alecktours.com";
+// Dominio real donde está desplegado el sitio hoy (Vercel) — el mismo que
+// se verificó en Google Search Console. Si más adelante se conecta un
+// dominio propio (ej. alecktours.com), actualizar este valor junto con
+// robots.txt, sitemap.xml y las meta tags de index.html.
+const SITE_URL = "https://proyectoalectours-docker.vercel.app";
 
 function setMetaByAttr(attrName: "name" | "property", attrValue: string, content: string) {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attrName}="${attrValue}"]`);

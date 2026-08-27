@@ -29,6 +29,7 @@ from app.models.reserva_model import Pago, MetodoPago, HistorialReserva, Paquete
 from app.models.servicio_model import Servicio
 from app.models.hotel_model import Hotel, HotelCaracteristica
 from app.services import payment_service
+from app.services.notificacion_service import crear_notificacion
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 
@@ -73,6 +74,13 @@ def _asignar_numero_factura(db: Session, pago: Pago) -> None:
         pago.numero_factura = f"FAC-{pago.id_pago:06d}"
         db.commit()
         db.refresh(pago)
+        crear_notificacion(
+            db,
+            tipo="pago",
+            titulo=f"Pago aprobado — Reserva #{pago.id_reserva}",
+            mensaje=f"Pago #{pago.id_pago} ({pago.numero_factura}) por ${pago.monto:,.0f} confirmado.",
+            id_referencia=pago.id_reserva,
+        )
 
 
 # ===================== PAQUETES CRUD =====================
@@ -290,16 +298,20 @@ def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
 
 @router.get("/historial-reservas/recientes", response_model=list[ActividadRecienteItem])
 def get_actividad_reciente(
-    limit: int = Query(15, ge=1, le=50),
+    # 50 alcanza para el widget chico del Dashboard, pero el módulo completo
+    # de "Actividad del sistema" del admin necesita poder pedir más — mismo
+    # endpoint, límite más alto en vez de duplicar la consulta.
+    limit: int = Query(15, ge=1, le=300),
     db: Session = Depends(get_db),
 ):
     """
-    Feed de 'Actividad reciente' para el Dashboard de admin: últimos
-    cambios de estado registrados en TODAS las reservas (confirmaciones,
-    cancelaciones, pagos aprobados/rechazados...), más recientes primero.
-    Reutiliza la misma tabla historial_reservas que ya alimenta
-    GET /reservas/{id}/historial — no agrega ninguna tabla ni columna
-    nueva a la base de datos, solo una consulta agregada de solo lectura.
+    Feed de 'Actividad reciente' para el Dashboard y el módulo de Actividad
+    del admin: últimos cambios de estado registrados en TODAS las reservas
+    (confirmaciones, cancelaciones, pagos aprobados/rechazados...), más
+    recientes primero. Reutiliza la misma tabla historial_reservas que ya
+    alimenta GET /reservas/{id}/historial — no agrega ninguna tabla ni
+    columna nueva a la base de datos, solo una consulta agregada de solo
+    lectura.
     """
     return ReservaDetailService.get_historial_reciente(db, limit)
 

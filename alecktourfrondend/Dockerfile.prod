@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+#
+# Dockerfile de producción del frontend — el Dockerfile de al lado (sin
+# sufijo) es solo para desarrollo (pnpm dev --host, usado por
+# docker-compose.yml con bind-mount). Este build de dos etapas compila los
+# assets estáticos reales con Vite y los sirve con nginx — sin servidor de
+# desarrollo, sin node en la imagen final, sin código fuente ni
+# node_modules en la imagen que corre en producción.
+
+# ---------- Etapa build: compila con Vite ----------
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+
+RUN corepack enable && corepack prepare pnpm@8 --activate
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+COPY . .
+
+RUN pnpm build
+
+# ---------- Etapa runtime: nginx sirviendo /dist ----------
+FROM nginx:1.27-alpine AS prod
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# La imagen oficial de nginx ya define un usuario "nginx" no-root; el
+# entrypoint por defecto de la imagen ajusta permisos de /var/cache/nginx
+# y ejecuta el proceso con ese usuario, así que no hace falta declarar
+# USER acá a mano.
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -qO- http://localhost/health || exit 1
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

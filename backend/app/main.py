@@ -1,10 +1,13 @@
 import logging
 import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.core.cache import redis_client
 
 
 # IMPORTANTE: Importar TODOS los modelos para que SQLAlchemy conozca las relaciones
@@ -15,6 +18,9 @@ from app.models.reserva_model import Reserva
 from app.models.resena_model import Resena
 from app.models.favorito_model import Favorito
 from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
+from app.models.configuracion_model import ConfiguracionSistema
+from app.models.notificacion_model import Notificacion
+from app.models.empresa_model import SolicitudCorporativa
 
 # Routers
 from app.routes.auth_route import router as auth_router
@@ -31,6 +37,9 @@ from app.routes.servicio_route import router as servicio_router
 from app.routes.solicitud_cancelacion_route import router as solicitud_cancelacion_router
 from app.routes.favorito_route import router as favorito_router
 from app.routes.metodo_pago_guardado_route import router as metodo_pago_guardado_router
+from app.routes.configuracion_route import router as configuracion_router
+from app.routes.notificacion_route import router as notificacion_router
+from app.routes.empresa_route import router as empresa_router
 
 # ============================================================================
 # CONFIGURACIÓN LOGGING
@@ -76,6 +85,20 @@ app = FastAPI(
 # CORS
 # ============================================================================
 
+@app.get("/health", tags=["Salud"])
+def health_check(db: Session = Depends(get_db)):
+    """Liveness/readiness check real (consulta la base de datos, no un valor
+    fijo) — usado por el HEALTHCHECK del Dockerfile de producción y por
+    cualquier balanceador/orquestador que necesite saber si el contenedor
+    está listo para recibir tráfico."""
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "up"}
+    except Exception as e:
+        logger.error(f"Health check falló: {e}")
+        return JSONResponse(status_code=503, content={"status": "error", "database": "down"})
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -87,6 +110,72 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# SEGURIDAD: RATE LIMITING + HEADERS HTTP
+# ============================================================================
+# Alternativa de código a lo que se pidió originalmente como "Cisco Secure
+# Web Appliance": eso es un dispositivo de seguridad de red/perímetro que se
+# contrata e instala en la infraestructura de la empresa, no algo que se
+# pueda agregar a este repositorio. Esto cubre, en cambio, lo que sí es
+# código: límite de intentos sobre endpoints sensibles (fuerza bruta) y
+# headers de respuesta estándar de buenas prácticas.
+
+# (ruta exacta o prefijo) -> (máximo de solicitudes, ventana en segundos)
+_RATE_LIMITED_PATHS = {
+    "/auth/login": (5, 60),
+    "/auth/register": (5, 60),
+    "/auth/forgot-password": (3, 60),
+    "/auth/reset-password": (5, 60),
+}
+
+
+def _rate_limit_config_for(path: str):
+    if path in _RATE_LIMITED_PATHS:
+        limit, window = _RATE_LIMITED_PATHS[path]
+        return path, limit, window
+    # /api/reservas/{id}/pagar es dinámica (el id varía) — se agrupa bajo
+    # una sola clave "/pagar" para que el límite sea real por IP, no por id.
+    if path.startswith("/api/reservas/") and path.endswith("/pagar"):
+        return "/pagar", 10, 60
+    return None
+
+
+@app.middleware("http")
+async def seguridad_middleware(request: Request, call_next):
+    config = _rate_limit_config_for(request.url.path)
+    if config:
+        bucket, limit, window = config
+        ip = request.client.host if request.client else "desconocido"
+        key = f"ratelimit:{bucket}:{ip}"
+        try:
+            intentos = redis_client.incr(key)
+            if intentos == 1:
+                redis_client.expire(key, window)
+            if intentos > limit:
+                response = JSONResponse(
+                    status_code=429,
+                    content={"detail": "Demasiadas solicitudes. Intenta de nuevo en un momento."},
+                )
+                response.headers["X-Content-Type-Options"] = "nosniff"
+                response.headers["X-Frame-Options"] = "DENY"
+                return response
+        except Exception:
+            # Si Redis no responde, no se bloquea tráfico real (login,
+            # registro) por un problema de infraestructura ajeno al
+            # usuario — el rate limit es una capa extra, no la única.
+            pass
+
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # HSTS no tiene efecto sobre HTTP plano (dev en localhost) — el
+    # navegador la ignora ahí y queda lista para cuando haya HTTPS real en
+    # producción, sin necesidad de un segundo cambio después.
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
 
 # ============================================================================
 # MANEJADOR DE ERRORES GLOBAL
@@ -137,6 +226,9 @@ app.include_router(servicio_router)
 app.include_router(solicitud_cancelacion_router)
 app.include_router(favorito_router)
 app.include_router(metodo_pago_guardado_router)
+app.include_router(configuracion_router)
+app.include_router(notificacion_router)
+app.include_router(empresa_router)
 
 # ============================================================================
 # ARCHIVOS ESTÁTICOS (fotos de perfil, etc.)

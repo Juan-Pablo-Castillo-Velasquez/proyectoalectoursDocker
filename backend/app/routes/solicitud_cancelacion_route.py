@@ -16,6 +16,7 @@ from app.schemas.solicitud_cancelacion_schema import (
     SolicitudCancelacionResolve,
 )
 from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
+from app.services.notificacion_service import crear_notificacion
 
 router = APIRouter(prefix="/api", tags=["Solicitudes de cancelación"])
 
@@ -84,6 +85,18 @@ async def crear_solicitud_cancelacion(
         id_cliente=usuario.cliente.id_cliente,
         motivo=data.motivo,
         motivo_detalle=data.motivo_detalle,
+    )
+
+    # Notificación real para el admin — este es justamente el flujo que
+    # antes "no llegaba" porque el frontend nunca llamaba a este endpoint
+    # (ver ModalCancelacion.tsx); ahora que sí llega, además queda avisado
+    # en el panel en vez de que el admin tenga que revisar el módulo a mano.
+    crear_notificacion(
+        db,
+        tipo="cancelacion",
+        titulo=f"Nueva solicitud de cancelación — Reserva #{reserva_id}",
+        mensaje=data.motivo_detalle or data.motivo,
+        id_referencia=reserva_id,
     )
 
     # Confirmación por correo al cliente (best-effort: si falla el envío,

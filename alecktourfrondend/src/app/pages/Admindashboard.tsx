@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   PlusCircle, Hotel, Package, Users, Building2, Bell,
-  ShieldCheck, Activity, Settings,
+  ShieldCheck, Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ import ModulePaquetes from "../components/admin/ModulePaquetes";
 import ModuleClientes from "../components/admin/ModuleClientes";
 import ModuleUsuarios from "../components/admin/ModuleUsuarios";
 import ModulePagos, { type MetodoPago } from "../components/admin/ModulePagos";
+import ModuleActividad from "../components/admin/ModuleActividad";
+import ModuleConfiguracion from "../components/admin/ModuleConfiguracion";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
@@ -25,6 +27,11 @@ import EmptyState from "../components/admin/ui/EmptyState";
 import type { QuickAction } from "../components/admin/ui/QuickActions";
 import { usuarioAdminService } from "../services/usuarioAdmin.service";
 import { solicitudCancelacionService, type SolicitudCancelacionResponse } from "../services/solicitudCancelacion.service";
+import { reservaDetailService, type ActividadRecienteItem } from "../services/reserva.service";
+import ModuleNotificaciones from "../components/admin/ModuleNotificaciones";
+import { notificacionService, type NotificacionItem } from "../services/notificacion.service";
+import ModuleEmpresas from "../components/admin/ModuleEmpresas";
+import { empresaService, type SolicitudCorporativa } from "../services/empresa.service";
 
 type PendingDelete =
   | { kind: "reserva"; id: number; label: string }
@@ -32,7 +39,8 @@ type PendingDelete =
   | { kind: "paquete"; id: number; label: string }
   | { kind: "cliente"; id: number; label: string }
   | { kind: "usuario"; id: number; label: string }
-  | { kind: "pago"; id: number; label: string };
+  | { kind: "pago"; id: number; label: string }
+  | { kind: "empresa"; id: number; label: string };
 
 export default function AdminDashboard() {
   const { usuario, logout, isAdmin } = useAuth();
@@ -52,6 +60,23 @@ export default function AdminDashboard() {
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
   const [roles,     setRoles]     = useState<Rol[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudCancelacionResponse[]>([]);
+  const [actividadReciente, setActividadReciente] = useState<ActividadRecienteItem[]>([]);
+  const [actividadLimit, setActividadLimit] = useState(50);
+  const [actividadLoading, setActividadLoading] = useState(false);
+  const [actividadLoadingMore, setActividadLoadingMore] = useState(false);
+  // true cuando la última carga trajo menos ítems que el límite pedido —
+  // ya no queda más historial real por traer, no tiene sentido seguir
+  // ofreciendo "Cargar más".
+  const [actividadAgotado, setActividadAgotado] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<NotificacionItem[]>([]);
+  const [notificacionesLoading, setNotificacionesLoading] = useState(false);
+  const [solicitudesCorporativas, setSolicitudesCorporativas] = useState<SolicitudCorporativa[]>([]);
+
+  // Conteo real de notificaciones no leídas (cancelaciones, contacto,
+  // corporativo, pagos — ver Notificacion en notificacion_model.py),
+  // derivado del mismo arreglo que alimenta el módulo — igual criterio que
+  // pendingCancelaciones, una sola fuente de verdad.
+  const notificacionesNoLeidas = notificaciones.filter(n => !n.leido).length;
 
   // Derivado del listado completo de solicitudes (una sola fuente de
   // verdad) en vez de un fetch aparte solo para el contador — la campana
@@ -85,6 +110,9 @@ export default function AdminDashboard() {
     fetchMetodosPago();
     fetchUsuarios();
     fetchSolicitudes();
+    fetchActividad(actividadLimit);
+    fetchNotificaciones();
+    fetchEmpresas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -110,6 +138,82 @@ export default function AdminDashboard() {
   const fetchSolicitudes = async () => {
     try { setSolicitudes(await solicitudCancelacionService.getAll()); } catch {}
   };
+
+  // Feed real de actividad (historial_reservas de TODAS las reservas, ver
+  // GET /historial-reservas/recientes) — alimenta tanto el widget chico del
+  // Dashboard como el módulo completo de "Actividad del sistema".
+  const fetchActividad = async (limit: number, esCargarMas = false) => {
+    esCargarMas ? setActividadLoadingMore(true) : setActividadLoading(true);
+    try {
+      const data = await reservaDetailService.getActividadReciente(limit);
+      setActividadReciente(data);
+      setActividadAgotado(data.length < limit);
+    } catch {
+      // deja el feed como estaba (o vacío) — no es un dato crítico para
+      // bloquear el resto del panel de admin.
+    } finally {
+      esCargarMas ? setActividadLoadingMore(false) : setActividadLoading(false);
+    }
+  };
+
+  const cargarMasActividad = () => {
+    const nuevoLimite = actividadLimit + 50;
+    setActividadLimit(nuevoLimite);
+    fetchActividad(nuevoLimite, true);
+  };
+
+  // Notificaciones reales (cancelaciones, contacto, solicitudes
+  // corporativas, pagos aprobados) — ver notificacion_route.py.
+  const fetchNotificaciones = async () => {
+    setNotificacionesLoading(true);
+    try { setNotificaciones(await notificacionService.getAll()); } catch {} finally { setNotificacionesLoading(false); }
+  };
+
+  const marcarNotificacionLeida = async (id: number) => {
+    try {
+      await notificacionService.marcarLeida(id);
+      setNotificaciones(prev => prev.map(n => n.id_notificacion === id ? { ...n, leido: true } : n));
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo marcar como leída");
+    }
+  };
+
+  const marcarTodasNotificacionesLeidas = async () => {
+    try {
+      await notificacionService.marcarTodasLeidas();
+      setNotificaciones(prev => prev.map(n => ({ ...n, leido: true })));
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudieron marcar todas como leídas");
+    }
+  };
+
+  const deleteNotificacion = async (id: number) => {
+    try {
+      await notificacionService.delete(id);
+      setNotificaciones(prev => prev.filter(n => n.id_notificacion !== id));
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo eliminar la notificación");
+    }
+  };
+
+  // Solicitudes corporativas reales — cada una llegó desde el formulario
+  // público de /corporate (ver empresa_model.py / Corporate.tsx).
+  const fetchEmpresas = async () => {
+    try { setSolicitudesCorporativas(await empresaService.getAll()); } catch {}
+  };
+
+  const updateEstadoEmpresa = async (id: number, estado: SolicitudCorporativa["estado"]) => {
+    try {
+      const actualizado = await empresaService.actualizarEstado(id, estado);
+      setSolicitudesCorporativas(prev => prev.map(s => s.id_solicitud === id ? actualizado : s));
+      toast.success("Estado actualizado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo actualizar el estado");
+      throw e;
+    }
+  };
+
+  const deleteEmpresa = (id: number) => setConfirmDelete({ kind: "empresa", id, label: "esta solicitud corporativa" });
 
   // ─── Eliminar (ahora vía ConfirmDialog centrado, no window.confirm) ──────
   const deleteReserva = (id: number) => setConfirmDelete({ kind: "reserva", id, label: `la reserva #${id}` });
@@ -147,6 +251,10 @@ export default function AdminDashboard() {
         await apiFetch(`/pagos/${id}`, { method: "DELETE" });
         await fetchPagos();
         toast.success("Pago eliminado correctamente");
+      } else if (kind === "empresa") {
+        await empresaService.delete(id);
+        await fetchEmpresas();
+        toast.success("Solicitud eliminada correctamente");
       }
     } catch (e: any) {
       toast.error(e?.message || "No se pudo completar la eliminación");
@@ -354,15 +462,11 @@ export default function AdminDashboard() {
         onResolve={resolverSolicitud}
       />
     ),
-    // ─── Módulos de la nueva estructura de navegación, todavía sin
-    // pantalla propia construida (llegan en las próximas fases del
-    // rediseño). Se muestran con un estado vacío honesto, nunca con datos
-    // inventados — ver EmptyState.tsx.
     empresas: (
-      <EmptyState
-        icon={Building2}
-        title="Empresas y contactos"
-        description="Este módulo de CRM comercial (empresas, contactos, seguimiento) requiere datos que hoy no existen en la base de datos — se habilitará en una próxima actualización, cuando se defina qué información nueva hay que guardar."
+      <ModuleEmpresas
+        solicitudes={solicitudesCorporativas}
+        onUpdateEstado={updateEstadoEmpresa}
+        onDelete={deleteEmpresa}
       />
     ),
     pagos: (
@@ -373,10 +477,12 @@ export default function AdminDashboard() {
       />
     ),
     notificaciones: (
-      <EmptyState
-        icon={Bell}
-        title="Centro de notificaciones"
-        description="El panel de notificaciones (nuevas reservas, cancelaciones, pagos, contactos) se habilita en una próxima actualización."
+      <ModuleNotificaciones
+        notificaciones={notificaciones}
+        loading={notificacionesLoading}
+        onMarcarLeida={marcarNotificacionLeida}
+        onMarcarTodasLeidas={marcarTodasNotificacionesLeidas}
+        onDelete={deleteNotificacion}
       />
     ),
     roles: (
@@ -387,19 +493,15 @@ export default function AdminDashboard() {
       />
     ),
     actividad: (
-      <EmptyState
-        icon={Activity}
-        title="Actividad del sistema"
-        description="El registro completo de actividad del sistema se habilita en una próxima actualización."
+      <ModuleActividad
+        actividad={actividadReciente}
+        loading={actividadLoading}
+        loadingMore={actividadLoadingMore}
+        agotado={actividadAgotado}
+        onCargarMas={cargarMasActividad}
       />
     ),
-    configuracion: (
-      <EmptyState
-        icon={Settings}
-        title="Configuración"
-        description="Las opciones de configuración general del panel se habilitan en una próxima actualización."
-      />
-    ),
+    configuracion: <ModuleConfiguracion />,
   };
 
   const usuarioInicial = usuario?.username?.[0]?.toUpperCase() ?? "A";
@@ -416,6 +518,7 @@ export default function AdminDashboard() {
         usuarioFoto={usuario?.foto_perfil}
         onLogout={handleLogout}
         pendingCancelaciones={pendingCancelaciones}
+        notificacionesNoLeidas={notificacionesNoLeidas}
         quickActions={quickActions}
         onNavigate={setActiveModule}
         searchData={{ reservas, hoteles, paquetes, clientes, usuarios }}

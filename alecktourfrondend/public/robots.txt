@@ -15,4 +15,4 @@ Disallow: /admin
 Disallow: /reset-password
 Disallow: /verify
 
-Sitemap: https://www.alecktours.com/sitemap.xml
+Sitemap: https://proyectoalectours-docker.vercel.app/sitemap.xml

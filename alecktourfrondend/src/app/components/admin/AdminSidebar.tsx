@@ -41,7 +41,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Operaciones",
     items: [
       { id: "reservas", label: "Reservas", icon: CalendarDays, ready: true },
-      { id: "cancelaciones", label: "Solicitudes de cancelación", icon: XCircle, ready: false },
+      { id: "cancelaciones", label: "Solicitudes de cancelación", icon: XCircle, ready: true },
       { id: "crear-reserva", label: "Crear reserva", icon: PlusCircle, ready: true },
       { id: "clientes", label: "Clientes", icon: Users, ready: true },
     ],
@@ -56,19 +56,19 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Comercial",
     items: [
-      { id: "empresas", label: "Empresas y contactos", icon: Building2, ready: false },
+      { id: "empresas", label: "Empresas y contactos", icon: Building2, ready: true },
     ],
   },
   {
     label: "Finanzas",
     items: [
-      { id: "pagos", label: "Pagos", icon: Wallet, ready: false },
+      { id: "pagos", label: "Pagos", icon: Wallet, ready: true },
     ],
   },
   {
     label: "Comunicación",
     items: [
-      { id: "notificaciones", label: "Notificaciones", icon: Bell, ready: false },
+      { id: "notificaciones", label: "Notificaciones", icon: Bell, ready: true },
     ],
   },
   {
@@ -76,8 +76,8 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "usuarios", label: "Usuarios", icon: UserPlus, ready: true },
       { id: "roles", label: "Roles y permisos", icon: ShieldCheck, ready: false },
-      { id: "actividad", label: "Actividad del sistema", icon: Activity, ready: false },
-      { id: "configuracion", label: "Configuración", icon: Settings, ready: false },
+      { id: "actividad", label: "Actividad del sistema", icon: Activity, ready: true },
+      { id: "configuracion", label: "Configuración", icon: Settings, ready: true },
     ],
   },
 ];
