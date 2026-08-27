@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search, Trash2, Wallet, CheckCircle, Clock, XCircle, CreditCard,
-  Pencil, AlertCircle, Save,
+  Pencil, AlertCircle, Save, FileText, Paperclip, Upload,
 } from "lucide-react";
-import { Pago, Reserva, Cliente, labelCls } from "./types";
+import { Pago, Reserva, Cliente, labelCls, resolveFotoUrl } from "./types";
+import { generarFacturaPdf } from "../../utils/generarFacturaPdf";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
@@ -51,6 +52,8 @@ interface Props {
   metodos?: MetodoPago[];
   onUpdateEstado: (id: number, estado: PagoEstado) => Promise<void>;
   onDelete: (id: number) => void;
+  onUploadComprobante?: (id: number, file: File) => Promise<void>;
+  onDeleteComprobante?: (id: number) => Promise<void>;
 }
 
 // Centro de pagos del admin: KPIs reales (recaudado, pendientes, rechazados
@@ -64,6 +67,7 @@ interface Props {
 // exista como endpoint técnico.
 export default function ModulePagos({
   pagos, reservas = [], clientes = [], metodos = [], onUpdateEstado, onDelete,
+  onUploadComprobante, onDeleteComprobante,
 }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
@@ -72,9 +76,22 @@ export default function ModulePagos({
   const [nuevoEstado, setNuevoEstado] = useState<PagoEstado>("pendiente");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [comprobanteLoading, setComprobanteLoading] = useState(false);
+  const [comprobanteError, setComprobanteError] = useState("");
 
   const reservaMap = Object.fromEntries(reservas.map(r => [r.id_reserva, r]));
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id_cliente, c]));
+
+  // Mantiene `editing` sincronizado con la lista real: al subir/borrar un
+  // comprobante o al asignarse un numero_factura, `pagos` (prop) se
+  // actualiza en el padre pero `editing` seguía siendo la foto vieja del
+  // momento en que se abrió el modal — sin esto, el modal no reflejaba el
+  // resultado de la propia acción que el admin acababa de hacer ahí mismo.
+  useEffect(() => {
+    if (!editing) return;
+    const fresh = pagos.find(p => p.id_pago === editing.id_pago);
+    if (fresh && fresh !== editing) setEditing(fresh);
+  }, [pagos, editing]);
 
   // Lista de métodos para el filtro: la real (si llegó por props) o, si no,
   // los que ya aparecen en los pagos cargados — nunca una lista inventada.
@@ -109,8 +126,9 @@ export default function ModulePagos({
     setEditing(p);
     setNuevoEstado(p.estado as PagoEstado);
     setSaveError("");
+    setComprobanteError("");
   }
-  function closeEdit() { setEditing(null); setSaveError(""); }
+  function closeEdit() { setEditing(null); setSaveError(""); setComprobanteError(""); }
 
   async function handleSaveEstado() {
     if (!editing) return;
@@ -122,6 +140,38 @@ export default function ModulePagos({
       setSaveError("No se pudo actualizar el estado del pago");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function handleDescargarFactura(p: Pago) {
+    const reserva = reservaMap[p.id_reserva];
+    const cliente = reserva ? clienteMap[reserva.id_cliente] : undefined;
+    generarFacturaPdf(p, reserva, cliente);
+  }
+
+  async function handleUploadComprobante(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo si hay que reintentar
+    if (!file || !editing || !onUploadComprobante) return;
+    setComprobanteLoading(true); setComprobanteError("");
+    try {
+      await onUploadComprobante(editing.id_pago, file);
+    } catch {
+      setComprobanteError("No se pudo subir el comprobante");
+    } finally {
+      setComprobanteLoading(false);
+    }
+  }
+
+  async function handleDeleteComprobante() {
+    if (!editing || !onDeleteComprobante) return;
+    setComprobanteLoading(true); setComprobanteError("");
+    try {
+      await onDeleteComprobante(editing.id_pago);
+    } catch {
+      setComprobanteError("No se pudo eliminar el comprobante");
+    } finally {
+      setComprobanteLoading(false);
     }
   }
 
@@ -240,6 +290,15 @@ export default function ModulePagos({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
+                        {p.numero_factura && (
+                          <button
+                            onClick={() => handleDescargarFactura(p)}
+                            className="p-1.5 text-emerald-600/70 hover:text-emerald-600 hover:bg-emerald-500/10 rounded-lg transition-all"
+                            title={`Descargar factura ${p.numero_factura}`}
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => openEdit(p)}
                           className="p-1.5 text-primary/60 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
@@ -319,6 +378,70 @@ export default function ModulePagos({
               <Save className="w-4 h-4" />
               {saving ? "Guardando..." : "Guardar cambio de estado"}
             </button>
+
+            {/* Factura: solo existe (número derivado del id_pago real) una vez
+                que el pago llegó a 'pagado' — ver Pago.numero_factura. */}
+            <div className="pt-3 border-t border-border">
+              <label className={labelCls}>Factura</label>
+              {editing.numero_factura ? (
+                <button
+                  onClick={() => handleDescargarFactura(editing)}
+                  className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-foreground hover:border-emerald-500/40 hover:text-emerald-600 transition-all"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Descargar factura {editing.numero_factura}
+                </button>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Se genera automáticamente cuando el pago queda en estado "pagado".
+                </p>
+              )}
+            </div>
+
+            {/* Comprobante externo: voucher de transferencia/consignación que
+                el cliente envía por fuera de la plataforma (ver
+                POST/DELETE /api/pagos/{id}/comprobante). */}
+            <div className="pt-3 border-t border-border">
+              <label className={labelCls}>Comprobante externo</label>
+              {editing.comprobante_url ? (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <a
+                    href={resolveFotoUrl(editing.comprobante_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-foreground hover:border-primary/40 hover:text-primary transition-all"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Ver comprobante
+                  </a>
+                  <button
+                    onClick={handleDeleteComprobante}
+                    disabled={comprobanteLoading}
+                    className="p-2 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all disabled:opacity-50"
+                    title="Eliminar comprobante"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="mt-1.5 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-all cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  {comprobanteLoading ? "Subiendo..." : "Subir comprobante (JPG, PNG o PDF)"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    disabled={comprobanteLoading}
+                    onChange={handleUploadComprobante}
+                  />
+                </label>
+              )}
+              {comprobanteError && (
+                <p className="mt-1.5 text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {comprobanteError}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </AdminModal>

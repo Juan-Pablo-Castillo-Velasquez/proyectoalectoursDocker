@@ -167,11 +167,41 @@ export default function AdminDashboard() {
 
   const updatePagoEstado = async (id: number, estado: string) => {
     try {
-      await apiFetch(`/pagos/${id}`, { method: "PUT", body: { estado } });
-      setPagos(prev => prev.map(p => p.id_pago === id ? { ...p, estado: estado as Pago["estado"] } : p));
+      // Se guarda la respuesta completa (no solo el estado local) porque el
+      // backend puede asignar numero_factura automáticamente en este mismo
+      // PUT (ver _asignar_numero_factura en reserva_route.py) — con un merge
+      // parcial esa factura nueva no aparecería hasta refrescar la página.
+      const actualizado = await apiFetch<Pago>(`/pagos/${id}`, { method: "PUT", body: { estado } });
+      setPagos(prev => prev.map(p => p.id_pago === id ? { ...p, ...actualizado } : p));
       toast.success("Estado del pago actualizado");
     } catch (e: any) {
       toast.error(e?.message || "No se pudo actualizar el estado del pago");
+      throw e;
+    }
+  };
+
+  // Comprobante externo (voucher de transferencia/consignación) adjunto a
+  // un pago — sube/borra el archivo real en el backend, sin inventar nada.
+  const uploadComprobantePago = async (id: number, file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const actualizado = await apiFetch<Pago>(`/pagos/${id}/comprobante`, { method: "POST", body: formData });
+      setPagos(prev => prev.map(p => p.id_pago === id ? { ...p, ...actualizado } : p));
+      toast.success("Comprobante adjuntado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo subir el comprobante");
+      throw e;
+    }
+  };
+
+  const deleteComprobantePago = async (id: number) => {
+    try {
+      const actualizado = await apiFetch<Pago>(`/pagos/${id}/comprobante`, { method: "DELETE" });
+      setPagos(prev => prev.map(p => p.id_pago === id ? { ...p, ...actualizado } : p));
+      toast.success("Comprobante eliminado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo eliminar el comprobante");
       throw e;
     }
   };
@@ -339,6 +369,7 @@ export default function AdminDashboard() {
       <ModulePagos
         pagos={pagos} reservas={reservas} clientes={clientes} metodos={metodosPago}
         onUpdateEstado={updatePagoEstado} onDelete={deletePago}
+        onUploadComprobante={uploadComprobantePago} onDeleteComprobante={deleteComprobantePago}
       />
     ),
     notificaciones: (

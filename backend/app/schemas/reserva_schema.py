@@ -193,6 +193,8 @@ class PagoResponse(BaseModel):
     fecha_pago: datetime
     referencia: Optional[str]
     estado: str
+    numero_factura: Optional[str] = None
+    comprobante_url: Optional[str] = None
     metodo_pago: Optional[MetodoPagoResponse] = None
 
     class Config:

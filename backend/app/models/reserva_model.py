@@ -192,6 +192,14 @@ class Pago(Base):
     # Decidido al iniciar el pago (con los valores de prueba de tarjeta,
     # celular o documento) y aplicado al confirmar. No se expone al cliente.
     simular_rechazo = Column(Boolean, nullable=False, default=False)
+    # Asignado automáticamente (FAC-000123, a partir del id_pago real) la
+    # primera vez que el pago llega a 'pagado' — ver _asignar_numero_factura
+    # en reserva_route.py. Nunca un consecutivo separado inventado.
+    numero_factura = Column(String(20), unique=True, nullable=True)
+    # Voucher/comprobante externo (transferencia, consignación) que el
+    # cliente envía por fuera de la plataforma — subido por un admin vía
+    # POST /api/pagos/{id}/comprobante.
+    comprobante_url = Column(String(255), nullable=True)
 
     reserva = relationship("Reserva", back_populates="pagos")
     metodo_pago = relationship("MetodoPago", back_populates="pagos")

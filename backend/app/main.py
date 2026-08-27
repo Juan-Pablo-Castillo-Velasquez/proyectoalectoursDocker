@@ -144,6 +144,7 @@ app.include_router(metodo_pago_guardado_router)
 
 _UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
 os.makedirs(os.path.join(_UPLOADS_DIR, "perfiles"), exist_ok=True)
+os.makedirs(os.path.join(_UPLOADS_DIR, "comprobantes"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 # ============================================================================

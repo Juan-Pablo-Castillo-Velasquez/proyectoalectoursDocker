@@ -1,6 +1,7 @@
+import os
 import uuid
 from app.services.reserva_detail_service import ReservaDetailService
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from app.core.database import get_db
@@ -38,6 +39,40 @@ PAGOS_CACHE_PATTERN = "pagos:list:*"
 # sistema), así que van con TTL largo y una sola clave fija en vez de
 # parametrizada — no hay skip/limit en este endpoint.
 METODOS_PAGO_CACHE_KEY = "metodos_pago:list"
+
+# Comprobantes externos de pago (voucher de transferencia/efectivo que el
+# cliente envía por fuera de la plataforma) — mismo patrón que la foto de
+# perfil en usuario_route.py, pero admitiendo también PDF.
+COMPROBANTES_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "comprobantes")
+COMPROBANTES_PUBLIC_PREFIX = "/uploads/comprobantes"
+COMPROBANTES_TIPOS_PERMITIDOS = {
+    "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png",
+    "image/webp": "webp", "application/pdf": "pdf",
+}
+COMPROBANTES_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+def _borrar_comprobante_si_existe(comprobante_url: str | None) -> None:
+    if not comprobante_url:
+        return
+    filename = os.path.basename(comprobante_url)
+    ruta = os.path.join(COMPROBANTES_UPLOAD_DIR, filename)
+    if os.path.isfile(ruta):
+        try:
+            os.remove(ruta)
+        except OSError:
+            pass
+
+
+def _asignar_numero_factura(db: Session, pago: Pago) -> None:
+    """Genera el número de factura la primera vez que un pago llega a
+    'pagado' — se deriva directamente del id_pago real (FAC-000123), nunca
+    de un consecutivo aparte inventado. No hace nada si el pago ya tiene
+    número o si no está pagado (evita facturar un pago rechazado/pendiente)."""
+    if pago.estado == "pagado" and not pago.numero_factura:
+        pago.numero_factura = f"FAC-{pago.id_pago:06d}"
+        db.commit()
+        db.refresh(pago)
 
 
 # ===================== PAQUETES CRUD =====================
@@ -379,6 +414,7 @@ def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get
     db.commit()
     db.refresh(pago)
     db.refresh(reserva)
+    _asignar_numero_factura(db, pago)
     delete_pattern(RESERVAS_CACHE_PATTERN)
     delete_pattern(PAGOS_CACHE_PATTERN)
 
@@ -426,6 +462,7 @@ def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(pago)
     db.refresh(reserva)
+    _asignar_numero_factura(db, pago)
     delete_pattern(RESERVAS_CACHE_PATTERN)
     delete_pattern(PAGOS_CACHE_PATTERN)
 
@@ -546,6 +583,7 @@ def update_pago(pago_id: int, pago: PagoUpdate, db: Session = Depends(get_db)):
     if not db_pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
     actualizado = PagoRepository.update(db, pago_id, pago.dict(exclude_unset=True))
+    _asignar_numero_factura(db, actualizado)
     delete_pattern(PAGOS_CACHE_PATTERN)
     delete_pattern(RESERVAS_CACHE_PATTERN)  # el estado de pago se ve en la tabla de Reservas
     return actualizado
@@ -563,3 +601,58 @@ def delete_pago(pago_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=e.detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/pagos/{pago_id}/comprobante", response_model=PagoResponse)
+async def subir_comprobante_pago(
+    pago_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Adjunta un comprobante externo (imagen o PDF) a un pago — por ejemplo
+    el voucher de una transferencia o consignación que el cliente envía por
+    fuera de la plataforma. Reemplaza el anterior si ya existía uno."""
+    pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
+    if file.content_type not in COMPROBANTES_TIPOS_PERMITIDOS:
+        raise HTTPException(
+            status_code=422,
+            detail="Formato no soportado. Usa JPG, PNG, WEBP o PDF.",
+        )
+
+    contenido = await file.read()
+    if len(contenido) > COMPROBANTES_TAMANO_MAXIMO_BYTES:
+        raise HTTPException(status_code=422, detail="El archivo no puede superar los 5MB.")
+
+    os.makedirs(COMPROBANTES_UPLOAD_DIR, exist_ok=True)
+
+    extension = COMPROBANTES_TIPOS_PERMITIDOS[file.content_type]
+    nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
+    ruta_destino = os.path.join(COMPROBANTES_UPLOAD_DIR, nombre_archivo)
+    with open(ruta_destino, "wb") as f:
+        f.write(contenido)
+
+    _borrar_comprobante_si_existe(pago.comprobante_url)
+
+    pago.comprobante_url = f"{COMPROBANTES_PUBLIC_PREFIX}/{nombre_archivo}"
+    db.commit()
+    db.refresh(pago)
+    delete_pattern(PAGOS_CACHE_PATTERN)
+    return pago
+
+
+@router.delete("/pagos/{pago_id}/comprobante", response_model=PagoResponse)
+def eliminar_comprobante_pago(pago_id: int, db: Session = Depends(get_db)):
+    """Quita el comprobante adjunto de un pago (por ejemplo si se subió por
+    error o hay que reemplazarlo)."""
+    pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    _borrar_comprobante_si_existe(pago.comprobante_url)
+    pago.comprobante_url = None
+    db.commit()
+    db.refresh(pago)
+    delete_pattern(PAGOS_CACHE_PATTERN)
+    return pago

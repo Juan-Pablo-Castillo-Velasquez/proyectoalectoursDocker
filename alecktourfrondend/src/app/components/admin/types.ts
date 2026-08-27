@@ -133,6 +133,13 @@ export interface Pago {
   estado: "pendiente" | "procesando" | "pagado" | "rechazado" | "cancelado";
   referencia?: string;
   fecha_pago?: string;
+  // Asignado por el backend (FAC-000123, a partir del id_pago real) la
+  // primera vez que el pago llega a 'pagado' — ver _asignar_numero_factura
+  // en reserva_route.py. null/undefined hasta entonces.
+  numero_factura?: string | null;
+  // Voucher externo (transferencia/consignación) subido por un admin vía
+  // POST /api/pagos/{id}/comprobante — ruta relativa, usar resolveFotoUrl().
+  comprobante_url?: string | null;
   metodo_pago?: {
     id_metodo: number;
     nombre_metodo: string;
