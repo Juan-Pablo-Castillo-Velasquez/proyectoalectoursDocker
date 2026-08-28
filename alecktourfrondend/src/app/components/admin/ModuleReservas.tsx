@@ -4,9 +4,11 @@ import {
   CreditCard, Calendar, Users, Phone, Mail, MapPin,
   Globe, UserCheck, PhoneCall, ChevronRight, AlertCircle,
   CheckCircle, Clock, XCircle, FileText, Save, MoreHorizontal,
+  MessageCircle, Send,
 } from "lucide-react";
 import { Reserva, Cliente, Paquete, ESTADO_COLOR, inputCls, labelCls, resolveFotoUrl } from "./types";
-import { reservaDetailService } from "../../services/reserva.service";
+import { reservaDetailService, reservaService, type PagoResponse } from "../../services/reserva.service";
+import { type SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
 import AdminModal from "./ui/AdminModal";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
@@ -47,6 +49,7 @@ export interface Pago {
   monto: number;
   estado: "pendiente" | "procesando" | "pagado" | "rechazado" | "cancelado";
   referencia?: string;
+  fecha_pago?: string;
   metodo_pago?: { id_metodo: number; nombre_metodo: string };
 }
 
@@ -231,21 +234,25 @@ interface SidePanelProps {
   empleado?: Empleado;
   paquete?: Paquete;
   pago?: Pago;
+  /** Solicitudes de cancelación de ESTA reserva puntual (ya filtradas por
+   * el módulo principal) — para avisar acá mismo si el cliente pidió
+   * cancelar, sin obligar a saltar al módulo de Cancelaciones para verlo. */
+  solicitudesReserva?: SolicitudCancelacionResponse[];
   onClose: () => void;
   onDelete: (id: number) => void;
   onUpdateEstado: (id: number, estado: EstadoReserva) => Promise<void>;
 }
 
-function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelete, onUpdateEstado }: SidePanelProps) {
+function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReserva = [], onClose, onDelete, onUpdateEstado }: SidePanelProps) {
   if (!reserva) return null;
+
+  const solicitudPendiente = solicitudesReserva.find(s => s.estado === "pendiente");
 
   // reserva.precio_total ya viene calculado real desde el backend
   // (habitaciones + servicios + paquete) — se prefiere sobre una
   // estimación manual en el navegador. Se deja el cálculo con paquete
   // como respaldo únicamente para el caso raro de que aún no llegue.
   const totalReal = reserva.precio_total ?? (paquete ? paquete.precio_base * reserva.numero_personas : 0);
-  const montoPagado = pago?.monto ?? 0;
-  const pct = totalReal > 0 ? Math.min(100, Math.round((montoPagado / totalReal) * 100)) : 0;
 
   const [habitaciones, setHabitaciones] = useState<any[]>([]);
   const [servicios,    setServicios]    = useState<any[]>([]);
@@ -255,6 +262,49 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
 
   const [historial,        setHistorial]        = useState<HistorialItem[]>([]);
   const [historialLoading, setHistorialLoading] = useState(true);
+
+  // Historial COMPLETO real de pagos de esta reserva (GET /pagos/reserva/{id},
+  // sin el límite de 100 ni el "un solo pago por reserva" que tiene la lista
+  // que llega del Dashboard/módulo padre) — para verificar una reserva
+  // pendiente hace falta ver TODOS los intentos de pago, no solo uno.
+  // Arranca con el único `pago` que ya traía el módulo padre (pintado al
+  // instante) y se reemplaza por la lista real apenas responde el backend.
+  const [pagosCompletos, setPagosCompletos] = useState<PagoResponse[] | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    reservaService.getPagos(reserva.id_reserva)
+      .then((data) => { if (!cancelado) setPagosCompletos(data); })
+      .catch(() => { if (!cancelado) setPagosCompletos(null); });
+    return () => { cancelado = true; };
+  }, [reserva.id_reserva]);
+
+  const pagosReales: PagoResponse[] = pagosCompletos ?? (pago ? [pago as unknown as PagoResponse] : []);
+  const montoPagado = pagosReales.filter(p => p.estado === "pagado").reduce((sum, p) => sum + p.monto, 0);
+  const intentosFallidos = pagosReales.filter(p => p.estado === "rechazado").length;
+  const pct = totalReal > 0 ? Math.min(100, Math.round((montoPagado / totalReal) * 100)) : 0;
+
+  // Nota interna del asesor — no cambia el estado de la reserva, solo deja
+  // trazabilidad real de la gestión (ver POST /reservas/{id}/notas). Es la
+  // pieza central para que cualquier empleado que retome una reserva
+  // pendiente sepa qué gestiones ya se hicieron para verificarla.
+  const [notaTexto,     setNotaTexto]     = useState("");
+  const [guardandoNota, setGuardandoNota] = useState(false);
+  const [notaError,     setNotaError]     = useState("");
+
+  async function handleAgregarNota() {
+    const texto = notaTexto.trim();
+    if (!texto) return;
+    setGuardandoNota(true); setNotaError("");
+    try {
+      const nueva = await reservaDetailService.agregarNota(reserva.id_reserva, texto);
+      setHistorial(prev => [...prev, nueva]);
+      setNotaTexto("");
+    } catch {
+      setNotaError("No se pudo guardar la nota");
+    } finally {
+      setGuardandoNota(false);
+    }
+  }
 
   const [estadoLocal,  setEstadoLocal]  = useState<EstadoReserva>(reserva.estado as EstadoReserva);
   const [savingEstado, setSavingEstado] = useState(false);
@@ -311,22 +361,32 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
   // Arma los items del Timeline compartido a partir del historial real de
   // esta reserva (sin inventar nada: badge = estado anterior→nuevo, meta =
   // quién y cuándo, detail = comentario si lo hay).
-  const historialItems: TimelineItem[] = historial.map(h => ({
-    id: h.id_historial,
-    badge: (
-      <>
-        {h.estado_anterior && (
-          <>
-            <EstadoBadge estado={h.estado_anterior} />
-            <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-          </>
-        )}
-        {h.estado_nuevo && <EstadoBadge estado={h.estado_nuevo} />}
-      </>
-    ),
-    meta: `${h.nombre_empleado ?? "Sistema"} · ${tiempoRelativo(h.fecha_cambio)}`,
-    detail: h.comentarios ? `"${h.comentarios}"` : undefined,
-  }));
+  const historialItems: TimelineItem[] = historial.map(h => {
+    // Una nota interna se guarda con estado_anterior === estado_nuevo (ver
+    // POST /reservas/{id}/notas) — no fue un cambio real de estado, así que
+    // se marca distinto en vez de mostrar el confuso "confirmada → confirmada".
+    const esNota = !!h.estado_anterior && !!h.estado_nuevo && h.estado_anterior === h.estado_nuevo;
+    return {
+      id: h.id_historial,
+      badge: esNota ? (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+          <FileText className="w-3 h-3" /> Nota interna
+        </span>
+      ) : (
+        <>
+          {h.estado_anterior && (
+            <>
+              <EstadoBadge estado={h.estado_anterior} />
+              <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            </>
+          )}
+          {h.estado_nuevo && <EstadoBadge estado={h.estado_nuevo} />}
+        </>
+      ),
+      meta: `${h.nombre_empleado ?? "Sistema"} · ${tiempoRelativo(h.fecha_cambio)}`,
+      detail: h.comentarios ? `"${h.comentarios}"` : undefined,
+    };
+  });
 
   return (
     <AdminModal
@@ -354,6 +414,18 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
         </div>
       }
     >
+      {solicitudPendiente && (
+        <div className="flex items-center gap-2.5 p-3 mb-5 rounded-xl bg-[#f5e6e6] border border-[#c62828]/20">
+          <AlertCircle className="w-4 h-4 text-[#c62828] flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#c62828]">El cliente solicitó cancelar esta reserva</p>
+            <p className="text-xs text-[#c62828]/80">
+              Motivo: {solicitudPendiente.motivo}{solicitudPendiente.motivo_detalle ? ` — ${solicitudPendiente.motivo_detalle}` : ""}
+              {" · "}pendiente de resolver en el módulo de Cancelaciones
+            </p>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-5">
 
         {/* Columna izquierda: contexto */}
@@ -374,9 +446,27 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                       <p className="text-[11px] text-muted-foreground">CC {cliente.cedula}</p>
                     </div>
                   </div>
-                  <DetailRow icon={Mail}   label="Correo"  value={cliente.correo} />
-                  <DetailRow icon={Phone}  label="Celular" value={cliente.celular} />
-                  <DetailRow icon={MapPin} label="Ciudad"  value={`${cliente.ciudad}, ${cliente.pais}`} />
+                  <DetailRow icon={Mail} label="Correo" value={
+                    cliente.correo ? <a href={`mailto:${cliente.correo}`} className="hover:underline">{cliente.correo}</a> : undefined
+                  } />
+                  <DetailRow icon={Phone} label="Celular" value={
+                    cliente.celular ? (
+                      <span className="inline-flex items-center gap-2">
+                        <a href={`tel:${cliente.celular}`} className="hover:underline">{cliente.celular}</a>
+                        <a
+                          href={`https://wa.me/${cliente.celular.replace(/\D/g, "")}`}
+                          target="_blank" rel="noopener noreferrer"
+                          title="Contactar por WhatsApp"
+                          className="text-emerald-500 hover:text-emerald-600"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+                      </span>
+                    ) : undefined
+                  } />
+                  <DetailRow icon={MapPin} label="Ciudad"     value={`${cliente.ciudad}, ${cliente.pais}`} />
+                  <DetailRow icon={MapPin} label="Dirección"  value={cliente.direccion} />
+                  <DetailRow icon={Calendar} label="Nacimiento" value={cliente.fecha_nacimiento ? formatFechaCorta(cliente.fecha_nacimiento) : undefined} />
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">Cliente #{reserva.id_cliente}</p>
@@ -424,13 +514,28 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
                   <p className="text-[11px] text-muted-foreground mt-1">{pct}% pagado</p>
                 </div>
               )}
-              {pago ? (
-                <>
-                  <DetailRow icon={CreditCard}  label="Método"      value={pago.metodo_pago?.nombre_metodo} />
-                  <DetailRow icon={FileText}     label="Referencia"  value={pago.referencia} />
-                  <DetailRow icon={CheckCircle}  label="Estado pago" value={<StatusBadge status={pago.estado} />} />
-                  <DetailRow icon={CreditCard} label="Monto pagado" value={`$${pago.monto.toLocaleString("es-CO")}`} />
-                </>
+              {intentosFallidos > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 mb-2">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {intentosFallidos} intento{intentosFallidos > 1 ? "s" : ""} de pago rechazado{intentosFallidos > 1 ? "s" : ""} antes de este historial
+                </p>
+              )}
+              {pagosReales.length > 0 ? (
+                <div className="space-y-2.5">
+                  {[...pagosReales]
+                    .sort((a, b) => (b.fecha_pago ?? "").localeCompare(a.fecha_pago ?? ""))
+                    .map((p) => (
+                      <div key={p.id_pago} className="pb-2.5 border-b border-border/50 last:border-0 last:pb-0">
+                        <DetailRow icon={CreditCard}  label="Método"      value={p.metodo_pago?.nombre_metodo} />
+                        <DetailRow icon={FileText}    label="Referencia"  value={p.referencia} />
+                        <DetailRow icon={CheckCircle} label="Estado pago" value={<StatusBadge status={p.estado} />} />
+                        <DetailRow icon={CreditCard}  label="Monto"       value={`$${p.monto.toLocaleString("es-CO")}`} />
+                        {/* Dato ya disponible en PagoResponse.fecha_pago — antes solo se
+                            usaba para ordenar la lista, nunca se mostraba al admin. */}
+                        <DetailRow icon={Calendar}    label="Fecha"       value={p.fecha_pago ? formatFechaCorta(p.fecha_pago) : undefined} />
+                      </div>
+                    ))}
+                </div>
               ) : (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
@@ -558,6 +663,36 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, onClose, onDelet
             </div>
           </section>
 
+          {/* Nota interna — no cambia el estado, queda trazada abajo en el
+              historial. Pieza central para verificar reservas pendientes:
+              cualquier empleado que retome el caso ve qué gestiones ya se
+              hicieron sin depender de que se lo cuenten de viva voz. */}
+          <section>
+            <h3 className={section}><Send className="w-3.5 h-3.5" /> Nota interna</h3>
+            <div className={`${card} space-y-2`}>
+              <textarea
+                value={notaTexto}
+                onChange={(e) => setNotaTexto(e.target.value)}
+                placeholder="Ej: Llamé al cliente, confirmó que llega el día 10..."
+                rows={2}
+                className={`${inputCls} resize-none`}
+              />
+              {notaError && (
+                <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {notaError}
+                </p>
+              )}
+              <button
+                onClick={handleAgregarNota}
+                disabled={!notaTexto.trim() || guardandoNota}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-muted hover:bg-muted/70 text-foreground rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {guardandoNota ? "Guardando..." : "Agregar nota"}
+              </button>
+            </div>
+          </section>
+
           {/* Historial / Timeline */}
           <section>
             <h3 className={section}><FileText className="w-3.5 h-3.5" /> Historial de cambios</h3>
@@ -608,14 +743,25 @@ interface Props {
   empleados?: Empleado[];
   paquetes?: Paquete[];
   pagos?: Pago[];
+  /** Solicitudes de cancelación de TODAS las reservas — para avisar en el
+   * detalle de una reserva puntual si el cliente pidió cancelarla (ver
+   * `solicitudPendiente` en SidePanel), sin tener que ir al módulo de
+   * Cancelaciones a enterarse. */
+  solicitudes?: SolicitudCancelacionResponse[];
   onDelete: (id: number) => void;
   onNueva: () => void;
   onUpdateEstado: (id: number, estado: EstadoReserva) => Promise<void>;
+  /** Cuando el Dashboard (u otro módulo) quiere abrir el detalle de una
+   * reserva puntual directamente al entrar a este módulo — ver "Ver reserva"
+   * en Dashboard > Reservas próximas / Actividad reciente. Cambiar este
+   * valor abre el modal de esa reserva; no fuerza nada si el admin ya cerró
+   * el modal y no llegó un id nuevo. */
+  reservaIdInicial?: number | null;
 }
 
 export default function ModuleReservas({
-  reservas, clientes = [], empleados = [], paquetes = [], pagos = [],
-  onDelete, onNueva, onUpdateEstado,
+  reservas, clientes = [], empleados = [], paquetes = [], pagos = [], solicitudes = [],
+  onDelete, onNueva, onUpdateEstado, reservaIdInicial = null,
 }: Props) {
   const [search,       setSearch]       = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
@@ -623,6 +769,13 @@ export default function ModuleReservas({
   const [canalFilter,  setCanalFilter]  = useState<CanalFilter>("todos");
   const [asesorFilter, setAsesorFilter] = useState("todos");
   const [selectedId,   setSelectedId]   = useState<number | null>(null);
+
+  // Ver comentario de `reservaIdInicial` en Props — solo reacciona cuando
+  // el valor realmente cambia (ej. un nuevo click en "Ver reserva" desde
+  // Dashboard), no en cada render de este módulo.
+  useEffect(() => {
+    if (reservaIdInicial != null) setSelectedId(reservaIdInicial);
+  }, [reservaIdInicial]);
   const [hiddenCols,   setHiddenCols]   = useState<Set<ColumnKey>>(new Set(DEFAULT_HIDDEN));
 
   const isVisible = (key: ColumnKey) => !hiddenCols.has(key);
@@ -637,7 +790,24 @@ export default function ModuleReservas({
   const clienteMap  = Object.fromEntries(clientes.map(c  => [c.id_cliente,  c]));
   const empleadoMap = Object.fromEntries(empleados.map(e => [e.id_empleado, e]));
   const paqueteMap  = Object.fromEntries(paquetes.map(p  => [p.id_paquete,  p]));
-  const pagoMap     = Object.fromEntries(pagos.map(p     => [p.id_reserva,  p]));
+
+  // Antes: Object.fromEntries se quedaba con el ÚLTIMO pago de cada reserva
+  // en el orden en que llegara la lista (el backend no aplica ORDER BY en
+  // GET /pagos) — con dos pagos para la misma reserva (ej. un intento
+  // rechazado y su reintento aprobado) la tabla podía mostrar el estado de
+  // pago equivocado. Se prioriza el pago más representativo del estado real
+  // de la reserva: pagado > procesando > pendiente > rechazado > cancelado,
+  // y entre pagos del mismo estado se queda con el más reciente.
+  const PAGO_PRIORIDAD: Record<string, number> = { pagado: 0, procesando: 1, pendiente: 2, rechazado: 3, cancelado: 4 };
+  const pagoMap: Record<number, Pago> = {};
+  for (const p of pagos) {
+    const actual = pagoMap[p.id_reserva];
+    if (!actual) { pagoMap[p.id_reserva] = p; continue; }
+    const prioActual = PAGO_PRIORIDAD[actual.estado] ?? 99;
+    const prioNuevo  = PAGO_PRIORIDAD[p.estado] ?? 99;
+    if (prioNuevo < prioActual) { pagoMap[p.id_reserva] = p; }
+    else if (prioNuevo === prioActual && (p.fecha_pago ?? "") > (actual.fecha_pago ?? "")) { pagoMap[p.id_reserva] = p; }
+  }
 
   const selectedReserva = reservas.find(r => r.id_reserva === selectedId) ?? null;
 
@@ -1006,6 +1176,7 @@ export default function ModuleReservas({
           empleado={selectedReserva.id_empleado != null ? empleadoMap[selectedReserva.id_empleado] : undefined}
           paquete={paqueteMap[selectedReserva.id_paquete]}
           pago={pagoMap[selectedReserva.id_reserva]}
+          solicitudesReserva={solicitudes.filter(sc => sc.id_reserva === selectedReserva.id_reserva)}
           onClose={() => setSelectedId(null)}
           onDelete={(id) => { onDelete(id); setSelectedId(null); }}
           onUpdateEstado={onUpdateEstado}

@@ -25,6 +25,13 @@ export default function SearchBar() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [people, setPeople] = useState("1");
+
+  // Antes los campos de fecha no tenían ningún límite: se podía buscar con
+  // "Entrada" en el pasado o "Salida" antes que "Entrada". El mismo
+  // constraint ya existe en Checkout.tsx (min en los inputs + validación
+  // fechaFin<=fechaInicio) — se replica acá para que el buscador nunca deje
+  // armar una búsqueda con fechas imposibles.
+  const todayStr = new Date().toISOString().slice(0, 10);
   const [showDestinations, setShowDestinations] = useState(false);
   const [filteredDestinations, setFilteredDestinations] = useState<DestinoSugerencia[]>([]);
   // Posición del dropdown calculada en coordenadas de viewport, para
@@ -90,6 +97,7 @@ export default function SearchBar() {
     e.preventDefault();
 
     if (!destination.trim()) return;
+    if (startDate && endDate && endDate <= startDate) return;
 
     const params = new URLSearchParams({
       destination: destination.trim(),
@@ -169,6 +177,7 @@ export default function SearchBar() {
             <input
               type="date"
               value={startDate}
+              min={todayStr}
               onChange={(e) => setStartDate(e.target.value)}
               required
               className="w-full bg-transparent text-[13px] font-semibold outline-none"
@@ -182,6 +191,7 @@ export default function SearchBar() {
             <input
               type="date"
               value={endDate}
+              min={startDate || todayStr}
               onChange={(e) => setEndDate(e.target.value)}
               required
               className="w-full bg-transparent text-[13px] font-semibold outline-none"

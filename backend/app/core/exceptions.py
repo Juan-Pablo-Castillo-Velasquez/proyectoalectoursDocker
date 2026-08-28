@@ -42,14 +42,19 @@ class DependencyError(BaseAPIException):
 
 
 class HotelDependencyError(DependencyError):
-    """Error al eliminar hotel con habitaciones o características"""
-    def __init__(self, hotel_id: int, habitaciones: int = 0, caracteristicas: int = 0):
+    """Error al eliminar hotel con habitaciones, características o paquetes vinculados"""
+    def __init__(self, hotel_id: int, habitaciones: int = 0, caracteristicas: int = 0, paquetes: int = 0):
         dependencies = []
         if habitaciones > 0:
             dependencies.append(f"{habitaciones} habitación(es)")
         if caracteristicas > 0:
             dependencies.append(f"{caracteristicas} característica(s)")
-        
+        # Antes no se validaba esto: borrar un hotel vinculado a un paquete
+        # activo (PaqueteHotel.id_hotel es ondelete="CASCADE") eliminaba en
+        # silencio ese vínculo, dejando el paquete roto sin ningún aviso.
+        if paquetes > 0:
+            dependencies.append(f"{paquetes} paquete(s) turístico(s)")
+
         detail = (
             f"No se puede eliminar el hotel ID {hotel_id} porque tiene {' y '.join(dependencies)} asociadas. "
             f"Elimina o reasigna primero."

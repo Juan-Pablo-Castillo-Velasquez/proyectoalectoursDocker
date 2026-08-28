@@ -1,3 +1,6 @@
+from datetime import date
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -23,21 +26,35 @@ HOTELES_CACHE_PATTERN = "hoteles:list:*"
 @router.get("/", response_model=list[HotelDetailResponse])
 def get_hotels(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=300),
+    fecha_checkin: Optional[date] = Query(None, description="Filtra a hoteles con disponibilidad real desde esta fecha (requiere fecha_checkout)"),
+    fecha_checkout: Optional[date] = Query(None, description="Filtra a hoteles con disponibilidad real hasta esta fecha (requiere fecha_checkin)"),
     db: Session = Depends(get_db)
 ):
-    """Obtiene lista de hoteles. Cacheada 2 min — es el endpoint más pesado
-    del sitio público (home, listados) y del panel de admin (?limit=100),
-    invalidado en cualquier escritura que cambie lo que devuelve (hotel,
-    habitaciones, características o una reseña nueva — ver resena_route.py)."""
-    cache_key = f"hoteles:list:{skip}:{limit}"
+    """Obtiene lista de hoteles. Cacheada 2 min (30s si se filtra por fechas,
+    ya que esa disponibilidad cambia con cada reserva nueva) — es el endpoint
+    más pesado del sitio público (home, listados) y del panel de admin
+    (?limit=100), invalidado en cualquier escritura que cambie lo que
+    devuelve (hotel, habitaciones, características o una reseña nueva — ver
+    resena_route.py).
+
+    fecha_checkin/fecha_checkout son opcionales y deben ir juntas: antes el
+    buscador público las capturaba pero nunca las mandaba al backend, así
+    que un hotel sin ninguna habitación libre para esas fechas aparecía
+    igual en los resultados (bug real corregido en FASE G)."""
+    if (fecha_checkin is None) != (fecha_checkout is None):
+        raise HTTPException(status_code=400, detail="fecha_checkin y fecha_checkout deben enviarse juntas")
+    if fecha_checkin and fecha_checkout and fecha_checkout <= fecha_checkin:
+        raise HTTPException(status_code=400, detail="fecha_checkout debe ser posterior a fecha_checkin")
+
+    cache_key = f"hoteles:list:{skip}:{limit}:{fecha_checkin}:{fecha_checkout}"
     cached = get_cached(cache_key)
     if cached is not None:
         return cached
 
-    hoteles = HotelRepository.get_all(db, skip, limit)
+    hoteles = HotelRepository.get_all(db, skip, limit, fecha_checkin, fecha_checkout)
     data = [HotelDetailResponse.model_validate(h).model_dump(mode="json") for h in hoteles]
-    set_cached(cache_key, data, ttl_seconds=120)
+    set_cached(cache_key, data, ttl_seconds=30 if fecha_checkin else 120)
     return data
 
 

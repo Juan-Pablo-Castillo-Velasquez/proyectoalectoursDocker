@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Users, MapPin, Globe, Phone, Mail,
-  Calendar, CreditCard, ChevronRight,
+  Calendar, CreditCard, ChevronRight, AlertCircle, Heart,
 } from "lucide-react";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
+import { preferenciasService, type PreferenciaResponse } from "../../services/preferencias.service";
 import { Cliente, Reserva, inputCls, labelCls, resolveFotoUrl } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
@@ -87,6 +88,26 @@ export default function ModuleClientes({
       meta: `${r.hotel_nombre ?? r.destino ?? `Paquete #${r.id_paquete}`} · ${formatFechaCorta(r.fecha_inicio)} → ${formatFechaCorta(r.fecha_fin)}`,
       detail: r.precio_total != null ? `Total: $${r.precio_total.toLocaleString()}` : undefined,
     }));
+
+  // Preferencias de viaje reales del cliente (formulario que llena desde su
+  // propia cuenta, ver PreferenciaCliente en cliente_model.py) — ya
+  // existían en la base de datos pero el panel de admin nunca las
+  // consultaba. Útiles para un asesor que va a llamar/escribirle: saber de
+  // antemano qué tipo de viaje busca antes de hablar con él. 404 real
+  // (cliente que nunca las completó) se trata como "sin preferencias", no
+  // como error.
+  const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(null);
+  const [preferenciasCargando, setPreferenciasCargando] = useState(false);
+  useEffect(() => {
+    if (!profileId) { setPreferencias(null); return; }
+    let cancelado = false;
+    setPreferenciasCargando(true);
+    preferenciasService.getByCliente(profileId)
+      .then((data) => { if (!cancelado) setPreferencias(data); })
+      .catch(() => { if (!cancelado) setPreferencias(null); })
+      .finally(() => { if (!cancelado) setPreferenciasCargando(false); });
+    return () => { cancelado = true; };
+  }, [profileId]);
 
   function openCreate() { setEditingId(null); setForm(EMPTY_FORM); setMsg(null); setModalOpen(true); }
 
@@ -306,13 +327,47 @@ export default function ModuleClientes({
                 <Row label="Dirección" value={profile.direccion} />
                 <Row label="Ciudad" value={[profile.ciudad, profile.pais].filter(Boolean).join(", ") || "—"} />
                 <Row label="Nacimiento" value={formatFechaCorta(profile.fecha_nacimiento)} />
+                <Row label="Cliente desde" value={formatFechaCorta(profile.fecha_registro)} />
               </div>
 
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4 mb-2">Resumen</h4>
               <div className="space-y-0.5">
                 <Row label="Reservas totales" value={reservasCliente.length} />
                 <Row label="Total gastado" value={reservasCliente.length ? `$${totalGastado.toLocaleString()}` : "—"} />
-                <Row label="Solicitudes de cancelación" value={solicitudesCliente.length} />
+                <Row
+                  label="Solicitudes de cancelación"
+                  value={
+                    solicitudesCliente.length > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                        <AlertCircle className="w-3 h-3" /> {solicitudesCliente.length}
+                      </span>
+                    ) : 0
+                  }
+                />
+              </div>
+
+              {/* Preferencias de viaje reales — ya existían en la base de
+                  datos (formulario que el cliente llena desde su cuenta),
+                  el panel de admin nunca las mostraba. Nada se inventa: si
+                  el cliente nunca las completó, se dice explícitamente. */}
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4 mb-2 flex items-center gap-1.5">
+                <Heart className="w-3.5 h-3.5" /> Preferencias de viaje
+              </h4>
+              <div className="space-y-0.5">
+                {preferenciasCargando ? (
+                  <p className="text-xs text-muted-foreground py-1">Cargando...</p>
+                ) : preferencias ? (
+                  <>
+                    <Row label="Intereses" value={preferencias.intereses?.length ? preferencias.intereses.join(", ") : undefined} />
+                    <Row label="Compañía de viaje" value={preferencias.compania} />
+                    <Row label="Presupuesto" value={preferencias.presupuesto} />
+                    <Row label="Clima preferido" value={preferencias.clima} />
+                    <Row label="Ritmo de viaje" value={preferencias.ritmo} />
+                    <Row label="Transporte" value={preferencias.transporte} />
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground py-1">Este cliente no ha completado sus preferencias de viaje todavía.</p>
+                )}
               </div>
             </section>
 

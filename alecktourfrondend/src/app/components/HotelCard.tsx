@@ -18,7 +18,7 @@ import {
   Wine,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { HotelDetailResponse } from "../services/hotel.service";
 import { useFavoritos } from "../context/FavoritosContext";
 
@@ -91,6 +91,24 @@ function getPrecioMinimo(hotel: HotelDetailResponse): number | null {
 
 export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
   const { isFavorito, toggleFavorito, loadingIds } = useFavoritos();
+
+  // Propaga las fechas/huéspedes de la búsqueda al detalle del hotel (y de
+  // ahí a Checkout — ver HotelDetail.tsx/Checkout.tsx). Antes se perdían al
+  // hacer clic en un resultado y había que volver a escribirlas en
+  // Checkout. Cuando HotelCard se usa fuera de /search (ej. favoritos) esta
+  // query string simplemente viene vacía, sin efecto.
+  const [searchParams] = useSearchParams();
+  const searchQuery = (() => {
+    const start = searchParams.get("start");
+    const end = searchParams.get("end");
+    const people = searchParams.get("people");
+    if (!start && !end && !people) return "";
+    const p = new URLSearchParams();
+    if (start) p.set("start", start);
+    if (end) p.set("end", end);
+    if (people) p.set("people", people);
+    return `?${p.toString()}`;
+  })();
 
   /*
    * Protección importante:
@@ -209,7 +227,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
       {/* IMAGEN */}
       {/* ============================================ */}
       <Link
-        to={`/hotel/${hotel.id_hotel}`}
+        to={`/hotel/${hotel.id_hotel}${searchQuery}`}
         className="relative block h-[200px] w-full shrink-0 overflow-hidden bg-gray-100 md:h-auto md:w-[260px]"
       >
         <motion.img
@@ -274,7 +292,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
       <div className="flex flex-1 flex-col gap-4 p-5 md:flex-row md:items-stretch">
         {/* -------- INFO COMERCIAL -------- */}
         <div className="min-w-0 flex-1">
-          <Link to={`/hotel/${hotel.id_hotel}`} className="block">
+          <Link to={`/hotel/${hotel.id_hotel}${searchQuery}`} className="block">
             <h3 className="text-lg font-bold leading-tight text-gray-900 group-hover:text-[#8B1E3F] transition-colors">
               {hotel.nombre_hotel}
             </h3>
@@ -384,7 +402,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
           )}
 
           <Link
-            to={`/hotel/${hotel.id_hotel}`}
+            to={`/hotel/${hotel.id_hotel}${searchQuery}`}
             className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-[#8B1E3F] px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#71182F]"
           >
             Ver hotel

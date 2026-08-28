@@ -95,19 +95,26 @@ export default function SearchResults() {
   useEffect(() => {
     setLoading(true);
 
+    const start = searchParams.get("start");
+    const end = searchParams.get("end");
+    const ppl = searchParams.get("people");
+
+    if (start) setStartDate(start);
+    if (end) setEndDate(end);
+    if (ppl) setPeople(ppl);
+
+    // BUG real corregido (FASE G): antes las fechas se leían de la URL solo
+    // para mostrarlas como badges, nunca se mandaban al backend — un hotel
+    // sin disponibilidad real para esas fechas exactas aparecía igual en
+    // los resultados. Ahora, si vienen fechas completas y válidas, se
+    // filtran de verdad en GET /hoteles/ (ver hotel_repository.py). También
+    // se sube el límite pedido de 50 a 300 (el máximo real del backend,
+    // mismo ajuste ya hecho en los demás módulos con este patrón).
+    const fechasValidas = !!start && !!end && end > start;
+
     hotelService
-      .getAll()
-      .then((data) => {
-        setHoteles(data);
-
-        const start = searchParams.get("start");
-        const end = searchParams.get("end");
-        const ppl = searchParams.get("people");
-
-        if (start) setStartDate(start);
-        if (end) setEndDate(end);
-        if (ppl) setPeople(ppl);
-      })
+      .getAll(0, 300, fechasValidas ? { fechaCheckin: start!, fechaCheckout: end! } : undefined)
+      .then(setHoteles)
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [searchParams]);
@@ -181,13 +188,28 @@ export default function SearchResults() {
         caracteristicasFilter.length === 0 ||
         caracteristicasFilter.every((c) => nombresServicios.has(c));
 
+      /*
+       * FILTRO HUÉSPEDES — antes `people` se leía de la URL y se mostraba
+       * como badge, pero nunca se cruzaba contra la capacidad real de
+       * ninguna habitación (Habitacion.tipo_habitacion.capacidad_personas,
+       * dato que el backend ya manda). Se aproxima a nivel de hotel: califica
+       * si tiene al menos una habitación cuyo tipo alcance para el grupo.
+       */
+      const personasNum = parseInt(people, 10);
+      const matchesPersonas =
+        !personasNum ||
+        (h.habitaciones ?? []).some(
+          (hab) => (hab.tipo_habitacion?.capacidad_personas ?? 0) >= personasNum
+        );
+
       return (
         matchesDestination &&
         matchesCal &&
         matchesPais &&
         matchesCiudad &&
         matchesPrecio &&
-        matchesCaracteristicas
+        matchesCaracteristicas &&
+        matchesPersonas
       );
     });
 
@@ -216,6 +238,7 @@ export default function SearchResults() {
     precioFilter,
     caracteristicasFilter,
     ordenPor,
+    people,
   ]);
 
   /*

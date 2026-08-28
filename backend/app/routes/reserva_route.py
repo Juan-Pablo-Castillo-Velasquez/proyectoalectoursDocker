@@ -20,7 +20,7 @@ from app.schemas.reserva_schema import (
 )
 from app.schemas.reserva_detail import (
     ReservaHabitacionDetail, ReservaServicioDetail, ReservaHistorialDetail,
-    ActividadRecienteItem,
+    ActividadRecienteItem, NotaInternaCreate,
 )
 from app.repositories.reserva_repository import (
     PaqueteRepository, ReservaRepository, PagoRepository, MetodoPagoRepository
@@ -30,6 +30,8 @@ from app.models.servicio_model import Servicio
 from app.models.hotel_model import Hotel, HotelCaracteristica
 from app.services import payment_service
 from app.services.notificacion_service import crear_notificacion
+from app.core.security import require_admin
+from app.models.user_model import Usuario
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 
@@ -88,7 +90,7 @@ def _asignar_numero_factura(db: Session, pago: Pago) -> None:
 @router.get("/paquetes", response_model=list[PaqueteResponse])
 def get_paquetes(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=300),
     incluir_inactivos: bool = Query(False, description="Solo para el panel de admin: incluye paquetes desactivados"),
     db: Session = Depends(get_db)
 ):
@@ -294,6 +296,28 @@ def get_servicios_reserva(reserva_id: int, db: Session = Depends(get_db)):
 def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
     """Obtiene historial de cambios de una reserva"""
     return ReservaDetailService.get_historial(db, reserva_id)
+
+
+@router.post("/reservas/{reserva_id}/notas", response_model=ReservaHistorialDetail)
+def agregar_nota_reserva(
+    reserva_id: int,
+    data: NotaInternaCreate,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """
+    Nota interna del asesor sobre una reserva (ej. 'llamé al cliente,
+    confirmó que llega el día 10') — no cambia el estado, solo deja
+    trazabilidad real en el mismo historial que ya alimenta el timeline,
+    para que cualquier empleado que retome el caso (ej. verificar una
+    reserva pendiente) vea qué gestiones ya se hicieron.
+    """
+    admin = db.query(Usuario).filter(Usuario.id_usuario == admin_id).first()
+    id_empleado = admin.empleado.id_empleado if admin and admin.empleado else None
+    nota = ReservaDetailService.add_nota(db, reserva_id, id_empleado, data.comentario)
+    if nota is None:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    return nota
 
 
 @router.get("/historial-reservas/recientes", response_model=list[ActividadRecienteItem])
@@ -536,7 +560,7 @@ def create_metodo_pago(metodo: MetodoPagoCreate, db: Session = Depends(get_db)):
 @router.get("/pagos", response_model=list[PagoResponse])
 def get_pagos(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=300),
     db: Session = Depends(get_db)
 ):
     """Obtiene lista de pagos. Cacheada 60s — mismo criterio de TTL corto que

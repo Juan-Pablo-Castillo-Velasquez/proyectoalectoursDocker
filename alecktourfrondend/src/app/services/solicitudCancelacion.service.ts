@@ -43,10 +43,15 @@ export const solicitudCancelacionService = {
       `/clientes/${clienteId}/solicitudes-cancelacion?skip=${skip}&limit=${limit}`,
     ),
 
-  // Admin: requiere rol "admin" en el JWT.
+  // Admin: requiere rol "admin" en el JWT. limit=200 es el máximo real que
+  // acepta el backend (Query(..., le=200) en solicitud_cancelacion_route.py)
+  // — se pide explícito en vez del default de 100 para que, si algún día
+  // hay más de 100 solicitudes, las pendientes más antiguas no queden
+  // fuera silenciosamente (el backend ya las prioriza, pero solo dentro
+  // del límite que se le pida).
   getAll: (estado?: string) =>
     apiFetch<SolicitudCancelacionResponse[]>(
-      `/solicitudes-cancelacion${estado ? `?estado=${estado}` : ''}`,
+      `/solicitudes-cancelacion?limit=200${estado ? `&estado=${estado}` : ''}`,
     ),
 
   resolver: (idSolicitud: number, data: SolicitudCancelacionResolveInput) =>

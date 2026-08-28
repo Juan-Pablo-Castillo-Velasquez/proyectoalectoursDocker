@@ -11,7 +11,18 @@ class ClienteRepository:
     def get_all(db: Session, skip: int = 0, limit: int = 10):
         # joinedload(Cliente.usuario) evita N+1 al resolver Cliente.foto_perfil
         # (propiedad usada por ClienteResponse) para cada cliente de la lista.
-        return db.query(Cliente).options(joinedload(Cliente.usuario)).offset(skip).limit(limit).all()
+        # order_by agregado: sin él, una vez la tabla supera `limit`, qué
+        # subconjunto de clientes devuelve la consulta queda a criterio del
+        # motor de base de datos (sin garantía de orden) — con id_cliente
+        # como criterio estable, al menos siempre son los mismos primero.
+        return (
+            db.query(Cliente)
+            .options(joinedload(Cliente.usuario))
+            .order_by(Cliente.id_cliente)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     @staticmethod
     def get_by_id(db: Session, cliente_id: int):
@@ -43,6 +54,18 @@ class ClienteRepository:
             db.commit()
             db.refresh(cliente)
         return cliente
+
+    @staticmethod
+    def existe_otro_con_correo(db: Session, cliente_id: int, correo: str) -> bool:
+        """Antes update_cliente no validaba esto y una edición a un correo ya
+        usado por OTRO cliente reventaba con un IntegrityError sin capturar
+        (500 crudo) en vez del mensaje claro que create_cliente ya da."""
+        return (
+            db.query(Cliente)
+            .filter(Cliente.correo == correo, Cliente.id_cliente != cliente_id)
+            .first()
+            is not None
+        )
     
     @staticmethod
     def delete(db: Session, cliente_id: int):

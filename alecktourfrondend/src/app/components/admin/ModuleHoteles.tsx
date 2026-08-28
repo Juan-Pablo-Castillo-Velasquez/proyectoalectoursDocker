@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Trash2, Pencil, PlusCircle, Star, MapPin, Bed, Hotel } from "lucide-react";
+import { Search, Trash2, Pencil, PlusCircle, Star, MapPin, Bed, Hotel, AlertTriangle } from "lucide-react";
 import { HotelData, inputCls, labelCls } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
@@ -140,9 +140,38 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading }: 
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Bed className="w-3.5 h-3.5" /> {h.habitaciones?.length ?? 0}
-                    </span>
+                    {(() => {
+                      // Antes solo mostraba el total de habitaciones. El backend
+                      // (HotelDetailResponse) ya manda el estado real de cada
+                      // habitación (Habitacion.estado), así que ahora se muestra
+                      // el desglose real disponible/ocupada/mantenimiento en vez
+                      // de un número plano, y se marca cuando un hotel no tiene
+                      // ninguna habitación registrada (no puede recibir reservas
+                      // de hotel aunque aparezca "activo" en el listado público).
+                      const habs = h.habitaciones ?? [];
+                      if (habs.length === 0) {
+                        return (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full whitespace-nowrap">
+                            <AlertTriangle className="w-3 h-3" /> Sin habitaciones
+                          </span>
+                        );
+                      }
+                      const disponibles = habs.filter(hb => hb.estado === "disponible").length;
+                      const ocupadas = habs.filter(hb => hb.estado === "ocupada").length;
+                      const mantenimiento = habs.filter(hb => hb.estado === "mantenimiento").length;
+                      return (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 text-emerald-600">
+                            <Bed className="w-3.5 h-3.5" /> {disponibles}
+                          </span>
+                          <span className="text-border">/</span>
+                          <span>{ocupadas} ocup.</span>
+                          {mantenimiento > 0 && (
+                            <span className="text-amber-600">· {mantenimiento} mant.</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {h.correo_electronico && <p className="truncate max-w-[180px]">{h.correo_electronico}</p>}

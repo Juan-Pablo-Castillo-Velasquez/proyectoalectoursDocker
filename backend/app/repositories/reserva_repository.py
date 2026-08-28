@@ -19,7 +19,7 @@ class PaqueteRepository:
         query = db.query(Paquete)
         if not incluir_inactivos:
             query = query.filter(Paquete.activo == True)
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(Paquete.id_paquete).offset(skip).limit(limit).all()
     
     @staticmethod
     def get_by_id(db: Session, paquete_id: int):
@@ -171,12 +171,23 @@ class ReservaRepository:
         db.flush()  # asigna id_reserva sin cerrar la transacción
 
         for h, habitacion in habitaciones_validadas:
+            # BUG real corregido: antes guardaba precio_acordado=precio_noche
+            # (tarifa de UNA sola noche) sin importar cuántas noches durara la
+            # estadía. Reserva.precio_total (ver reserva_model.py) suma
+            # precio_acordado tal cual, y pagar_reserva (reserva_route.py)
+            # cobra ese total tal cual — así que una reserva de varias noches
+            # se cobraba como si fuera de una sola, mientras el checkout
+            # público (Checkout.tsx) sí calculaba y mostraba al cliente el
+            # total real (precio_noche * noches). Se corrige acá, en el único
+            # lugar donde se fija el precio real (nunca el que mande el
+            # frontend), multiplicando por las noches reales de la reserva.
+            noches = (h["fecha_checkout"] - h["fecha_checkin"]).days or 1
             reserva_habitacion = ReservaHabitacion(
                 id_reserva=reserva.id_reserva,
                 id_habitacion=habitacion.id_habitacion,
                 fecha_checkin=h["fecha_checkin"],
                 fecha_checkout=h["fecha_checkout"],
-                precio_acordado=habitacion.precio_noche,  # precio real de la BD, no el del frontend
+                precio_acordado=habitacion.precio_noche * noches,  # precio real de la BD × noches, no el del frontend
             )
             db.add(reserva_habitacion)
 
@@ -228,7 +239,12 @@ class PagoRepository:
     
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Pago).offset(skip).limit(limit).all()
+        # BUG del mismo patrón encontrado en todos los demás módulos: sin
+        # order_by, Postgres no garantiza ningún orden estable, así que una
+        # vez que hay más pagos que el `limit`, cuáles quedan afuera es
+        # arbitrario e inestable entre requests — afecta directamente qué
+        # pago "más representativo" ve el admin en ModuleReservas.tsx.
+        return db.query(Pago).order_by(Pago.fecha_pago.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
     def get_by_id(db: Session, pago_id: int):
@@ -240,7 +256,7 @@ class PagoRepository:
     
     @staticmethod
     def get_by_estado(db: Session, estado: str, skip: int = 0, limit: int = 10):
-        return db.query(Pago).filter(Pago.estado == estado).offset(skip).limit(limit).all()
+        return db.query(Pago).filter(Pago.estado == estado).order_by(Pago.fecha_pago.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
     def create(db: Session, pago_data: dict):

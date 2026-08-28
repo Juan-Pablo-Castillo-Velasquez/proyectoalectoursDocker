@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["Clientes y Empleados"])
 # ===================== CLIENTES CRUD =====================
 
 @router.get("/clientes", response_model=list[ClienteResponse])
-def get_clientes(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db)):
+def get_clientes(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=300), db: Session = Depends(get_db)):
     # Cacheado 2 min: este listado lo pide el panel de admin completo
     # (?limit=100) cada vez que se abre — invalidado en cualquier escritura
     # de cliente (crear/editar/eliminar) o de su foto de perfil (usuario_route.py).
@@ -92,6 +92,11 @@ def vincular_cliente(usuario_id: int, data: VincularClienteRequest, db: Session 
 def update_cliente(cliente_id: int, cliente: ClienteUpdate, db: Session = Depends(get_db)):
     if not ClienteRepository.get_by_id(db, cliente_id):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    # create_cliente ya validaba correo duplicado con un mensaje claro;
+    # update_cliente no lo hacía y dejaba que el CHECK/UNIQUE de la base de
+    # datos reventara con un IntegrityError sin capturar (500 crudo).
+    if cliente.correo and ClienteRepository.existe_otro_con_correo(db, cliente_id, cliente.correo):
+        raise HTTPException(status_code=400, detail="Email ya registrado por otro cliente")
     actualizado = ClienteRepository.update(db, cliente_id, cliente.dict(exclude_unset=True))
     delete_pattern("clientes:list:*")
     return actualizado

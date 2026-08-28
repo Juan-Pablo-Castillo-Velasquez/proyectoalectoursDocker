@@ -86,6 +86,15 @@ export default function AdminDashboard() {
 
   const [confirmDelete, setConfirmDelete] = useState<PendingDelete | null>(null);
 
+  // Deep-link desde el Dashboard ("Reservas próximas" / "Actividad
+  // reciente") hacia el detalle real de una reserva dentro del módulo
+  // Reservas — ver ModuleReservas.reservaIdInicial.
+  const [reservaParaAbrir, setReservaParaAbrir] = useState<number | null>(null);
+  const verReserva = (id: number) => {
+    setReservaParaAbrir(id);
+    setActiveModule("reservas");
+  };
+
   // ─── Dark mode via clase en <html> ───────────────────────────────────────
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -126,7 +135,7 @@ export default function AdminDashboard() {
     const cached = getLocalCache<HotelData[]>("admin_cache_hoteles");
     if (cached) setHoteles(cached);
     try {
-      const fresh = await apiFetch<HotelData[]>("/hoteles/?limit=100");
+      const fresh = await apiFetch<HotelData[]>("/hoteles/?limit=300");
       setHoteles(fresh);
       setLocalCache("admin_cache_hoteles", fresh, ADMIN_CACHE_TTL);
     } catch {}
@@ -138,7 +147,7 @@ export default function AdminDashboard() {
     const cached = getLocalCache<Paquete[]>("admin_cache_paquetes");
     if (cached) setPaquetes(cached);
     try {
-      const fresh = await apiFetch<Paquete[]>("/paquetes?limit=100&incluir_inactivos=true");
+      const fresh = await apiFetch<Paquete[]>("/paquetes?limit=300&incluir_inactivos=true");
       setPaquetes(fresh);
       setLocalCache("admin_cache_paquetes", fresh, ADMIN_CACHE_TTL);
     } catch {}
@@ -147,13 +156,13 @@ export default function AdminDashboard() {
     const cached = getLocalCache<Cliente[]>("admin_cache_clientes");
     if (cached) setClientes(cached);
     try {
-      const fresh = await apiFetch<Cliente[]>("/clientes?limit=100");
+      const fresh = await apiFetch<Cliente[]>("/clientes?limit=300");
       setClientes(fresh);
       setLocalCache("admin_cache_clientes", fresh, ADMIN_CACHE_TTL);
     } catch {}
   };
   const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch {} };
-  const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=100"));               } catch {} };
+  const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=300"));               } catch {} };
   const fetchMetodosPago = async () => { try { setMetodosPago(await apiFetch<MetodoPago[]>("/metodos-pago"));    } catch {} };
   const fetchUsuarios  = async () => {
     try {
@@ -445,19 +454,16 @@ export default function AdminDashboard() {
 
   const MODULES: Record<Module, React.ReactNode> = {
     dashboard: (
-      <ModuleDashboard
-        reservas={reservas} hoteles={hoteles} paquetes={paquetes}
-        clientes={clientes} setActiveModule={setActiveModule}
-        pendingCancelaciones={pendingCancelaciones}
-      />
+      <ModuleDashboard setActiveModule={setActiveModule} onVerReserva={verReserva} />
     ),
     reservas: (
       <ModuleReservas
         reservas={reservas} clientes={clientes} empleados={empleados}
-        paquetes={paquetes} pagos={pagos}
+        paquetes={paquetes} pagos={pagos} solicitudes={solicitudes}
         onDelete={deleteReserva}
         onNueva={() => setActiveModule("crear-reserva")}
         onUpdateEstado={updateEstadoReserva}
+        reservaIdInicial={reservaParaAbrir}
       />
     ),
     "crear-reserva": (
@@ -467,7 +473,7 @@ export default function AdminDashboard() {
       <ModuleHoteles hoteles={hoteles} onDelete={deleteHotel} onSubmit={submitHotel} loading={loading} />
     ),
     paquetes: (
-      <ModulePaquetes paquetes={paquetes} onDelete={deletePaquete} onSubmit={submitPaquete} loading={loading} />
+      <ModulePaquetes paquetes={paquetes} reservas={reservas} onDelete={deletePaquete} onSubmit={submitPaquete} loading={loading} />
     ),
     clientes: (
       <ModuleClientes
@@ -489,11 +495,13 @@ export default function AdminDashboard() {
         empleados={empleados}
         reservas={reservas}
         onResolve={resolverSolicitud}
+        onVerReserva={verReserva}
       />
     ),
     empresas: (
       <ModuleEmpresas
         solicitudes={solicitudesCorporativas}
+        clientes={clientes}
         onUpdateEstado={updateEstadoEmpresa}
         onDelete={deleteEmpresa}
       />

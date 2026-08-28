@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search, XCircle, CheckCircle, Clock, MessageSquare, ChevronRight,
+  AlertCircle, MessageCircle, Calendar, Users, Globe, ArrowUpRight,
 } from "lucide-react";
 import { Cliente, Empleado, Reserva, ESTADO_COLOR } from "./types";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
+import { reservaService, type PagoResponse } from "../../services/reserva.service";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
@@ -62,10 +64,15 @@ interface Props {
   empleados?: Empleado[];
   reservas?: Reserva[];
   onResolve: (id: number, data: { estado: "aprobada" | "rechazada"; comentario_resolucion: string }) => Promise<void>;
+  /** Abre el detalle completo de la reserva vinculada en el módulo de
+   * Reservas (mismo mecanismo que "Reservas próximas" en el Dashboard, ver
+   * `reservaIdInicial` en ModuleReservas.tsx) — para no forzar al admin a
+   * buscarla manualmente cuando necesita más contexto del que cabe acá. */
+  onVerReserva?: (id: number) => void;
 }
 
 export default function ModuleCancelaciones({
-  solicitudes, clientes = [], empleados = [], reservas = [], onResolve,
+  solicitudes, clientes = [], empleados = [], reservas = [], onResolve, onVerReserva,
 }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoSolicitudFilter>("todos");
@@ -77,6 +84,28 @@ export default function ModuleCancelaciones({
   const reservaMap  = Object.fromEntries(reservas.map(r => [r.id_reserva, r]));
 
   const selected = solicitudes.find(s => s.id_solicitud === selectedId) ?? null;
+
+  // Pago(s) real(es) de la reserva vinculada a la solicitud abierta — para
+  // que aprobar/rechazar una cancelación se decida con el cuadro completo
+  // (¿ya se le cobró algo al cliente?), no solo con el motivo del cliente.
+  // GET /pagos/reserva/{id} trae la lista real completa, sin el límite de
+  // 100 ni el problema de "un solo pago por reserva" del arreglo global.
+  const [pagosReserva, setPagosReserva] = useState<PagoResponse[]>([]);
+  useEffect(() => {
+    if (!selected) { setPagosReserva([]); return; }
+    let cancelado = false;
+    reservaService.getPagos(selected.id_reserva)
+      .then((data) => { if (!cancelado) setPagosReserva(data); })
+      .catch(() => { if (!cancelado) setPagosReserva([]); });
+    return () => { cancelado = true; };
+  }, [selected?.id_reserva]);
+
+  // Suma real de lo ya pagado (solo pagos con estado "pagado" cuentan como
+  // ingreso real, mismo criterio que el Dashboard y ModuleReservas.tsx) —
+  // esto es lo que queda en el aire si se aprueba la cancelación, porque el
+  // sistema hoy no tiene forma de marcar un pago como reembolsado (ver nota
+  // en alektours_admin_redesign.md).
+  const montoYaPagado = pagosReserva.filter(p => p.estado === "pagado").reduce((sum, p) => sum + p.monto, 0);
 
   const counts = solicitudes.reduce((acc, s) => {
     acc[s.estado] = (acc[s.estado] ?? 0) + 1;
@@ -280,11 +309,52 @@ export default function ModuleCancelaciones({
                 <div className="bg-card rounded-xl border border-border p-3">
                   <Row label="Cliente" value={cl ? `${cl.nombre} ${cl.apellido}` : `#${selected.id_cliente}`} />
                   <Row label="Correo" value={cl?.correo} />
+                  <Row label="Celular" value={
+                    cl?.celular ? (
+                      <span className="inline-flex items-center gap-2 justify-end">
+                        <a href={`tel:${cl.celular}`} className="hover:underline">{cl.celular}</a>
+                        <a
+                          href={`https://wa.me/${cl.celular.replace(/\D/g, "")}`}
+                          target="_blank" rel="noopener noreferrer"
+                          title="Contactar por WhatsApp"
+                          className="text-emerald-500 hover:text-emerald-600"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+                      </span>
+                    ) : undefined
+                  } />
                   <Row label="Reserva vinculada" value={r ? (r.hotel_nombre ?? `Paquete #${r.id_paquete}`) : `#${selected.id_reserva}`} />
                   <Row label="Fechas" value={r ? `${formatFechaCorta(r.fecha_inicio)} → ${formatFechaCorta(r.fecha_fin)}` : "—"} />
+                  <Row label="Viajeros" value={r ? `${r.numero_personas} personas` : undefined} />
+                  <Row label="Canal de origen" value={r ? (r.canal_origen === "empleado" ? "Presencial" : r.canal_origen === "telefono" ? "Teléfono" : "Web") : undefined} />
+                  <Row label="Total de la reserva" value={r?.precio_total != null ? `$${r.precio_total.toLocaleString("es-CO")}` : undefined} />
                   <Row label="Estado actual de la reserva" value={r ? <StatusBadge status={r.estado} /> : "—"} />
+                  <Row
+                    label="Pago ya realizado"
+                    value={montoYaPagado > 0 ? `$${montoYaPagado.toLocaleString("es-CO")}` : "Sin pagos aprobados registrados"}
+                  />
                 </div>
+                {onVerReserva && (
+                  <button
+                    onClick={() => onVerReserva(selected.id_reserva)}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    Ver reserva completa en Reservas <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                )}
               </section>
+
+              {montoYaPagado > 0 && selected.estado === "pendiente" && (
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#fdf6e3] border border-[#C9A227]/30">
+                  <AlertCircle className="w-4 h-4 text-[#C9A227] flex-shrink-0" />
+                  <p className="text-xs text-[#8a6d10] dark:text-[#C9A227]">
+                    El cliente ya pagó ${montoYaPagado.toLocaleString("es-CO")} por esta reserva. Aprobar la
+                    cancelación NO reembolsa el dinero automáticamente — el sistema todavía no tiene un estado
+                    de "reembolsado", así que el reembolso hay que gestionarlo por fuera de la plataforma.
+                  </p>
+                </div>
+              )}
 
               <section>
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">

@@ -63,6 +63,21 @@ export default function Checkout() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [metodoPago, setMetodoPago] = useState<number>(1);
+
+  // Prellena fechas/huéspedes si vienen del buscador (SearchBar → HotelCard
+  // → HotelDetail → acá, ver esos archivos). Antes se perdían por completo:
+  // el cliente elegía sus fechas en el buscador y tenía que volver a
+  // escribirlas desde cero en el checkout. Sigue siendo editable — es solo
+  // un valor inicial, igual que el resto de datos prellenados del cliente.
+  useEffect(() => {
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+    const ppl = searchParams.get('people');
+    if (start) setFechaInicio(start);
+    if (end) setFechaFin(end);
+    if (ppl && !Number.isNaN(parseInt(ppl, 10))) setPeople(parseInt(ppl, 10));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [paymentOption, setPaymentOption] = useState<'full' | 'partial'>('full');
 
   // ── Datos por método de pago (nunca se envía el número completo de

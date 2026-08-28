@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from app.models.reserva_model import Reserva, HistorialReserva
 
 class ReservaDetailRepository:
 
@@ -62,3 +63,39 @@ class ReservaDetailRepository:
             ORDER BY hr.fecha_cambio ASC
         """), {"id": reserva_id}).fetchall()
         return [dict(r._mapping) for r in result]
+
+    @staticmethod
+    def add_nota(db: Session, reserva_id: int, id_empleado, comentario: str):
+        """
+        Nota interna de un asesor sobre una reserva — no cambia el estado
+        (estado_anterior == estado_nuevo == estado actual), solo deja
+        trazabilidad real en la misma tabla historial_reservas que ya
+        alimenta el timeline y `fecha_ultima_actualizacion` (ver
+        Reserva.fecha_ultima_actualizacion en reserva_model.py, que toma el
+        max(fecha_cambio) del historial). No agrega ninguna tabla/columna.
+        Retorna None si la reserva no existe.
+        """
+        reserva = db.query(Reserva).filter(Reserva.id_reserva == reserva_id).first()
+        if not reserva:
+            return None
+        historial = HistorialReserva(
+            id_reserva=reserva_id,
+            estado_anterior=reserva.estado,
+            estado_nuevo=reserva.estado,
+            id_empleado_responsable=id_empleado,
+            comentarios=comentario,
+        )
+        db.add(historial)
+        db.commit()
+        db.refresh(historial)
+        nombre_empleado = "Sistema"
+        if historial.empleado_responsable:
+            nombre_empleado = f"{historial.empleado_responsable.nombre} {historial.empleado_responsable.apellido}"
+        return {
+            "id_historial": historial.id_historial,
+            "estado_anterior": historial.estado_anterior,
+            "estado_nuevo": historial.estado_nuevo,
+            "fecha_cambio": historial.fecha_cambio,
+            "comentarios": historial.comentarios,
+            "nombre_empleado": nombre_empleado,
+        }

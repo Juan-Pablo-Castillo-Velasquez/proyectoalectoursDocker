@@ -1,37 +1,25 @@
 import { useEffect, useState } from "react";
 import {
-  CalendarDays, Clock, CheckCircle, Hotel,
-  PlusCircle, Package, Users, TrendingUp,
-  DollarSign, ArrowUpRight, AlertCircle, XCircle,
-  Inbox, Activity,
+  CalendarDays, CheckCircle, Hotel, PlusCircle, Package, Users,
+  TrendingUp, TrendingDown, Minus, DollarSign, ArrowUpRight, AlertCircle,
+  XCircle, Activity, Building2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
-  AreaChart, Area
+  ComposedChart, Line,
 } from "recharts";
-import { Reserva, HotelData, Paquete, Cliente } from "./types";
-import { apiFetch } from "../../api/v1/api";
+import { dashboardService, type DashboardResumen, type TendenciaValor } from "../../services/dashboard.service";
 import { reservaDetailService, type ActividadRecienteItem } from "../../services/reserva.service";
 import StatusBadge from "./ui/StatusBadge";
 
-interface Pago {
-  id_pago: number;
-  id_reserva: number;
-  monto: number;
-  estado: string;
-  fecha_pago: string;
-  metodo_pago: { id_metodo: number; nombre_metodo: string };
-}
-
 interface Props {
-  reservas: Reserva[];
-  hoteles: HotelData[];
-  paquetes: Paquete[];
-  clientes: Cliente[];
   setActiveModule: (m: any) => void;
-  /** Conteo real de solicitudes de cancelación pendientes (ver Admindashboard.tsx) */
-  pendingCancelaciones: number;
+  /** Abre directamente el detalle de esa reserva dentro del módulo
+   * Reservas — así "Reservas próximas" y "Actividad reciente" llevan al
+   * recurso real en vez de solo cambiar de pestaña (ver punto 44,
+   * "coherencia operacional", del brief de FASE A). */
+  onVerReserva: (id: number) => void;
 }
 
 // Formato relativo simple ("Hace 5 min", "Ayer") para el feed de actividad
@@ -50,8 +38,20 @@ function tiempoRelativo(fechaISO: string): string {
   return new Date(fechaISO).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function formatMes(mes: string): string {
+  const [y, m] = mes.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("es-CO", { month: "short", year: "2-digit" });
+}
+
 // Paleta brand AlekTours: granate, dorado, oscuro, crema, rosa
-const COLORS = ["#7B1E3A", "#C9A227", "#2E2E2E", "#A13B55", "#E6D3C5", "#a83255", "#c9a227", "#7b1e3a"];
+const COLORS = ["#7B1E3A", "#C9A227", "#2E2E2E", "#A13B55", "#E6D3C5", "#a83255"];
+
+const ESTADO_LABELS: Record<string, string> = {
+  pendiente: "Pendiente", confirmada: "Confirmada", cancelada: "Cancelada", finalizada: "Finalizada",
+};
+const ESTADO_COLORS: Record<string, string> = {
+  pendiente: "#C9A227", confirmada: "#7B1E3A", cancelada: "#2E2E2E", finalizada: "#A13B55",
+};
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -71,86 +71,105 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes, setActiveModule, pendingCancelaciones }: Props) {
-  const [pagos, setPagos] = useState<Pago[]>([]);
+export default function ModuleDashboard({ setActiveModule, onVerReserva }: Props) {
+  const [resumen, setResumen] = useState<DashboardResumen | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [actividad, setActividad] = useState<ActividadRecienteItem[]>([]);
 
   useEffect(() => {
-    apiFetch<Pago[]>("/pagos?limit=100").then(setPagos).catch(() => {});
+    dashboardService.getResumen()
+      .then((r) => { setResumen(r); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
     reservaDetailService.getActividadReciente(12).then(setActividad).catch(() => {});
   }, []);
 
-  // --- KPIs ---
-  const totalIngresos = pagos.reduce((a, p) => a + p.monto, 0);
-  const pagosPendientes = pagos.filter(p => p.estado === "pendiente").length;
-  const confirmadas = reservas.filter(r => r.estado === "confirmada").length;
-  const pendientes = reservas.filter(r => r.estado === "pendiente").length;
-  const canceladas = reservas.filter(r => r.estado === "cancelada").length;
-  const finalizadas = reservas.filter(r => r.estado === "finalizada").length;
+  if (loading) {
+    return (
+      <div className="h-96 flex items-center justify-center text-muted-foreground">
+        Cargando resumen operativo...
+      </div>
+    );
+  }
 
-  // --- Pie estado ---
-  const estadoData = [
-    { name: "Pendiente",  value: pendientes,  color: "#C9A227" },
-    { name: "Confirmada", value: confirmadas, color: "#7B1E3A" },
-    { name: "Cancelada",  value: canceladas,  color: "#2E2E2E" },
-    { name: "Finalizada", value: finalizadas, color: "#A13B55" },
-  ].filter(d => d.value > 0);
+  if (error || !resumen) {
+    return (
+      <div className="h-96 flex flex-col items-center justify-center text-muted-foreground gap-2">
+        <AlertCircle className="w-8 h-8" />
+        <p className="text-sm">No se pudo cargar el resumen operativo. Intenta recargar la página.</p>
+      </div>
+    );
+  }
 
-  // --- Paquetes más reservados ---
-  const paqueteCount: Record<number, number> = {};
-  reservas.forEach(r => {
-    if (r.id_paquete) paqueteCount[r.id_paquete] = (paqueteCount[r.id_paquete] || 0) + 1;
-  });
-  const paquetesData = Object.entries(paqueteCount)
-    .map(([id, count]) => ({
-      name: paquetes.find(p => p.id_paquete === parseInt(id))?.nombre_paquete?.split(" ").slice(0, 3).join(" ") || `Paquete #${id}`,
-      reservas: count,
-      ingresos: pagos
-        .filter(p => reservas.find(r => r.id_reserva === p.id_reserva && r.id_paquete === parseInt(id)))
-        .reduce((a, p) => a + p.monto, 0),
-    }))
-    .sort((a, b) => b.reservas - a.reservas);
+  // ---------- Requiere atención ----------
+  type Tono = "critico" | "medio" | "info";
+  const alertas: { tono: Tono; texto: string; onClick: () => void }[] = [];
+  if (resumen.solicitudes_cancelacion_pendientes > 0) {
+    const n = resumen.solicitudes_cancelacion_pendientes;
+    alertas.push({
+      tono: "critico",
+      texto: `${n} solicitud${n > 1 ? "es" : ""} de cancelación pendiente${n > 1 ? "s" : ""}`,
+      onClick: () => setActiveModule("cancelaciones"),
+    });
+  }
+  if (resumen.pagos_fallidos > 0) {
+    const n = resumen.pagos_fallidos;
+    alertas.push({
+      tono: "critico",
+      texto: `${n} transacción${n > 1 ? "es" : ""} fallida${n > 1 ? "s" : ""}`,
+      onClick: () => setActiveModule("pagos"),
+    });
+  }
+  if (resumen.pagos_pendientes > 0) {
+    const n = resumen.pagos_pendientes;
+    alertas.push({
+      tono: "medio",
+      texto: `${n} pago${n > 1 ? "s" : ""} pendiente${n > 1 ? "s" : ""} de confirmar`,
+      onClick: () => setActiveModule("pagos"),
+    });
+  }
+  if (resumen.contactos_empresariales_pendientes != null && resumen.contactos_empresariales_pendientes > 0) {
+    const n = resumen.contactos_empresariales_pendientes;
+    alertas.push({
+      tono: "info",
+      texto: `${n} empresa${n > 1 ? "s" : ""} esperando contacto`,
+      onClick: () => setActiveModule("empresas"),
+    });
+  }
 
-  // --- Hoteles más reservados (Reserva.hotel_nombre, ya calculado en el
-  // backend — ver Reserva._primer_hotel / Reserva.hotel_nombre) ---
-  const hotelCount: Record<string, number> = {};
-  reservas.forEach(r => {
-    if (r.hotel_nombre) hotelCount[r.hotel_nombre] = (hotelCount[r.hotel_nombre] || 0) + 1;
-  });
-  const hotelesData = Object.entries(hotelCount)
-    .map(([name, count]) => ({ name, reservas: count }))
-    .sort((a, b) => b.reservas - a.reservas)
-    .slice(0, 8);
+  const TONO_BG: Record<Tono, string> = {
+    critico: "bg-[#f5e6e6] hover:bg-[#f0d8d8]", medio: "bg-[#fdf6e3] hover:bg-[#fbeecb]", info: "bg-[#e6f0fa] hover:bg-[#d6e8f7]",
+  };
+  const TONO_TEXT: Record<Tono, string> = {
+    critico: "text-[#c62828]", medio: "text-[#C9A227]", info: "text-[#2563EB]",
+  };
+  const TONO_EMOJI: Record<Tono, string> = { critico: "🔴", medio: "🟡", info: "🔵" };
 
-  // --- Pagos por método ---
-  const metodoData: Record<string, number> = {};
-  pagos.forEach(p => {
-    const nombre = p.metodo_pago?.nombre_metodo || "Otro";
-    metodoData[nombre] = (metodoData[nombre] || 0) + p.monto;
-  });
-  const metodosChart = Object.entries(metodoData)
-    .map(([name, monto]) => ({ name, monto }))
-    .sort((a, b) => b.monto - a.monto);
+  // ---------- Charts derivados del resumen ----------
+  const estadoData = Object.entries(resumen.reservas_por_estado)
+    .map(([estado, value]) => ({ name: ESTADO_LABELS[estado] ?? estado, value, color: ESTADO_COLORS[estado] ?? "#999" }))
+    .filter((d) => d.value > 0);
 
-  // --- Actividad por fecha de check-in ---
-  const actividadDias: Record<string, number> = {};
-  reservas.forEach(r => {
-    if (r.fecha_inicio) {
-      const dia = new Date(r.fecha_inicio).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
-      actividadDias[dia] = (actividadDias[dia] || 0) + 1;
-    }
-  });
-  const actividadData = Object.entries(actividadDias).map(([dia, total]) => ({ dia, total }));
+  const evolucionMensual = resumen.reservas_por_mes.map((r, i) => ({
+    mes: formatMes(r.mes),
+    reservas: r.total,
+    canceladas: resumen.cancelaciones_por_mes[i]?.total ?? 0,
+  }));
 
-  const totalPersonas = reservas.reduce((a, r) => a + r.numero_personas, 0);
+  const paquetesData = resumen.paquetes_mas_solicitados.map((p) => ({
+    name: p.nombre.split(" ").slice(0, 3).join(" "),
+    reservas: p.total,
+  }));
+
+  const metodosData = resumen.ingresos_por_metodo.map((m) => ({ name: m.nombre, monto: m.monto ?? 0 }));
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-          <p className="text-muted-foreground text-sm mt-0.5">Análisis en tiempo real · AlekTours</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Qué está pasando hoy en AlekTours y qué necesita tu atención</p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-[#f1e4e8] border border-[rgba(123,30,58,0.2)] rounded-full">
           <div className="w-2 h-2 bg-[#7B1E3A] rounded-full animate-pulse" />
@@ -158,98 +177,93 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
         </div>
       </div>
 
-      {/* KPI Row 1 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Total Reservas",
-            value: reservas.length,
-            icon: CalendarDays,
-            gradient: "from-[#7B1E3A] to-[#A13B55]",
-            sub: `${totalPersonas} personas viajando`,
-            subColor: "text-[#A13B55]",
-          },
-          {
-            label: "Pendientes",
-            value: pendientes,
-            icon: Clock,
-            gradient: "from-[#C9A227] to-[#e6b830]",
-            sub: `${pagosPendientes} pagos por confirmar`,
-            subColor: "text-[#C9A227]",
-          },
-          {
-            label: "Ingresos totales",
-            value: `$${(totalIngresos / 1000000).toFixed(1)}M`,
-            icon: DollarSign,
-            gradient: "from-[#2E2E2E] to-[#555555]",
-            sub: `${pagos.length} transacciones`,
-            subColor: "text-[#555555]",
-          },
-          {
-            label: "Tasa ocupación",
-            value: `${reservas.length ? Math.round(((confirmadas + finalizadas) / reservas.length) * 100) : 0}%`,
-            icon: TrendingUp,
-            gradient: "from-[#A13B55] to-[#7B1E3A]",
-            sub: "Confirmadas + finalizadas",
-            subColor: "text-[#7B1E3A]",
-          },
-        ].map(({ label, value, icon: Icon, gradient, sub, subColor }) => (
-          <div key={label} className="bg-card rounded-2xl p-5 shadow-sm border border-border hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-sm`}>
-                <Icon className="w-5 h-5 text-white" />
-              </div>
-              <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
-            </div>
-            <p className="text-3xl font-bold text-foreground mb-0.5">{value}</p>
-            <p className="text-sm font-medium text-muted-foreground">{label}</p>
-            <p className={`text-xs mt-1 font-medium ${subColor}`}>{sub}</p>
+      {/* Requiere atención */}
+      <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+        <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-primary" /> Requiere atención
+        </h3>
+        {alertas.length === 0 ? (
+          <div className="flex items-center gap-2 p-3 bg-[#f1e4e8] rounded-xl">
+            <CheckCircle className="w-4 h-4 text-[#7B1E3A] flex-shrink-0" />
+            <p className="text-sm text-[#7B1E3A] font-medium">Todo en orden — nada requiere tu atención ahora mismo.</p>
           </div>
-        ))}
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-2">
+            {alertas.map((a, i) => (
+              <button
+                key={i}
+                onClick={a.onClick}
+                className={`flex items-center gap-2.5 p-3 rounded-xl text-left transition-all hover:shadow-sm ${TONO_BG[a.tono]}`}
+              >
+                <span className="text-base leading-none flex-shrink-0">{TONO_EMOJI[a.tono]}</span>
+                <span className={`text-sm font-medium flex-1 ${TONO_TEXT[a.tono]}`}>{a.texto}</span>
+                <ArrowUpRight className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* KPI Row 2 */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: "Hoteles activos",   value: hoteles.length,                         icon: Hotel,        color: "from-[#7B1E3A] to-[#A13B55]" },
-          { label: "Paquetes activos",  value: paquetes.filter(p => p.activo).length,  icon: Package,      color: "from-[#A13B55] to-[#7B1E3A]" },
-          { label: "Clientes",          value: clientes.length,                         icon: Users,        color: "from-[#C9A227] to-[#e6b830]" },
-          { label: "Confirmadas",       value: confirmadas,                             icon: CheckCircle,  color: "from-[#2E2E2E] to-[#555555]" },
-          { label: "Canceladas",        value: canceladas,                              icon: XCircle,      color: "from-[#c62828] to-[#8f1d1d]" },
-          { label: "Solicitudes pendientes", value: pendingCancelaciones,               icon: Inbox,        color: "from-[#C9A227] to-[#7B1E3A]" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-card rounded-2xl p-5 shadow-sm border border-border flex items-center gap-4 hover:shadow-md transition-shadow">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-              <Icon className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{value}</p>
-              <p className="text-xs text-muted-foreground">{label}</p>
-            </div>
-          </div>
-        ))}
+      {/* Resumen operativo */}
+      <div>
+        <h3 className="font-semibold text-foreground mb-3">Resumen operativo</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <GrupoResumen icon={CalendarDays} titulo="Reservas">
+            <FilaResumen label="Total" value={resumen.reservas_total} strong />
+            <FilaResumen label="Confirmadas" value={resumen.reservas_confirmadas} />
+            <FilaResumen label="Pendientes" value={resumen.reservas_pendientes} />
+            <FilaResumen label="Canceladas" value={resumen.reservas_canceladas} />
+            <FilaResumen label="Finalizadas" value={resumen.reservas_finalizadas} />
+          </GrupoResumen>
+          <GrupoResumen icon={DollarSign} titulo="Pagos">
+            <FilaResumen label="Pagados" value={resumen.pagos_pagados} strong />
+            <FilaResumen label="Pendientes" value={resumen.pagos_pendientes} />
+            <FilaResumen label="Fallidos" value={resumen.pagos_fallidos} />
+            <FilaResumen label="Reembolsos" value={resumen.pagos_reembolsados} />
+          </GrupoResumen>
+          <GrupoResumen icon={Users} titulo="Clientes">
+            <FilaResumen label="Total" value={resumen.clientes_total} strong />
+            <FilaResumen label="Nuevos este mes" value={resumen.clientes_nuevos_mes} />
+            <FilaResumen label="Activos" value={resumen.clientes_activos} />
+            <FilaResumen label="Con viaje próximo" value={resumen.clientes_con_reserva_proxima} />
+          </GrupoResumen>
+          <GrupoResumen icon={Activity} titulo="Operación (7 días)">
+            <FilaResumen label="Check-ins próximos" value={resumen.checkins_proximos_7d} strong />
+            <FilaResumen label="Check-outs próximos" value={resumen.checkouts_proximos_7d} />
+            <FilaResumen label="Cancelaciones pend." value={resumen.solicitudes_cancelacion_pendientes} />
+            <FilaResumen label="Contactos pend." value={resumen.contactos_empresariales_pendientes} />
+          </GrupoResumen>
+        </div>
       </div>
 
-      {/* Charts Row 1 */}
+      {/* Tendencias */}
+      <div>
+        <h3 className="font-semibold text-foreground mb-3">Tendencias del mes</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <TarjetaTendencia label="Reservas" tendencia={resumen.tendencia_reservas} icon={CalendarDays} />
+          <TarjetaTendencia label="Ingresos" tendencia={resumen.tendencia_ingresos} icon={DollarSign} formato="moneda" />
+          <TarjetaTendencia label="Cancelaciones" tendencia={resumen.tendencia_cancelaciones} icon={XCircle} invertido />
+          <TarjetaTendencia label="Clientes nuevos" tendencia={resumen.tendencia_clientes_nuevos} icon={Users} />
+        </div>
+      </div>
+
+      {/* Charts fila 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pie estado */}
         <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-foreground">Estado de reservas</h3>
+              <h3 className="font-semibold text-foreground">Estados de reservas</h3>
               <p className="text-xs text-muted-foreground">Distribución actual</p>
             </div>
             <span className="text-xs bg-[#f1e4e8] text-[#7B1E3A] px-2 py-1 rounded-full font-medium">
-              {reservas.length} total
+              {resumen.reservas_total} total
             </span>
           </div>
           {estadoData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={estadoData} cx="50%" cy="45%" outerRadius={75} innerRadius={40} dataKey="value" paddingAngle={3}>
-                  {estadoData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
+                  {estadoData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
@@ -257,53 +271,38 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted-foreground flex-col gap-2">
-              <AlertCircle className="w-8 h-8" />
-              <p className="text-sm">Sin datos</p>
+              <AlertCircle className="w-8 h-8" /><p className="text-sm">Sin datos</p>
             </div>
           )}
         </div>
 
-        {/* Area actividad */}
         <div className="bg-card rounded-2xl p-6 shadow-sm border border-border lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-foreground">Actividad de reservas</h3>
-              <p className="text-xs text-muted-foreground">Por fecha de check-in</p>
+              <h3 className="font-semibold text-foreground">Reservas y cancelaciones por mes</h3>
+              <p className="text-xs text-muted-foreground">Últimos 6 meses, por fecha real de creación / cancelación</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={actividadData}>
-              <defs>
-                <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#7B1E3A" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="#7B1E3A" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <ComposedChart data={evolucionMensual}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(123,30,58,0.08)" />
-              <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="total"
-                name="Reservas"
-                stroke="#7B1E3A"
-                strokeWidth={2.5}
-                fill="url(#colorTotal)"
-                dot={{ fill: "#7B1E3A", r: 4 }}
-              />
-            </AreaChart>
+              <Legend wrapperStyle={{ fontSize: "11px" }} />
+              <Bar dataKey="reservas" name="Reservas" fill="#7B1E3A" radius={[6, 6, 0, 0]} />
+              <Line type="monotone" dataKey="canceladas" name="Canceladas" stroke="#c62828" strokeWidth={2.5} dot={{ r: 3 }} />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Bar paquetes */}
+      {/* Charts fila 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-foreground">Paquetes más reservados</h3>
+              <h3 className="font-semibold text-foreground">Paquetes más solicitados</h3>
               <p className="text-xs text-muted-foreground">Por número de reservas</p>
             </div>
           </div>
@@ -312,106 +311,94 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
               <BarChart data={paquetesData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(123,30,58,0.08)" />
                 <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="reservas" name="Reservas" radius={[0, 6, 6, 0]}>
-                  {paquetesData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
+                  {paquetesData.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted-foreground flex-col gap-2">
-              <Package className="w-8 h-8" />
-              <p className="text-sm">Sin datos</p>
+              <Package className="w-8 h-8" /><p className="text-sm">Sin datos</p>
             </div>
           )}
         </div>
 
-        {/* Bar hoteles */}
-        <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-foreground">Hoteles más reservados</h3>
-              <p className="text-xs text-muted-foreground">Por número de reservas</p>
-            </div>
-          </div>
-          {hotelesData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={hotelesData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(123,30,58,0.08)" />
-                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="reservas" name="Reservas" radius={[0, 6, 6, 0]}>
-                  {hotelesData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[220px] flex items-center justify-center text-muted-foreground flex-col gap-2">
-              <Hotel className="w-8 h-8" />
-              <p className="text-sm">Sin datos</p>
-            </div>
-          )}
-        </div>
-
-        {/* Bar métodos pago */}
         <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-foreground">Ingresos por método de pago</h3>
-              <p className="text-xs text-muted-foreground">Monto total en COP</p>
+              <p className="text-xs text-muted-foreground">Solo pagos realmente aprobados</p>
             </div>
           </div>
-          {metodosChart.length > 0 ? (
+          {metodosData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={metodosChart}>
+              <BarChart data={metodosData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(123,30,58,0.08)" />
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${(v / 1000000).toFixed(1)}M`} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="monto" name="Monto" radius={[6, 6, 0, 0]}>
-                  {metodosChart.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
+                  {metodosData.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted-foreground flex-col gap-2">
-              <DollarSign className="w-8 h-8" />
-              <p className="text-sm">Sin pagos registrados</p>
+              <DollarSign className="w-8 h-8" /><p className="text-sm">Sin pagos aprobados registrados</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Actividad reciente — feed cronológico real (historial_reservas de
-            TODAS las reservas, no solo un slice del array cargado), ver
-            GET /historial-reservas/recientes en reserva_route.py */}
-        <div className="bg-card rounded-2xl p-6 shadow-sm border border-border lg:col-span-2">
+      {/* Reservas próximas + Actividad reciente */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-primary" />
-              <h3 className="font-semibold text-foreground">Actividad reciente</h3>
+            <div>
+              <h3 className="font-semibold text-foreground">Reservas próximas</h3>
+              <p className="text-xs text-muted-foreground">Viajes que arrancan pronto — dan seguimiento al cliente</p>
             </div>
-            <button
-              onClick={() => setActiveModule("reservas")}
-              className="text-xs text-[#7B1E3A] hover:text-[#A13B55] font-medium flex items-center gap-1 transition-colors"
-            >
-              Ver reservas <ArrowUpRight className="w-3 h-3" />
-            </button>
+          </div>
+          {resumen.reservas_proximas.length > 0 ? (
+            <div className="space-y-1.5 max-h-[340px] overflow-y-auto">
+              {resumen.reservas_proximas.map((r) => (
+                <button
+                  key={r.id_reserva}
+                  onClick={() => onVerReserva(r.id_reserva)}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/50 transition-all text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground truncate">#{r.id_reserva} · {r.cliente_nombre}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {r.hotel_nombre || r.nombre_paquete || "Sin hotel asignado"} · {new Date(r.fecha_inicio).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })} → {new Date(r.fecha_fin).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })} · {r.numero_personas} huésped{r.numero_personas > 1 ? "es" : ""}
+                    </p>
+                  </div>
+                  <StatusBadge status={r.estado} className="flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="h-[180px] flex items-center justify-center text-muted-foreground flex-col gap-2">
+              <CalendarDays className="w-8 h-8" /><p className="text-sm">No hay viajes próximos por ahora</p>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-4 h-4 text-primary" />
+            <h3 className="font-semibold text-foreground">Actividad reciente</h3>
           </div>
           {actividad.length > 0 ? (
-            <div className="space-y-1">
-              {actividad.map(item => (
-                <div key={item.id_historial} className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors">
+            <div className="space-y-1 max-h-[340px] overflow-y-auto">
+              {actividad.map((item) => (
+                <button
+                  key={item.id_historial}
+                  onClick={() => onVerReserva(item.id_reserva)}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors text-left"
+                >
                   <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground">
@@ -422,71 +409,119 @@ export default function ModuleDashboard({ reservas, hoteles, paquetes, clientes,
                     <p className="text-xs text-muted-foreground mt-0.5">{tiempoRelativo(item.fecha_cambio)}</p>
                   </div>
                   {item.estado_nuevo && <StatusBadge status={item.estado_nuevo} className="flex-shrink-0" />}
-                </div>
+                </button>
               ))}
             </div>
           ) : (
             <div className="h-[180px] flex items-center justify-center text-muted-foreground flex-col gap-2">
-              <Activity className="w-8 h-8" />
-              <p className="text-sm">Todavía no hay actividad registrada</p>
+              <Activity className="w-8 h-8" /><p className="text-sm">Todavía no hay actividad registrada</p>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Accesos rápidos + Alertas */}
-        <div className="space-y-4">
-          <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
-            <h3 className="font-semibold text-foreground mb-4">Acciones rápidas</h3>
-            <div className="space-y-2">
-              {[
-                { label: "Nueva Reserva",     mod: "crear-reserva", icon: PlusCircle, gradient: "from-[#7B1E3A] to-[#A13B55]" },
-                { label: "Gestionar Hoteles", mod: "hoteles",        icon: Hotel,      gradient: "from-[#A13B55] to-[#7B1E3A]" },
-                { label: "Ver Paquetes",      mod: "paquetes",       icon: Package,    gradient: "from-[#C9A227] to-[#e6b830]" },
-                { label: "Ver Clientes",      mod: "clientes",       icon: Users,      gradient: "from-[#2E2E2E] to-[#555555]" },
-              ].map(({ label, mod, icon: Icon, gradient }) => (
-                <button
-                  key={mod}
-                  onClick={() => setActiveModule(mod)}
-                  className={`w-full flex items-center gap-3 p-3 bg-gradient-to-r ${gradient} text-white rounded-xl text-sm font-medium hover:shadow-lg hover:scale-[1.02] transition-all`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {label}
-                  <ArrowUpRight className="w-3 h-3 ml-auto opacity-70" />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Alertas */}
-          <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
-            <h3 className="font-semibold text-foreground mb-3">Alertas</h3>
-            <div className="space-y-2">
-              {pagosPendientes > 0 && (
-                <div className="flex items-center gap-2 p-2.5 bg-[#fdf6e3] rounded-lg">
-                  <Clock className="w-4 h-4 text-[#C9A227] flex-shrink-0" />
-                  <p className="text-xs text-[#C9A227] font-medium">
-                    {pagosPendientes} pago{pagosPendientes > 1 ? "s" : ""} pendiente{pagosPendientes > 1 ? "s" : ""}
-                  </p>
-                </div>
-              )}
-              {canceladas > 0 && (
-                <div className="flex items-center gap-2 p-2.5 bg-[#f5e6e6] rounded-lg">
-                  <XCircle className="w-4 h-4 text-[#c62828] flex-shrink-0" />
-                  <p className="text-xs text-[#c62828] font-medium">
-                    {canceladas} reserva{canceladas > 1 ? "s" : ""} cancelada{canceladas > 1 ? "s" : ""}
-                  </p>
-                </div>
-              )}
-              {pagosPendientes === 0 && canceladas === 0 && (
-                <div className="flex items-center gap-2 p-2.5 bg-[#f1e4e8] rounded-lg">
-                  <CheckCircle className="w-4 h-4 text-[#7B1E3A] flex-shrink-0" />
-                  <p className="text-xs text-[#7B1E3A] font-medium">Todo en orden</p>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Acciones rápidas con contexto real */}
+      <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
+        <h3 className="font-semibold text-foreground mb-4">Acciones rápidas</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {[
+            { label: "Nueva reserva", mod: "crear-reserva", icon: PlusCircle, gradient: "from-[#7B1E3A] to-[#A13B55]" },
+            { label: "Registrar hotel", mod: "hoteles", icon: Hotel, gradient: "from-[#A13B55] to-[#7B1E3A]" },
+            { label: "Crear paquete", mod: "paquetes", icon: Package, gradient: "from-[#C9A227] to-[#e6b830]" },
+            {
+              label: `Ver cancelaciones${resumen.solicitudes_cancelacion_pendientes ? ` (${resumen.solicitudes_cancelacion_pendientes})` : ""}`,
+              mod: "cancelaciones", icon: XCircle, gradient: "from-[#c62828] to-[#8f1d1d]",
+            },
+            {
+              label: `Pagos pendientes${resumen.pagos_pendientes ? ` (${resumen.pagos_pendientes})` : ""}`,
+              mod: "pagos", icon: DollarSign, gradient: "from-[#2E2E2E] to-[#555555]",
+            },
+            ...(resumen.contactos_empresariales_pendientes != null
+              ? [{
+                  label: `Contactos pendientes${resumen.contactos_empresariales_pendientes ? ` (${resumen.contactos_empresariales_pendientes})` : ""}`,
+                  mod: "empresas", icon: Building2, gradient: "from-[#2563EB] to-[#1d4ed8]",
+                }]
+              : []),
+            { label: "Ver clientes", mod: "clientes", icon: Users, gradient: "from-[#7B1E3A] to-[#A13B55]" },
+          ].map(({ label, mod, icon: Icon, gradient }) => (
+            <button
+              key={mod}
+              onClick={() => setActiveModule(mod)}
+              className={`w-full flex items-center gap-3 p-3 bg-gradient-to-r ${gradient} text-white rounded-xl text-sm font-medium hover:shadow-lg hover:scale-[1.02] transition-all`}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              {label}
+              <ArrowUpRight className="w-3 h-3 ml-auto opacity-70 flex-shrink-0" />
+            </button>
+          ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Sub-componentes internos (solo los usa este archivo) ──────────────────
+
+function GrupoResumen({ icon: Icon, titulo, children }: { icon: any; titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-1.5">
+        <Icon className="w-3.5 h-3.5" /> {titulo}
+      </p>
+      <div className="space-y-2 text-sm">{children}</div>
+    </div>
+  );
+}
+
+function FilaResumen({ label, value, strong }: { label: string; value: number | null; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      {value == null ? (
+        <span className="text-xs text-muted-foreground italic">Sin datos</span>
+      ) : (
+        <span className={strong ? "font-bold text-foreground text-base" : "font-medium text-foreground"}>
+          {value.toLocaleString("es-CO")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TarjetaTendencia({
+  label, tendencia, icon: Icon, formato, invertido,
+}: {
+  label: string; tendencia: TendenciaValor; icon: any; formato?: "moneda"; invertido?: boolean;
+}) {
+  const valorFmt = formato === "moneda"
+    ? `$${(tendencia.actual / 1000000).toFixed(1)}M`
+    : tendencia.actual.toLocaleString("es-CO");
+
+  let contenidoTendencia: React.ReactNode;
+  if (tendencia.variacion_pct == null) {
+    contenidoTendencia = <span className="text-xs text-muted-foreground">Sin datos suficientes del período anterior</span>;
+  } else {
+    const positivo = tendencia.variacion_pct > 0;
+    const neutro = tendencia.variacion_pct === 0;
+    const esBueno = neutro ? null : invertido ? !positivo : positivo;
+    const TrendIcon = neutro ? Minus : positivo ? TrendingUp : TrendingDown;
+    const colorCls = neutro ? "text-muted-foreground" : esBueno ? "text-emerald-600" : "text-destructive";
+    contenidoTendencia = (
+      <span className={`inline-flex items-center gap-1 text-xs font-semibold ${colorCls}`}>
+        <TrendIcon className="w-3.5 h-3.5" />
+        {positivo ? "+" : ""}{tendencia.variacion_pct}% vs. mes anterior
+      </span>
+    );
+  }
+
+  return (
+    <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+      <div className="flex items-center gap-2 mb-2 text-muted-foreground">
+        <Icon className="w-4 h-4" />
+        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      <p className="text-2xl font-bold text-foreground mb-1">{valorFmt}</p>
+      {contenidoTendencia}
     </div>
   );
 }

@@ -40,6 +40,7 @@ from app.routes.metodo_pago_guardado_route import router as metodo_pago_guardado
 from app.routes.configuracion_route import router as configuracion_router
 from app.routes.notificacion_route import router as notificacion_router
 from app.routes.empresa_route import router as empresa_router
+from app.routes.dashboard_route import router as dashboard_router
 
 # ============================================================================
 # CONFIGURACIÓN LOGGING
@@ -229,6 +230,7 @@ app.include_router(metodo_pago_guardado_router)
 app.include_router(configuracion_router)
 app.include_router(notificacion_router)
 app.include_router(empresa_router)
+app.include_router(dashboard_router)
 
 # ============================================================================
 # ARCHIVOS ESTÁTICOS (fotos de perfil, etc.)

@@ -1,13 +1,14 @@
 from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func
 from app.models.hotel_model import Hotel, Habitacion, Caracteristica, HotelCaracteristica
+from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
 from app.core.exceptions import HotelDependencyError, NotFoundError
 
 
 class HotelRepository:
 
     @staticmethod
-    def get_all(db: Session, skip: int = 0, limit: int = 10):
+    def get_all(db: Session, skip: int = 0, limit: int = 10, fecha_checkin=None, fecha_checkout=None):
         # GET /hoteles/ responde con HotelDetailResponse (habitaciones +
         # hotel_caracteristicas) y además expone total_resenas/
         # calificacion_promedio (propiedades sobre Hotel.resenas) para cada
@@ -16,17 +17,44 @@ class HotelRepository:
         # de colección evita el producto cartesiano de combinar varios
         # joinedload de "muchos" a la vez; tipo_habitacion/caracteristica son
         # relaciones "uno" así que sí pueden ir con joinedload anidado.
-        return (
+        query = (
             db.query(Hotel)
             .options(
                 selectinload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
                 selectinload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
                 selectinload(Hotel.resenas),
             )
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if fecha_checkin and fecha_checkout:
+            # BUG real corregido: el buscador público (SearchBar/SearchResults)
+            # dejaba elegir fecha_checkin/fecha_checkout pero nunca los mandaba
+            # al backend — un hotel completamente reservado para esas fechas
+            # aparecía igual en los resultados. Se aplica acá el mismo criterio
+            # de cruce de fechas que _verificar_disponibilidad en
+            # reserva_repository.py (una sola regla de disponibilidad, no dos
+            # implementaciones distintas): un hotel califica si tiene al menos
+            # una habitación que no esté en mantenimiento y que no tenga
+            # ninguna ReservaHabitacion de una reserva activa (pendiente o
+            # confirmada) que se cruce con el rango pedido.
+            habitaciones_ocupadas = (
+                db.query(ReservaHabitacion.id_habitacion)
+                .join(Reserva, Reserva.id_reserva == ReservaHabitacion.id_reserva)
+                .filter(
+                    Reserva.estado.in_(["pendiente", "confirmada"]),
+                    ReservaHabitacion.fecha_checkin < fecha_checkout,
+                    ReservaHabitacion.fecha_checkout > fecha_checkin,
+                )
+            )
+            hoteles_con_disponibilidad = (
+                db.query(Habitacion.id_hotel)
+                .filter(Habitacion.estado != "mantenimiento")
+                .filter(~Habitacion.id_habitacion.in_(habitaciones_ocupadas))
+                .distinct()
+            )
+            query = query.filter(Hotel.id_hotel.in_(hoteles_con_disponibilidad))
+
+        return query.order_by(Hotel.id_hotel).offset(skip).limit(limit).all()
 
     @staticmethod
     def get_destacados(db: Session, limit: int = 3):
@@ -107,8 +135,15 @@ class HotelRepository:
             HotelCaracteristica.id_hotel == hotel_id
         ).scalar() or 0
 
-        if habitaciones_count > 0 or caracteristicas_count > 0:
-            raise HotelDependencyError(hotel_id, habitaciones_count, caracteristicas_count)
+        # Antes no se validaba: PaqueteHotel.id_hotel es ondelete="CASCADE",
+        # así que borrar un hotel vinculado a un paquete eliminaba ese
+        # vínculo en silencio, dejando el paquete roto sin ningún aviso.
+        paquetes_count = db.query(func.count(PaqueteHotel.id_paquete)).filter(
+            PaqueteHotel.id_hotel == hotel_id
+        ).scalar() or 0
+
+        if habitaciones_count > 0 or caracteristicas_count > 0 or paquetes_count > 0:
+            raise HotelDependencyError(hotel_id, habitaciones_count, caracteristicas_count, paquetes_count)
 
         db.delete(hotel)
         db.commit()

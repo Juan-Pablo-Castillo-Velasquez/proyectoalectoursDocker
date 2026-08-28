@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator, EmailStr
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 
 
 class ClienteCreate(BaseModel):
@@ -41,6 +41,10 @@ class ClienteResponse(BaseModel):
     # cuenta de Usuario vinculada — ver Cliente.foto_perfil. None si el
     # cliente no tiene cuenta o no ha subido foto; nunca se inventa.
     foto_perfil: Optional[str] = None
+    # Ya existía en la tabla (Cliente.fecha_registro), solo faltaba
+    # exponerse en la respuesta — para "cliente desde" en el perfil de
+    # admin. No requiere ninguna migración.
+    fecha_registro: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -130,6 +130,9 @@ export interface Cliente {
   // Real, tomada de la cuenta de Usuario vinculada (ver Cliente.foto_perfil
   // en cliente_model.py) — None si el cliente no tiene cuenta o no subió foto.
   foto_perfil?: string | null;
+  // Ya existía en la tabla (Cliente.fecha_registro) — solo faltaba
+  // exponerse en ClienteResponse. "Cliente desde" en el perfil de admin.
+  fecha_registro?: string | null;
 }
 
 export interface Empleado {

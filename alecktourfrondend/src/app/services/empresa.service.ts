@@ -28,8 +28,12 @@ export const empresaService = {
   // Pública — la usa el formulario de /corporate, sin autenticación.
   crear: (data: SolicitudCorporativaCreateInput) =>
     apiFetch<SolicitudCorporativa>("/solicitudes-corporativas", { method: "POST", body: data }),
+  // limit=300 es el máximo real que acepta el backend (Query(..., le=300)
+  // en empresa_route.py) — se pide explícito en vez del default de 100
+  // para que, pasadas las 100 solicitudes históricas, las más antiguas sin
+  // atender no queden fuera silenciosamente.
   getAll: (estado?: string) =>
-    apiFetch<SolicitudCorporativa[]>(`/solicitudes-corporativas${estado ? `?estado=${estado}` : ""}`),
+    apiFetch<SolicitudCorporativa[]>(`/solicitudes-corporativas?limit=300${estado ? `&estado=${estado}` : ""}`),
   actualizarEstado: (id: number, estado: SolicitudCorporativa["estado"]) =>
     apiFetch<SolicitudCorporativa>(`/solicitudes-corporativas/${id}`, { method: "PUT", body: { estado } }),
   delete: (id: number) =>

@@ -56,8 +56,19 @@ export const hotelService = {
   // hotel_caracteristicas) también en el listado, no solo en el detalle —
   // el tipo aquí reflejaba solo un subconjunto y forzaba casts `as any`
   // en SearchResults.tsx/HotelCard.tsx para leer esos campos.
-  getAll: (skip = 0, limit = 50) =>
-    apiFetch<HotelDetailResponse[]>(`/hoteles/?skip=${skip}&limit=${limit}`),
+  //
+  // fechaCheckin/fechaCheckout son opcionales (FASE G): cuando se mandan,
+  // el backend filtra a hoteles con disponibilidad real para esas fechas
+  // (ver GET /hoteles/ en hotel_route.py) — antes el buscador las capturaba
+  // pero nunca las enviaba, así que nunca filtraban nada de verdad.
+  getAll: (skip = 0, limit = 50, opts?: { fechaCheckin?: string; fechaCheckout?: string }) => {
+    const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    if (opts?.fechaCheckin && opts?.fechaCheckout) {
+      params.set('fecha_checkin', opts.fechaCheckin);
+      params.set('fecha_checkout', opts.fechaCheckout);
+    }
+    return apiFetch<HotelDetailResponse[]>(`/hoteles/?${params.toString()}`);
+  },
 
   getById: (id: number) =>
     apiFetch<HotelDetailResponse>(`/hoteles/${id}`),

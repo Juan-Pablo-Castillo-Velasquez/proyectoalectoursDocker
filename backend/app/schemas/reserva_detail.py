@@ -40,6 +40,13 @@ class ReservaHistorialDetail(BaseModel):
     class Config:
         from_attributes = True
 
+class NotaInternaCreate(BaseModel):
+    """Nota interna que un asesor deja sobre una reserva (ej. 'llamé al
+    cliente, confirmó que llega el día 10') — no cambia el estado, solo
+    queda trazada en historial_reservas para que cualquier empleado que
+    retome el caso vea qué gestiones ya se hicieron."""
+    comentario: str
+
 class ActividadRecienteItem(BaseModel):
     """Un ítem del feed de 'Actividad reciente' del Dashboard de admin —
     igual que ReservaHistorialDetail pero con id_reserva incluido, porque

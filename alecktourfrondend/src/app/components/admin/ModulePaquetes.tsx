@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Package, CheckCircle, CreditCard, Calendar,
 } from "lucide-react";
-import { Paquete, inputCls, labelCls } from "./types";
+import { Paquete, Reserva, inputCls, labelCls } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
@@ -19,18 +19,38 @@ const ESTADOS: EstadoFilter[] = ["todos", "activo", "inactivo"];
 
 interface Props {
   paquetes: Paquete[];
+  // Opcional para no romper otros usos del componente — mismo patrón que
+  // `clientes?` en ModuleEmpresas.tsx. Con esto se calcula un rendimiento
+  // real por paquete sin pedir ningún endpoint nuevo.
+  reservas?: Reserva[];
   onDelete: (id: number) => void;
   onSubmit: (data: any, id?: number) => Promise<void>;
   loading: boolean;
 }
 
-export default function ModulePaquetes({ paquetes, onDelete, onSubmit, loading }: Props) {
+export default function ModulePaquetes({ paquetes, reservas = [], onDelete, onSubmit, loading }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  // Rendimiento real por paquete (reservas y ventas, excluyendo canceladas)
+  // calculado en el cliente a partir de `reservas`, que el dashboard ya
+  // carga para otros módulos — no requiere ningún endpoint nuevo.
+  // PaqueteRepository.delete ya calculaba un reservas_count parecido en el
+  // backend, pero solo para bloquear el borrado; nunca se mostraba en la UI.
+  const rendimientoPorPaquete = new Map<number, { total: number; activas: number; ingresos: number }>();
+  for (const r of reservas) {
+    const prev = rendimientoPorPaquete.get(r.id_paquete) ?? { total: 0, activas: 0, ingresos: 0 };
+    prev.total += 1;
+    if (r.estado !== "cancelada") {
+      prev.activas += 1;
+      prev.ingresos += r.precio_total ?? 0;
+    }
+    rendimientoPorPaquete.set(r.id_paquete, prev);
+  }
 
   // KPIs reales — nada de porcentajes ni cifras inventadas, todo calculado
   // sobre el arreglo `paquetes` que ya llega del backend.
@@ -147,6 +167,7 @@ export default function ModulePaquetes({ paquetes, onDelete, onSubmit, loading }
                 <th className={thCls}>Paquete</th>
                 <th className={thCls}>Duración</th>
                 <th className={thCls}>Precio</th>
+                <th className={thCls}>Rendimiento</th>
                 <th className={thCls}>Estado</th>
                 <th className={thCls}></th>
               </tr>
@@ -165,6 +186,20 @@ export default function ModulePaquetes({ paquetes, onDelete, onSubmit, loading }
                   </td>
                   <td className="px-4 py-3 text-xs font-medium text-foreground whitespace-nowrap">
                     ${p.precio_base?.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                    {(() => {
+                      const r = rendimientoPorPaquete.get(p.id_paquete);
+                      if (!r || r.activas === 0) {
+                        return <span className="text-muted-foreground/60">Sin reservas</span>;
+                      }
+                      return (
+                        <div>
+                          <p className="font-medium text-foreground">{r.activas} reserva{r.activas === 1 ? "" : "s"}</p>
+                          <p className="text-[11px] text-muted-foreground">${r.ingresos.toLocaleString()}</p>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={p.activo ? "activo" : "inactivo"} />

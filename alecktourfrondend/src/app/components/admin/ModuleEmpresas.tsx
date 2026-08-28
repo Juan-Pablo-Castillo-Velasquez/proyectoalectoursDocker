@@ -1,13 +1,14 @@
 import { useState } from "react";
 import {
   Search, Building2, Mail, Phone, Users, Trash2, Pencil, Save, AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import type { SolicitudCorporativa } from "../../services/empresa.service";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import EmptyState from "./ui/EmptyState";
-import { labelCls } from "./types";
+import { labelCls, type Cliente } from "./types";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
@@ -34,6 +35,13 @@ interface Props {
   solicitudes: SolicitudCorporativa[];
   onUpdateEstado: (id: number, estado: Estado) => Promise<void>;
   onDelete: (id: number) => void;
+  /** Opcional: si Admindashboard.tsx lo pasa, cada solicitud se cruza por
+   * correo contra la base de clientes real para avisar si ese contacto ya
+   * es cliente (útil para no tratar como lead frío a alguien que ya
+   * reservó) — SolicitudCorporativa no tiene FK a Cliente (ver docstring
+   * del modelo), así que este cruce es de solo lectura, nunca se inventa
+   * ni se guarda una relación que no existe en la base de datos. */
+  clientes?: Cliente[];
 }
 
 // Bandeja real de leads B2B — cada fila es un envío real del formulario
@@ -41,7 +49,7 @@ interface Props {
 // a ningún backend, ver Corporate.tsx). No es un CRM con historial de
 // contactos múltiples por empresa todavía, solo la bandeja de solicitudes
 // entrantes con su estado de seguimiento.
-export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete }: Props) {
+export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, clientes = [] }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [editing, setEditing] = useState<SolicitudCorporativa | null>(null);
@@ -49,15 +57,32 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete }
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  const filtered = solicitudes.filter(s => {
-    const q = search.toLowerCase();
-    const matchEstado = estadoFilter === "todos" || s.estado === estadoFilter;
-    const matchSearch = !q
-      || s.nombre_empresa.toLowerCase().includes(q)
-      || s.nombre_contacto.toLowerCase().includes(q)
-      || s.email_corporativo.toLowerCase().includes(q);
-    return matchEstado && matchSearch;
-  });
+  const clientePorCorreo = (correo: string) =>
+    clientes.find(c => (c.correo ?? "").toLowerCase() === correo.toLowerCase());
+
+  const filtered = solicitudes
+    .filter(s => {
+      const q = search.toLowerCase();
+      const matchEstado = estadoFilter === "todos" || s.estado === estadoFilter;
+      const matchSearch = !q
+        || s.nombre_empresa.toLowerCase().includes(q)
+        || s.nombre_contacto.toLowerCase().includes(q)
+        || s.email_corporativo.toLowerCase().includes(q);
+      return matchEstado && matchSearch;
+    })
+    .sort((a, b) => {
+      // Mismo criterio que ModuleCancelaciones.tsx: los leads "nuevo" (sin
+      // atender todavía) van primero y, entre ellos, el más antiguo
+      // primero — para que uno viejo sin contactar no quede enterrado
+      // debajo de leads que acaban de llegar.
+      const aNueva = a.estado === "nuevo", bNueva = b.estado === "nuevo";
+      if (aNueva && !bNueva) return -1;
+      if (!aNueva && bNueva) return 1;
+      if (aNueva && bNueva) {
+        return new Date(a.fecha_creacion).getTime() - new Date(b.fecha_creacion).getTime();
+      }
+      return new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime();
+    });
 
   const nuevas = solicitudes.filter(s => s.estado === "nuevo").length;
   const cerradas = solicitudes.filter(s => s.estado === "cerrado").length;
@@ -170,6 +195,15 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete }
       >
         {editing && (
           <div className="space-y-3">
+            {(() => {
+              const clienteExistente = clientePorCorreo(editing.email_corporativo);
+              return clienteExistente ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                  <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  Este correo ya pertenece a un cliente registrado: {clienteExistente.nombre} {clienteExistente.apellido}
+                </div>
+              ) : null;
+            })()}
             {editing.mensaje && (
               <div>
                 <label className={labelCls}>Mensaje</label>

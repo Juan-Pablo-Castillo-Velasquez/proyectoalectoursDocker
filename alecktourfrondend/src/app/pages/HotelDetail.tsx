@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
@@ -116,6 +116,7 @@ const ESTADO_STYLES: Record<string, string> = {
 
 export default function HotelDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { isFavorito, toggleFavorito, loadingIds } = useFavoritos();
   const [hotel, setHotel] = useState<HotelDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -191,9 +192,20 @@ export default function HotelDetail() {
     : null;
   const caracteristicas = hotel.hotel_caracteristicas ?? [];
 
-  const checkoutHref = selectedHabitacion
-    ? `/checkout/${hotel.id_hotel}?habitacion=${selectedHabitacion.id_habitacion}`
-    : "#";
+  // Propaga las fechas/huéspedes que trajo el buscador (SearchBar → HotelCard
+  // → acá) hasta Checkout, para que no haya que volver a escribirlas — antes
+  // se perdían por completo entre la búsqueda y el pago.
+  const checkoutHref = (() => {
+    if (!selectedHabitacion) return "#";
+    const p = new URLSearchParams({ habitacion: String(selectedHabitacion.id_habitacion) });
+    const start = searchParams.get("start");
+    const end = searchParams.get("end");
+    const people = searchParams.get("people");
+    if (start) p.set("start", start);
+    if (end) p.set("end", end);
+    if (people) p.set("people", people);
+    return `/checkout/${hotel.id_hotel}?${p.toString()}`;
+  })();
 
   const handleCompartir = async () => {
     const texto = `${hotel.nombre_hotel} — ${hotel.ciudad}, ${hotel.pais}`;

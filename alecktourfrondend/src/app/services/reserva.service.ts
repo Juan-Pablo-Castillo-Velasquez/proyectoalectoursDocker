@@ -153,4 +153,9 @@ export const reservaDetailService = {
   // primero. Ver GET /historial-reservas/recientes en reserva_route.py.
   getActividadReciente: (limit = 15) =>
     apiFetch<ActividadRecienteItem[]>(`/historial-reservas/recientes?limit=${limit}`),
+  // Nota interna del asesor sobre una reserva — no cambia el estado, queda
+  // trazada en el mismo historial (ver POST /reservas/{id}/notas). Devuelve
+  // el ítem de historial ya creado para insertarlo al timeline sin recargar.
+  agregarNota: (id: number, comentario: string) =>
+    apiFetch<any>(`/reservas/${id}/notas`, { method: "POST", body: { comentario } }),
 };
