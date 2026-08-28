@@ -20,5 +20,9 @@ class ReservaDetailService:
         return ReservaDetailRepository.get_historial_reciente(db, limit)
 
     @staticmethod
+    def get_historial_cliente(db: Session, id_cliente: int, limit: int = 30):
+        return ReservaDetailRepository.get_historial_cliente(db, id_cliente, limit)
+
+    @staticmethod
     def add_nota(db: Session, reserva_id: int, id_empleado, comentario: str):
         return ReservaDetailRepository.add_nota(db, reserva_id, id_empleado, comentario)

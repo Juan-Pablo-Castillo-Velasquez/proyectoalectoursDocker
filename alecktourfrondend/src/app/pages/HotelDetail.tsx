@@ -33,6 +33,7 @@ import { useSeoMeta } from "../hooks/useSeoMeta";
 import {
   HabitacionResponse,
   HotelDetailResponse,
+  HabitacionFechasOcupadas,
   hotelService,
 } from "../services/hotel.service";
 
@@ -114,6 +115,19 @@ const ESTADO_STYLES: Record<string, string> = {
   mantenimiento: "bg-chart-2/10 text-chart-2 border-chart-2/20",
 };
 
+const MESES_CORTOS = [
+  "ene", "feb", "mar", "abr", "may", "jun",
+  "jul", "ago", "sep", "oct", "nov", "dic",
+];
+
+// yyyy-mm-dd (fecha "pura", sin hora) → "10 jul" — evita Date() para no
+// arriesgar un corrimiento de día por zona horaria.
+function formatFechaCorta(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  return `${m[3]} ${MESES_CORTOS[Number(m[2]) - 1] ?? m[2]}`;
+}
+
 export default function HotelDetail() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -122,6 +136,11 @@ export default function HotelDetail() {
   const [loading, setLoading] = useState(true);
   const [selectedHabitacion, setSelectedHabitacion] =
     useState<HabitacionResponse | null>(null);
+  // Fechas ya reservadas por habitación (reservas activas, GET
+  // /hoteles/{id}/fechas-ocupadas) — antes el cliente solo veía el estado
+  // estático "disponible/ocupada" de cada habitación, sin saber para qué
+  // fechas concretas ya estaba reservada.
+  const [fechasOcupadas, setFechasOcupadas] = useState<HabitacionFechasOcupadas[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -130,6 +149,10 @@ export default function HotelDetail() {
       .then(setHotel)
       .catch(console.error)
       .finally(() => setLoading(false));
+    hotelService
+      .getFechasOcupadas(parseInt(id))
+      .then(setFechasOcupadas)
+      .catch(() => setFechasOcupadas([]));
   }, [id]);
 
   // Antes esta página (y todas las demás) compartían el mismo <title>
@@ -489,6 +512,28 @@ export default function HotelDetail() {
                                 {hab.tipo_habitacion?.capacidad_personas} pers.
                               </span>
                             </div>
+
+                            {/* Fechas ya ocupadas — dato real (reservas
+                                activas), nunca un calendario inventado. Solo
+                                se muestra cuando sí hay rangos futuros. */}
+                            {(() => {
+                              const rangos = fechasOcupadas.find(
+                                (f) => f.id_habitacion === hab.id_habitacion
+                              )?.rangos;
+                              if (!rangos || rangos.length === 0) return null;
+                              return (
+                                <p className="mt-3 text-xs text-muted-foreground">
+                                  <Clock className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5 text-destructive/70" />
+                                  Ocupada:{" "}
+                                  {rangos
+                                    .map(
+                                      (r) =>
+                                        `${formatFechaCorta(r.fecha_checkin)}–${formatFechaCorta(r.fecha_checkout)}`
+                                    )
+                                    .join(", ")}
+                                </p>
+                              );
+                            })()}
                           </div>
 
                           {/* Caja de Precio (Lado derecho en Desktop) */}

@@ -51,6 +51,16 @@ export interface HotelDetailResponse extends HotelResponse {
   hotel_caracteristicas: HotelCaracteristicaResponse[];
 }
 
+export interface RangoOcupado {
+  fecha_checkin: string;
+  fecha_checkout: string;
+}
+
+export interface HabitacionFechasOcupadas {
+  id_habitacion: number;
+  rangos: RangoOcupado[];
+}
+
 export const hotelService = {
   // El backend ya responde con HotelDetailResponse (incluye habitaciones y
   // hotel_caracteristicas) también en el listado, no solo en el detalle —
@@ -72,6 +82,12 @@ export const hotelService = {
 
   getById: (id: number) =>
     apiFetch<HotelDetailResponse>(`/hoteles/${id}`),
+
+  // Fechas ya reservadas por habitación (reservas activas) — para mostrarle
+  // al cliente disponibilidad real antes de elegir fechas. Nunca expone
+  // quién reservó, solo los rangos (ver GET /hoteles/{id}/fechas-ocupadas).
+  getFechasOcupadas: (id: number) =>
+    apiFetch<HabitacionFechasOcupadas[]>(`/hoteles/${id}/fechas-ocupadas`),
 
   create: (data: Partial<HotelResponse>) =>
     apiFetch<HotelResponse>('/hoteles/', { method: 'POST', body: data }),

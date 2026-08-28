@@ -27,16 +27,25 @@ interface Props {
   reservas: any[];
   loading: boolean;
   clienteData: ClienteResponse | null;
+  // Permite abrir directo el detalle de una reserva específica al entrar a
+  // esta pestaña (p.ej. desde la campana de notificaciones) en vez de que
+  // el cliente tenga que buscarla manualmente en la lista.
+  reservaIdInicial?: number | null;
 }
 
 export default function TabReservas({
   reservas,
   loading,
   clienteData,
+  reservaIdInicial = null,
 }: Props) {
   const [modalReserva, setModalReserva] = useState<any | null>(null);
   const [modalResena, setModalResena] = useState<any | null>(null);
-  const [detalleReservaId, setDetalleReservaId] = useState<number | null>(null);
+  const [detalleReservaId, setDetalleReservaId] = useState<number | null>(reservaIdInicial);
+
+  useEffect(() => {
+    if (reservaIdInicial != null) setDetalleReservaId(reservaIdInicial);
+  }, [reservaIdInicial]);
   const [solicitadas, setSolicitadas] = useState<Record<number, string>>({});
   const [filtro, setFiltro] = useState<FiltroEstado>("todas");
   const [busqueda, setBusqueda] = useState("");

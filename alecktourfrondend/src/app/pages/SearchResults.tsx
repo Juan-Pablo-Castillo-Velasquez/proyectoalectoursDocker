@@ -23,6 +23,10 @@ export default function SearchResults() {
   const [hoteles, setHoteles] = useState<HotelDetailResponse[]>([]);
   const [filtrados, setFiltrados] = useState<HotelDetailResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  // Catálogo completo SIN filtrar por fechas — solo se pide cuando sí hay
+  // fechas de búsqueda, para poder decir "X de Y hoteles disponibles" con un
+  // denominador real (nunca inventado). null mientras no aplica.
+  const [totalCatalogo, setTotalCatalogo] = useState<HotelDetailResponse[] | null>(null);
 
   const [calificacionFilter, setCalificacionFilter] =
     useState<string>("all");
@@ -112,9 +116,18 @@ export default function SearchResults() {
     // mismo ajuste ya hecho en los demás módulos con este patrón).
     const fechasValidas = !!start && !!end && end > start;
 
-    hotelService
-      .getAll(0, 300, fechasValidas ? { fechaCheckin: start!, fechaCheckout: end! } : undefined)
-      .then(setHoteles)
+    // Para poder avisar "X de Y hoteles en {destino} tienen disponibilidad"
+    // sin inventar el denominador, se pide también el catálogo SIN filtro de
+    // fechas cuando sí hay fechas — mismo endpoint cacheado 2 min, no es una
+    // petición cara.
+    Promise.all([
+      hotelService.getAll(0, 300, fechasValidas ? { fechaCheckin: start!, fechaCheckout: end! } : undefined),
+      fechasValidas ? hotelService.getAll(0, 300) : Promise.resolve(null),
+    ])
+      .then(([disponibles, catalogoCompleto]) => {
+        setHoteles(disponibles);
+        setTotalCatalogo(catalogoCompleto);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [searchParams]);
@@ -252,6 +265,26 @@ export default function SearchResults() {
     setPrecioFilter("all");
     setCaracteristicasFilter([]);
   }
+
+  /*
+   * DISPONIBILIDAD REAL PARA EL DESTINO BUSCADO — usa el mismo criterio de
+   * coincidencia que matchesDestination de arriba, contra el catálogo
+   * completo (totalCatalogo, sin filtrar por fechas) y contra los hoteles
+   * ya filtrados por disponibilidad real (hoteles). null cuando no hay
+   * fechas de búsqueda válidas, para no mostrar una fracción sin sentido.
+   */
+  const disponibilidadDestino = (() => {
+    if (!totalCatalogo) return null;
+    const destino = destinationSearch.toLowerCase();
+    const matchDestino = (h: HotelDetailResponse) =>
+      !destino ||
+      h.ciudad?.toLowerCase().includes(destino) ||
+      h.pais?.toLowerCase().includes(destino) ||
+      h.nombre_hotel?.toLowerCase().includes(destino);
+    const total = totalCatalogo.filter(matchDestino).length;
+    const disponibles = hoteles.filter(matchDestino).length;
+    return { disponibles, total };
+  })();
 
   /*
    * DATOS PARA FILTROS
@@ -677,6 +710,24 @@ export default function SearchResults() {
                     </span>
                   )}
                 </div>
+
+                {/* Disponibilidad real para las fechas buscadas — antes la
+                    franja de "confianza" más abajo prometía "disponibilidad
+                    verificada en tiempo real" sin que las fechas filtraran
+                    nada de verdad (bug corregido en FASE G). Este aviso usa
+                    el mismo dato real que ya filtra los resultados, nunca
+                    un número inventado. */}
+                {disponibilidadDestino && (
+                  <p
+                    className={`mt-2 text-xs font-medium ${
+                      disponibilidadDestino.disponibles > 0 ? "text-emerald-600" : "text-amber-600"
+                    }`}
+                  >
+                    {disponibilidadDestino.disponibles} de {disponibilidadDestino.total}{" "}
+                    {disponibilidadDestino.total === 1 ? "hotel tiene" : "hoteles tienen"} disponibilidad real
+                    {destinationSearch ? ` en ${destinationSearch}` : ""} para esas fechas.
+                  </p>
+                )}
               </div>
 
               <motion.button

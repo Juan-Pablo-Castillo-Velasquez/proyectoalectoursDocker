@@ -72,6 +72,23 @@ class HabitacionResponse(BaseModel):
         from_attributes = True
 
 
+class RangoOcupado(BaseModel):
+    """Un rango de fechas ya reservado — solo fechas, nunca quién reservó
+    (no expone datos de otros clientes)."""
+    fecha_checkin: date
+    fecha_checkout: date
+
+
+class HabitacionFechasOcupadas(BaseModel):
+    """Fechas ya reservadas de una habitación, para GET
+    /hoteles/{hotel_id}/fechas-ocupadas — reutiliza reserva_habitaciones,
+    que ya tiene estos datos (mismo criterio de reserva "activa" que
+    _verificar_disponibilidad en reserva_repository.py), sin necesitar
+    ninguna tabla ni columna nueva."""
+    id_habitacion: int
+    rangos: List[RangoOcupado]
+
+
 class HotelCaracteristicaCreate(BaseModel):
     id_caracteristica: int
     disponible: bool = True

@@ -473,7 +473,7 @@ export default function AdminDashboard() {
       <ModuleHoteles hoteles={hoteles} onDelete={deleteHotel} onSubmit={submitHotel} loading={loading} />
     ),
     paquetes: (
-      <ModulePaquetes paquetes={paquetes} reservas={reservas} onDelete={deletePaquete} onSubmit={submitPaquete} loading={loading} />
+      <ModulePaquetes paquetes={paquetes} reservas={reservas} hoteles={hoteles} onDelete={deletePaquete} onSubmit={submitPaquete} loading={loading} />
     ),
     clientes: (
       <ModuleClientes
@@ -511,6 +511,7 @@ export default function AdminDashboard() {
         pagos={pagos} reservas={reservas} clientes={clientes} metodos={metodosPago}
         onUpdateEstado={updatePagoEstado} onDelete={deletePago}
         onUploadComprobante={uploadComprobantePago} onDeleteComprobante={deleteComprobantePago}
+        onVerReserva={verReserva}
       />
     ),
     notificaciones: (

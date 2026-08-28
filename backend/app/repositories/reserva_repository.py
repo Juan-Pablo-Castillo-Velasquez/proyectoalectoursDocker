@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_
 from app.models.reserva_model import Reserva, Paquete, PaqueteHotel, Pago, MetodoPago, HistorialReserva, ReservaHabitacion, ReservaServicio
-from app.models.hotel_model import Habitacion
+from app.models.hotel_model import Habitacion, Hotel
 from app.core.exceptions import (
     ReservaDependencyError, PaqueteDependencyError, NotFoundError,
     HabitacionNoDisponibleError, HabitacionNoEncontradaError, PaqueteNoEncontradoError,
@@ -26,9 +26,55 @@ class PaqueteRepository:
         return db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
     
     @staticmethod
+    def _sync_hoteles(db: Session, paquete_id: int, hoteles_data: list):
+        """Sincroniza paquete_hotel con la lista real recibida — antes esta
+        tabla (ya existía en el modelo, la usa GET /paquetes/{id}/detalle)
+        no tenía NINGÚN punto de escritura: un paquete nuevo creado desde el
+        admin quedaba siempre sin hotel asociado, y nada impedía mezclar un
+        paquete de una ciudad con un hotel de otra en Crear Reserva porque
+        eran conceptos completamente desconectados. Valida que cada
+        id_hotel exista de verdad antes de vincularlo (nunca confiar en el
+        ID que manda el frontend sin verificar)."""
+        if not hoteles_data:
+            db.query(PaqueteHotel).filter(PaqueteHotel.id_paquete == paquete_id).delete()
+            return
+
+        ids_pedidos = [h["id_hotel"] for h in hoteles_data]
+        hoteles_reales = set(
+            row[0] for row in db.query(Hotel.id_hotel).filter(Hotel.id_hotel.in_(ids_pedidos)).all()
+        )
+        faltantes = set(ids_pedidos) - hoteles_reales
+        if faltantes:
+            raise NotFoundError(f"Hotel(es) no encontrado(s): {sorted(faltantes)}")
+
+        existentes = {
+            ph.id_hotel: ph
+            for ph in db.query(PaqueteHotel).filter(PaqueteHotel.id_paquete == paquete_id).all()
+        }
+        ids_nuevos = set(ids_pedidos)
+        for id_hotel, ph in existentes.items():
+            if id_hotel not in ids_nuevos:
+                db.delete(ph)
+
+        for h in hoteles_data:
+            id_hotel = h["id_hotel"]
+            noches = h.get("noches_incluidas")
+            if id_hotel in existentes:
+                existentes[id_hotel].noches_incluidas = noches
+            else:
+                db.add(PaqueteHotel(id_paquete=paquete_id, id_hotel=id_hotel, noches_incluidas=noches))
+
+    @staticmethod
     def create(db: Session, paquete_data: dict):
+        # PaqueteCreate.dict() (sin exclude_unset) siempre trae la llave
+        # "hoteles", así que se saca del dict antes de construir Paquete()
+        # (no es una columna real del modelo) y se sincroniza aparte una vez
+        # que el paquete ya tiene id_paquete.
+        hoteles_data = paquete_data.pop("hoteles", None) or []
         paquete = Paquete(**paquete_data)
         db.add(paquete)
+        db.flush()
+        PaqueteRepository._sync_hoteles(db, paquete.id_paquete, hoteles_data)
         db.commit()
         db.refresh(paquete)
         return paquete
@@ -37,9 +83,18 @@ class PaqueteRepository:
     def update(db: Session, paquete_id: int, paquete_data: dict):
         paquete = db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
         if paquete:
+            # exclude_unset=True: "hoteles" solo aparece en el dict si el
+            # admin realmente lo mandó (ver update_paquete en
+            # reserva_route.py) — si no vino, no se tocan los hoteles ya
+            # vinculados, igual que "reactivar" solo manda {activo: true}
+            # sin tocar el resto de campos.
+            tiene_hoteles = "hoteles" in paquete_data
+            hoteles_data = paquete_data.pop("hoteles", None) or []
             for key, value in paquete_data.items():
                 if value is not None:
                     setattr(paquete, key, value)
+            if tiene_hoteles:
+                PaqueteRepository._sync_hoteles(db, paquete_id, hoteles_data)
             db.commit()
             db.refresh(paquete)
         return paquete

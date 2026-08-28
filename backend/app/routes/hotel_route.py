@@ -10,7 +10,8 @@ from app.core.exceptions import HotelDependencyError, NotFoundError
 from app.schemas.hotel_schema import (
     HotelCreate, HotelUpdate, HotelResponse, HotelDetailResponse,
     HabitacionCreate, HabitacionUpdate, HabitacionResponse,
-    CaracteristicaCreate, CaracteristicaResponse, HotelCaracteristicaCreate
+    CaracteristicaCreate, CaracteristicaResponse, HotelCaracteristicaCreate,
+    HabitacionFechasOcupadas,
 )
 from app.repositories.hotel_repository import (
     HotelRepository, HabitacionRepository, CaracteristicaRepository, HotelCaracteristicaRepository
@@ -65,6 +66,20 @@ def get_hotel(hotel_id: int, db: Session = Depends(get_db)):
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel no encontrado")
     return hotel
+
+
+@router.get("/{hotel_id}/fechas-ocupadas", response_model=list[HabitacionFechasOcupadas])
+def get_fechas_ocupadas(hotel_id: int, db: Session = Depends(get_db)):
+    """Fechas ya reservadas (reservas activas) de cada habitación del hotel
+    — para que el cliente vea disponibilidad real antes de elegir fechas.
+    Nunca expone quién reservó, solo los rangos. No se cachea: la
+    disponibilidad cambia con cada reserva nueva y esta consulta es liviana
+    (una sola query, sin N+1)."""
+    fechas_por_habitacion = HotelRepository.get_fechas_ocupadas(db, hotel_id)
+    return [
+        {"id_habitacion": id_hab, "rangos": rangos}
+        for id_hab, rangos in fechas_por_habitacion.items()
+    ]
 
 
 @router.post("/", response_model=HotelResponse, status_code=201)

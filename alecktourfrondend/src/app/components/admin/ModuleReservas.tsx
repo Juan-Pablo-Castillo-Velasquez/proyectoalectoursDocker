@@ -474,9 +474,17 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
             </div>
           </section>
 
-          {/* Paquete */}
+          {/* Paquete / Hotel — antes esta sección siempre decía "Paquete" y
+              cuando la reserva era directa de hotel (sin paquete) se quedaba
+              sin ningún nombre visible acá (el hotel solo aparecía si se
+              abría la sub-sección aparte "Ver habitaciones y servicios").
+              reserva.hotel_nombre/destino ya vienen calculados desde el
+              backend (ver Reserva.hotel_nombre en reserva_model.py) — se
+              usan acá igual que ya se usan como fallback en la tabla. */}
           <section>
-            <h3 className={section}><Package className="w-3.5 h-3.5" /> Paquete</h3>
+            <h3 className={section}>
+              <Package className="w-3.5 h-3.5" /> {paquete ? "Paquete" : "Hotel"}
+            </h3>
             <div className={card}>
               {paquete ? (
                 <>
@@ -488,6 +496,10 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                 </>
               ) : (
                 <>
+                  {reserva.hotel_nombre && (
+                    <p className="text-sm font-semibold text-foreground mb-3">{reserva.hotel_nombre}</p>
+                  )}
+                  <DetailRow icon={MapPin}   label="Destino"   value={reserva.destino} />
                   <DetailRow icon={Calendar} label="Check-in"  value={reserva.fecha_inicio} />
                   <DetailRow icon={Calendar} label="Check-out" value={reserva.fecha_fin} />
                   <DetailRow icon={Users}    label="Viajeros"  value={`${reserva.numero_personas} personas`} />

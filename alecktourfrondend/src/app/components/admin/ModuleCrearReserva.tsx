@@ -163,7 +163,7 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
       <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
         <form onSubmit={handleSubmit} className="space-y-4">
           {msg && (
-            <div className={`p-3 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+            <div className={`p-3 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-emerald-500/10 text-emerald-600" : "bg-destructive/10 text-destructive"}`}>
               {msg.text}
             </div>
           )}
@@ -347,7 +347,7 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
           )}
 
           <button type="submit" disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-[#2563EB] to-[#06B6D4] text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50">
+            className="w-full py-3 bg-gradient-to-r from-primary to-[#A13B55] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all disabled:opacity-50">
             {loading ? "Creando..." : "Crear Reserva"}
           </button>
         </form>

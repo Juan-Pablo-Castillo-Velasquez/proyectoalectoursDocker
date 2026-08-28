@@ -196,8 +196,12 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
 
 @router.post("/paquetes", response_model=PaqueteResponse, status_code=201)
 def create_paquete(paquete: PaqueteCreate, db: Session = Depends(get_db)):
-    """Crea un nuevo paquete turístico"""
-    nuevo = PaqueteRepository.create(db, paquete.dict())
+    """Crea un nuevo paquete turístico, opcionalmente vinculado a hotel(es)
+    reales (paquete_hotel — ver PaqueteRepository._sync_hoteles)."""
+    try:
+        nuevo = PaqueteRepository.create(db, paquete.dict())
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.detail)
     delete_pattern(PAQUETES_CACHE_PATTERN)
     return nuevo
 
@@ -208,7 +212,10 @@ def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depend
     db_paquete = PaqueteRepository.get_by_id(db, paquete_id)
     if not db_paquete:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
-    actualizado = PaqueteRepository.update(db, paquete_id, paquete.dict(exclude_unset=True))
+    try:
+        actualizado = PaqueteRepository.update(db, paquete_id, paquete.dict(exclude_unset=True))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.detail)
     delete_pattern(PAQUETES_CACHE_PATTERN)
     return actualizado
 

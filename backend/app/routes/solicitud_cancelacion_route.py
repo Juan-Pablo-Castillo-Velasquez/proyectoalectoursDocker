@@ -15,8 +15,9 @@ from app.schemas.solicitud_cancelacion_schema import (
     SolicitudCancelacionResponse,
     SolicitudCancelacionResolve,
 )
+from app.schemas.notificacion_schema import ActividadClienteItem
 from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
-from app.services.notificacion_service import crear_notificacion
+from app.services.notificacion_service import crear_notificacion, get_actividad_cliente
 
 router = APIRouter(prefix="/api", tags=["Solicitudes de cancelación"])
 
@@ -123,6 +124,28 @@ async def crear_solicitud_cancelacion(
             pass
 
     return solicitud
+
+
+@router.get(
+    "/clientes/{cliente_id}/actividad",
+    response_model=list[ActividadClienteItem],
+)
+def get_actividad_cliente_route(
+    cliente_id: int,
+    limit: int = Query(30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_usuario),
+):
+    """
+    Feed de notificaciones del cliente autenticado (campana del sitio
+    público): cambios de estado de sus reservas + resoluciones de sus
+    solicitudes de cancelación, más reciente primero. Protegido igual que
+    /clientes/{cliente_id}/solicitudes-cancelacion — un cliente solo puede
+    ver su propia actividad.
+    """
+    if not usuario.cliente or usuario.cliente.id_cliente != cliente_id:
+        raise HTTPException(status_code=403, detail="No puedes ver la actividad de otro cliente")
+    return get_actividad_cliente(db, cliente_id, limit)
 
 
 @router.get(

@@ -3,12 +3,21 @@ from typing import Optional, List
 from datetime import date, datetime
 
 
+class PaqueteHotelInput(BaseModel):
+    """Un hotel real vinculado al paquete (tabla paquete_hotel, ya existía
+    en el modelo pero nunca se podía escribir desde el admin — ver
+    PaqueteRepository._sync_hoteles en reserva_repository.py)."""
+    id_hotel: int
+    noches_incluidas: Optional[int] = Field(None, gt=0)
+
+
 class PaqueteCreate(BaseModel):
     nombre_paquete: str = Field(..., min_length=1, max_length=100)
     descripcion: Optional[str] = None
     duracion_dias: Optional[int] = Field(None, gt=0)
     precio_base: float = Field(..., ge=0)
     activo: bool = True
+    hoteles: Optional[List[PaqueteHotelInput]] = None
 
 
 class PaqueteUpdate(BaseModel):
@@ -17,6 +26,10 @@ class PaqueteUpdate(BaseModel):
     duracion_dias: Optional[int] = Field(None, gt=0)
     precio_base: Optional[float] = Field(None, ge=0)
     activo: Optional[bool] = None
+    # None = no se mandó, no tocar los hoteles ya vinculados (mismo patrón
+    # de exclude_unset ya usado para reactivar solo con {activo: true});
+    # [] = sí se mandó, y significa "quitar todos los hoteles".
+    hoteles: Optional[List[PaqueteHotelInput]] = None
 
 
 class PaqueteResponse(BaseModel):

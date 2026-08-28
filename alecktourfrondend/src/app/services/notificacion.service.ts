@@ -24,4 +24,23 @@ export const notificacionService = {
     apiFetch<{ message: string }>("/notificaciones/leer-todas", { method: "PUT" }),
   delete: (id: number) =>
     apiFetch<{ message: string }>(`/notificaciones/${id}`, { method: "DELETE" }),
+
+  // Requiere sesión iniciada (Authorization: Bearer) — el backend valida
+  // que cliente_id sea el del cliente autenticado.
+  getActividadCliente: (clienteId: number, limit = 30) =>
+    apiFetch<ActividadClienteItem[]>(`/clientes/${clienteId}/actividad?limit=${limit}`),
 };
+
+
+// ── Actividad del cliente autenticado (campana del sitio público) ──
+// A diferencia de NotificacionItem (100% interna del admin), esto no es
+// una fila persistida: el backend la arma al vuelo agregando
+// historial_reservas y solicitudes_cancelacion de ESE cliente. Ver
+// GET /clientes/{cliente_id}/actividad en solicitud_cancelacion_route.py.
+export interface ActividadClienteItem {
+  tipo: "reserva" | "cancelacion" | string;
+  titulo: string;
+  mensaje: string | null;
+  fecha: string;
+  id_referencia: number;
+}

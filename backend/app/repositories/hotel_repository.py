@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func
 from app.models.hotel_model import Hotel, Habitacion, Caracteristica, HotelCaracteristica
@@ -55,6 +57,39 @@ class HotelRepository:
             query = query.filter(Hotel.id_hotel.in_(hoteles_con_disponibilidad))
 
         return query.order_by(Hotel.id_hotel).offset(skip).limit(limit).all()
+
+    @staticmethod
+    def get_fechas_ocupadas(db: Session, hotel_id: int):
+        """Fechas ya reservadas (por reserva activa) de cada habitación del
+        hotel — mismo criterio de "reserva activa" ya usado en
+        _verificar_disponibilidad (reserva_repository.py) y en el filtro de
+        disponibilidad de GET /hoteles/ (get_all de arriba). Solo devuelve
+        fechas, nunca a quién pertenece la reserva. Filtra fecha_checkout >=
+        hoy para no mostrarle al cliente rangos ya pasados sin ningún valor
+        informativo."""
+        hoy = date.today()
+        filas = (
+            db.query(
+                ReservaHabitacion.id_habitacion,
+                ReservaHabitacion.fecha_checkin,
+                ReservaHabitacion.fecha_checkout,
+            )
+            .join(Habitacion, Habitacion.id_habitacion == ReservaHabitacion.id_habitacion)
+            .join(Reserva, Reserva.id_reserva == ReservaHabitacion.id_reserva)
+            .filter(
+                Habitacion.id_hotel == hotel_id,
+                Reserva.estado.in_(["pendiente", "confirmada"]),
+                ReservaHabitacion.fecha_checkout >= hoy,
+            )
+            .order_by(ReservaHabitacion.fecha_checkin)
+            .all()
+        )
+        resultado: dict = {}
+        for id_habitacion, checkin, checkout in filas:
+            resultado.setdefault(id_habitacion, []).append(
+                {"fecha_checkin": checkin, "fecha_checkout": checkout}
+            )
+        return resultado
 
     @staticmethod
     def get_destacados(db: Session, limit: int = 3):

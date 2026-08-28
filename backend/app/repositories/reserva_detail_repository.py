@@ -52,6 +52,28 @@ class ReservaDetailRepository:
         return [dict(r._mapping) for r in result]
 
     @staticmethod
+    def get_historial_cliente(db: Session, id_cliente: int, limit: int = 30):
+        """
+        Cambios de estado reales de las reservas de UN cliente (para su feed
+        de notificaciones en el sitio público) — excluye notas internas del
+        asesor (estado_anterior = estado_nuevo, ver add_nota más abajo) porque
+        esas no son un evento que el cliente deba ver. Misma tabla
+        historial_reservas que ya alimenta el timeline y la actividad
+        reciente del admin — ninguna tabla ni columna nueva.
+        """
+        result = db.execute(text("""
+            SELECT hr.id_historial, hr.id_reserva, hr.estado_anterior, hr.estado_nuevo,
+                   hr.fecha_cambio, hr.comentarios
+            FROM historial_reservas hr
+            JOIN reservas r ON r.id_reserva = hr.id_reserva
+            WHERE r.id_cliente = :id_cliente
+              AND hr.estado_anterior IS DISTINCT FROM hr.estado_nuevo
+            ORDER BY hr.fecha_cambio DESC
+            LIMIT :limit
+        """), {"id_cliente": id_cliente, "limit": limit}).fetchall()
+        return [dict(r._mapping) for r in result]
+
+    @staticmethod
     def get_historial(db: Session, reserva_id: int):
         result = db.execute(text("""
             SELECT hr.id_historial, hr.estado_anterior, hr.estado_nuevo,

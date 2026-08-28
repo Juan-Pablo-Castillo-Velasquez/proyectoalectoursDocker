@@ -181,6 +181,19 @@ export default function Checkout() {
           setCedula(c.cedula ?? '');
           setDireccion(c.direccion ?? '');
           setCiudad(c.ciudad ?? '');
+
+          // BUG real corregido: el cliente ya tenía estos datos registrados
+          // (celular, cédula, nombre) y aun así tenía que volver a
+          // escribirlos en el paso de pago para Nequi/PSE/Tarjeta. Solo se
+          // prellenan campos que el cliente puede seguir editando — nunca
+          // el número de tarjeta ni el CVV, que nunca se guardan completos
+          // (MetodoPagoGuardado solo persiste los últimos 4).
+          if (c.celular) setNequiValue((prev) => (prev.celular ? prev : { celular: c.celular! }));
+          if (c.cedula) setPseValue((prev) => (prev.documento ? prev : { ...prev, documento: c.cedula! }));
+          if (c.nombre || c.apellido) {
+            const nombreCompleto = `${c.nombre ?? ''} ${c.apellido ?? ''}`.trim();
+            setCardValue((prev) => (prev.name ? prev : { ...prev, name: nombreCompleto }));
+          }
         })
         .catch(() => setCliente(null));
     }

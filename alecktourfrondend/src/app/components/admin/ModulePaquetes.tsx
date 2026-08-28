@@ -1,8 +1,9 @@
 import { useState } from "react";
 import {
-  Search, Trash2, Pencil, PlusCircle, Package, CheckCircle, CreditCard, Calendar,
+  Search, Trash2, Pencil, PlusCircle, Package, CheckCircle, CreditCard, Calendar, Hotel,
 } from "lucide-react";
-import { Paquete, Reserva, inputCls, labelCls } from "./types";
+import { Paquete, Reserva, HotelData, inputCls, labelCls } from "./types";
+import { paqueteService } from "../../services/paquete.service";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
@@ -10,8 +11,16 @@ import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import { Switch } from "../ui/switch";
 
+interface HotelSeleccionado { id_hotel: number; noches_incluidas: string }
+
 const EMPTY_FORM = {
   nombre_paquete: "", descripcion: "", duracion_dias: "1", precio_base: "", activo: true,
+  // paquete_hotel ya existía en el modelo (lo usa la página pública de
+  // detalle vía GET /paquetes/{id}/detalle) pero no había forma de
+  // editarlo desde el admin — todo paquete nuevo quedaba sin ningún hotel
+  // real asociado, lo que permitía combinaciones ilógicas en Crear Reserva
+  // (un paquete de una ciudad con un hotel de otra, sin ninguna relación).
+  hoteles: [] as HotelSeleccionado[],
 };
 
 type EstadoFilter = "todos" | "activo" | "inactivo";
@@ -23,18 +32,22 @@ interface Props {
   // `clientes?` en ModuleEmpresas.tsx. Con esto se calcula un rendimiento
   // real por paquete sin pedir ningún endpoint nuevo.
   reservas?: Reserva[];
+  // Opcional: lista real de hoteles para vincular al crear/editar un
+  // paquete (ver EMPTY_FORM.hoteles arriba).
+  hoteles?: HotelData[];
   onDelete: (id: number) => void;
   onSubmit: (data: any, id?: number) => Promise<void>;
   loading: boolean;
 }
 
-export default function ModulePaquetes({ paquetes, reservas = [], onDelete, onSubmit, loading }: Props) {
+export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], onDelete, onSubmit, loading }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [cargandoHoteles, setCargandoHoteles] = useState(false);
 
   // Rendimiento real por paquete (reservas y ventas, excluyendo canceladas)
   // calculado en el cliente a partir de `reservas`, que el dashboard ya
@@ -73,20 +86,66 @@ export default function ModulePaquetes({ paquetes, reservas = [], onDelete, onSu
     setForm({
       nombre_paquete: p.nombre_paquete, descripcion: p.descripcion ?? "",
       duracion_dias: String(p.duracion_dias ?? 1), precio_base: String(p.precio_base ?? ""),
-      activo: p.activo,
+      activo: p.activo, hoteles: [],
     });
     setMsg(null);
     setModalOpen(true);
+
+    // Carga los hoteles YA vinculados a este paquete (paquete_hotel) desde
+    // el endpoint que ya existía para la página pública de detalle — evita
+    // pedir un endpoint nuevo solo para leer lo mismo. El formulario se abre
+    // de inmediato (sin bloquear en la carga) y los checkboxes se marcan
+    // en cuanto llega la respuesta.
+    setCargandoHoteles(true);
+    paqueteService.getDetalle(p.id_paquete)
+      .then((detalle) => {
+        setForm((prev) => ({
+          ...prev,
+          hoteles: detalle.hoteles.map((h) => ({
+            id_hotel: h.id_hotel,
+            noches_incluidas: h.noches_incluidas != null ? String(h.noches_incluidas) : "",
+          })),
+        }));
+      })
+      .catch(() => { /* si falla, el admin igual puede editar el resto y volver a marcar los hoteles */ })
+      .finally(() => setCargandoHoteles(false));
   }
 
   function closeModal() { setModalOpen(false); setEditingId(null); setForm(EMPTY_FORM); setMsg(null); }
+
+  function toggleHotel(id_hotel: number) {
+    setForm((prev) => {
+      const yaEsta = prev.hoteles.some((h) => h.id_hotel === id_hotel);
+      return {
+        ...prev,
+        hoteles: yaEsta
+          ? prev.hoteles.filter((h) => h.id_hotel !== id_hotel)
+          : [...prev.hoteles, { id_hotel, noches_incluidas: "" }],
+      };
+    });
+  }
+
+  function setNochesHotel(id_hotel: number, noches_incluidas: string) {
+    setForm((prev) => ({
+      ...prev,
+      hoteles: prev.hoteles.map((h) => (h.id_hotel === id_hotel ? { ...h, noches_incluidas } : h)),
+    }));
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
     try {
       await onSubmit(
-        { ...form, duracion_dias: parseInt(form.duracion_dias), precio_base: parseFloat(form.precio_base) },
+        {
+          ...form,
+          duracion_dias: parseInt(form.duracion_dias),
+          precio_base: parseFloat(form.precio_base),
+          hoteles: form.hoteles.map((h) => ({
+            id_hotel: h.id_hotel,
+            noches_incluidas: h.noches_incluidas ? parseInt(h.noches_incluidas, 10) : null,
+          })),
+        },
         editingId ?? undefined
       );
       closeModal();
@@ -280,6 +339,54 @@ export default function ModulePaquetes({ paquetes, reservas = [], onDelete, onSu
                 className={inputCls} required placeholder="1200000" />
             </div>
           </div>
+
+          {/* Hoteles vinculados (paquete_hotel) — antes esta tabla no tenía
+              ningún punto de escritura en el admin: un paquete nuevo quedaba
+              siempre sin hotel real asociado, lo que permitía armar
+              combinaciones ilógicas en Crear Reserva (un paquete de Bogotá
+              con un hotel de Barranquilla, sin ninguna relación real entre
+              los dos). */}
+          <div>
+            <label className={labelCls}>
+              Hoteles incluidos {cargandoHoteles && <span className="text-muted-foreground font-normal">(cargando...)</span>}
+            </label>
+            {hoteles.length === 0 ? (
+              <p className="text-xs text-muted-foreground/70 mt-1">No hay hoteles registrados todavía.</p>
+            ) : (
+              <div className="mt-1.5 max-h-44 overflow-y-auto space-y-1.5 border border-border rounded-xl p-2.5">
+                {hoteles.map((h) => {
+                  const seleccionado = form.hoteles.find((fh) => fh.id_hotel === h.id_hotel);
+                  return (
+                    <div key={h.id_hotel} className="flex items-center gap-2.5">
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!seleccionado}
+                          onChange={() => toggleHotel(h.id_hotel)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer flex-shrink-0"
+                        />
+                        <Hotel className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-foreground truncate">
+                          {h.nombre_hotel} <span className="text-muted-foreground">· {h.ciudad}</span>
+                        </span>
+                      </label>
+                      {seleccionado && (
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="noches"
+                          value={seleccionado.noches_incluidas}
+                          onChange={(e) => setNochesHotel(h.id_hotel, e.target.value)}
+                          className="w-20 px-2 py-1 text-xs border border-border rounded-lg bg-card text-foreground outline-none focus:ring-2 focus:ring-primary/30 flex-shrink-0"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Toggle de estado — antes el form lo guardaba en memoria
               (EMPTY_FORM.activo) pero nunca se mostraba ningún control para
               cambiarlo; un admin no podía desactivar/reactivar un paquete

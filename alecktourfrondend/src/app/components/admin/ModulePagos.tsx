@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Search, Trash2, Wallet, CheckCircle, Clock, XCircle, CreditCard,
   Pencil, AlertCircle, Save, FileText, Paperclip, Upload,
+  Mail, Phone, User, ArrowUpRight,
 } from "lucide-react";
 import { Pago, Reserva, Cliente, labelCls, resolveFotoUrl } from "./types";
 import { generarFacturaPdf } from "../../utils/generarFacturaPdf";
@@ -54,6 +55,11 @@ interface Props {
   onDelete: (id: number) => void;
   onUploadComprobante?: (id: number, file: File) => Promise<void>;
   onDeleteComprobante?: (id: number) => Promise<void>;
+  /** Abre el detalle completo de la reserva vinculada en el módulo de
+   * Reservas (mismo mecanismo que "Ver reserva completa" en Cancelaciones,
+   * ver `reservaIdInicial` en ModuleReservas.tsx) — antes no había forma de
+   * pasar de un pago a su reserva sin buscarla manualmente. */
+  onVerReserva?: (id: number) => void;
 }
 
 // Centro de pagos del admin: KPIs reales (recaudado, pendientes, rechazados
@@ -67,7 +73,7 @@ interface Props {
 // exista como endpoint técnico.
 export default function ModulePagos({
   pagos, reservas = [], clientes = [], metodos = [], onUpdateEstado, onDelete,
-  onUploadComprobante, onDeleteComprobante,
+  onUploadComprobante, onDeleteComprobante, onVerReserva,
 }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
@@ -81,6 +87,14 @@ export default function ModulePagos({
 
   const reservaMap = Object.fromEntries(reservas.map(r => [r.id_reserva, r]));
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id_cliente, c]));
+
+  // Reserva y cliente reales del pago que está abierto en el modal de
+  // edición — antes el modal no los usaba para nada aunque ya llegaban como
+  // props (reservaMap/clienteMap de arriba), así que solo mostraba el
+  // id_reserva plano, sin nombre/correo/celular del cliente ni forma de ir
+  // a ver la reserva completa.
+  const reservaEditando = editing ? reservaMap[editing.id_reserva] : undefined;
+  const clienteEditando = reservaEditando ? clienteMap[reservaEditando.id_cliente] : undefined;
 
   // Mantiene `editing` sincronizado con la lista real: al subir/borrar un
   // comprobante o al asignarse un numero_factura, `pagos` (prop) se
@@ -347,6 +361,39 @@ export default function ModulePagos({
       >
         {editing && (
           <div className="space-y-3">
+            {/* Cliente real de la reserva — ya llegaba en `clientes`/`reservas`
+                (props) pero nunca se mostraba acá; el nombre en la tabla era
+                lo único visible sin abrir la factura en PDF. */}
+            {clienteEditando && (
+              <div className="p-3 rounded-xl border border-border bg-muted/30 space-y-1.5">
+                <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
+                  {clienteEditando.nombre} {clienteEditando.apellido}
+                </p>
+                {clienteEditando.correo && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 flex-shrink-0" /> {clienteEditando.correo}
+                  </p>
+                )}
+                {clienteEditando.celular && (
+                  <a href={`tel:${clienteEditando.celular}`} className="text-xs text-muted-foreground flex items-center gap-1.5 hover:text-primary w-fit">
+                    <Phone className="w-3.5 h-3.5 flex-shrink-0" /> {clienteEditando.celular}
+                  </a>
+                )}
+                {clienteEditando.cedula && (
+                  <p className="text-xs text-muted-foreground">CC {clienteEditando.cedula}</p>
+                )}
+                {onVerReserva && (
+                  <button
+                    onClick={() => onVerReserva(editing.id_reserva)}
+                    className="pt-1 flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    Ver reserva completa en Reservas <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )}
+
             <label className={labelCls}>Estado del pago</label>
             <div className="grid grid-cols-2 gap-1.5">
               {PAGO_ESTADOS.map(e => (

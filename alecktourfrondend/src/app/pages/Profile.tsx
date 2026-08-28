@@ -25,6 +25,13 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState(
     () => (location.state as { tab?: string } | null)?.tab ?? "reservas",
   );
+  // Deep-link desde la campana de notificaciones (NotificacionesBell) a una
+  // reserva puntual — se resincroniza en el efecto de abajo porque, si ya
+  // estábamos en /profile, react-router no vuelve a montar el componente y
+  // el useState inicial de arriba no se re-ejecutaría solo.
+  const [reservaIdInicial, setReservaIdInicial] = useState<number | null>(
+    () => (location.state as { reservaId?: number } | null)?.reservaId ?? null,
+  );
   const [reservas, setReservas] = useState<ReservaResponse[]>([]);
   const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(
     null,
@@ -38,6 +45,12 @@ export default function Profile() {
       return;
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    const state = location.state as { tab?: string; reservaId?: number } | null;
+    if (state?.tab) setActiveTab(state.tab);
+    if (state?.reservaId != null) setReservaIdInicial(state.reservaId);
+  }, [location.state]);
 
   useEffect(() => {
     if (!isAuthenticated || !usuario?.id_cliente) {
@@ -106,6 +119,7 @@ export default function Profile() {
                     reservas={reservas}
                     loading={loading}
                     clienteData={clienteData}
+                    reservaIdInicial={reservaIdInicial}
                   />
                 </motion.div>
               )}
