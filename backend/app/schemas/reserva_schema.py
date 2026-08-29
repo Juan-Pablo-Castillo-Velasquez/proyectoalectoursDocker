@@ -11,13 +11,27 @@ class PaqueteHotelInput(BaseModel):
     noches_incluidas: Optional[int] = Field(None, gt=0)
 
 
+class PaqueteServicioInput(BaseModel):
+    """Un servicio real incluido en el paquete (tabla paquete_servicios,
+    ya existía en el modelo y ya se leía en GET /paquetes/{id}/detalle,
+    pero tampoco tenía ningún punto de escritura desde el admin — mismo
+    hueco que tenían los hoteles antes de PaqueteRepository._sync_hoteles."""
+    id_servicio: int
+    dia_actividad: Optional[int] = Field(None, gt=0)
+    incluido: bool = True
+
+
 class PaqueteCreate(BaseModel):
     nombre_paquete: str = Field(..., min_length=1, max_length=100)
     descripcion: Optional[str] = None
     duracion_dias: Optional[int] = Field(None, gt=0)
     precio_base: float = Field(..., ge=0)
     activo: bool = True
+    # Ciudad de salida del viaje (vuelo/transporte) — distinta de la ciudad
+    # de destino, que se deriva de los hoteles reales vinculados.
+    ciudad_salida: Optional[str] = Field(None, max_length=100)
     hoteles: Optional[List[PaqueteHotelInput]] = None
+    servicios: Optional[List[PaqueteServicioInput]] = None
 
 
 class PaqueteUpdate(BaseModel):
@@ -26,6 +40,10 @@ class PaqueteUpdate(BaseModel):
     duracion_dias: Optional[int] = Field(None, gt=0)
     precio_base: Optional[float] = Field(None, ge=0)
     activo: Optional[bool] = None
+    ciudad_salida: Optional[str] = Field(None, max_length=100)
+    # None = no tocar servicios ya vinculados; [] = quitar todos — mismo
+    # patrón exclude_unset ya usado para "hoteles".
+    servicios: Optional[List[PaqueteServicioInput]] = None
     # None = no se mandó, no tocar los hoteles ya vinculados (mismo patrón
     # de exclude_unset ya usado para reactivar solo con {activo: true});
     # [] = sí se mandó, y significa "quitar todos los hoteles".
@@ -39,6 +57,10 @@ class PaqueteResponse(BaseModel):
     duracion_dias: Optional[int]
     precio_base: float
     activo: bool
+    ciudad_salida: Optional[str] = None
+    # Calculada (Paquete.ciudad_destino), no una columna — ver el property
+    # en el modelo. None si el paquete no tiene ningún hotel vinculado.
+    ciudad_destino: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -55,11 +77,15 @@ class PaqueteHotelDetalle(BaseModel):
 
 
 class PaqueteServicioDetalle(BaseModel):
+    id_servicio: int
     nombre_servicio: str
     categoria: Optional[str] = None
     descripcion: Optional[str] = None
     dia_actividad: Optional[int] = None
     incluido: bool = True
+    # Para cuántas personas alcanza este servicio — info comercial real que
+    # ya vive en Servicio.capacidad_maxima, antes nunca viajaba hasta acá.
+    capacidad_maxima: Optional[int] = None
 
 
 class PaqueteDetalleResponse(PaqueteResponse):

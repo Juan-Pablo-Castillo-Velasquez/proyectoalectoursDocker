@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
 import { preferenciasService, type PreferenciaResponse } from "../../services/preferencias.service";
+import { clienteService, type MetodoPagoGuardadoAdminResponse } from "../../services/cliente.service";
 import { Cliente, Reserva, inputCls, labelCls, resolveFotoUrl } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
@@ -13,6 +14,9 @@ import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import Avatar from "./ui/Avatar";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../ui/select";
 
 const EMPTY_FORM = {
   nombre: "", apellido: "", cedula: "", correo: "",
@@ -62,13 +66,34 @@ export default function ModuleClientes({
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [profileId, setProfileId] = useState<number | null>(null);
 
-  const filtered = clientes.filter(c =>
-    `${c.nombre} ${c.apellido} ${c.cedula} ${c.correo}`.toLowerCase().includes(search.toLowerCase())
-  );
+  // KPIs reales — ciudades/países cubiertos por la base de clientes. Se
+  // reutilizan también como opciones de los filtros de abajo, así nunca
+  // aparece una ciudad/país que en realidad no tiene ningún cliente.
+  const ciudades = Array.from(new Set(clientes.map(c => c.ciudad).filter(Boolean))).sort();
+  const paises = Array.from(new Set(clientes.map(c => c.pais).filter(Boolean))).sort();
 
-  // KPIs reales — ciudades/países cubiertos por la base de clientes.
-  const ciudades = new Set(clientes.map(c => c.ciudad).filter(Boolean));
-  const paises = new Set(clientes.map(c => c.pais).filter(Boolean));
+  const [ciudadFilter, setCiudadFilter] = useState("todos");
+  const [paisFilter, setPaisFilter] = useState("todos");
+  // Antes solo se podía buscar por texto — con una base de clientes grande
+  // no había forma de aislar, por ejemplo, a los que nunca han reservado
+  // (candidatos a una campaña de reactivación) sin salir a otro módulo.
+  const [conReservasFilter, setConReservasFilter] = useState<"todos" | "con" | "sin">("todos");
+
+  const idsClientesConReservas = new Set(reservas.map(r => r.id_cliente));
+
+  const filtered = clientes.filter(c => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || `${c.nombre} ${c.apellido} ${c.cedula} ${c.correo}`.toLowerCase().includes(q);
+    const matchCiudad = ciudadFilter === "todos" || c.ciudad === ciudadFilter;
+    const matchPais = paisFilter === "todos" || c.pais === paisFilter;
+    const tieneReservas = idsClientesConReservas.has(c.id_cliente);
+    const matchReservas = conReservasFilter === "todos"
+      || (conReservasFilter === "con" ? tieneReservas : !tieneReservas);
+    return matchSearch && matchCiudad && matchPais && matchReservas;
+  });
+
+  const hasActiveFilters = search.trim() !== "" || ciudadFilter !== "todos" || paisFilter !== "todos" || conReservasFilter !== "todos";
+  function clearFilters() { setSearch(""); setCiudadFilter("todos"); setPaisFilter("todos"); setConReservasFilter("todos"); }
 
   const profile = clientes.find(c => c.id_cliente === profileId) ?? null;
   const reservasCliente = profile ? reservas.filter(r => r.id_cliente === profile.id_cliente) : [];
@@ -106,6 +131,23 @@ export default function ModuleClientes({
       .then((data) => { if (!cancelado) setPreferencias(data); })
       .catch(() => { if (!cancelado) setPreferencias(null); })
       .finally(() => { if (!cancelado) setPreferenciasCargando(false); });
+    return () => { cancelado = true; };
+  }, [profileId]);
+
+  // Métodos de pago guardados reales del cliente (alias/tipo/últimos4 —
+  // nunca la clave ni datos sensibles, ver MetodoPagoGuardado) — mismo
+  // patrón de carga que preferencias, para que el admin/asesor vea de
+  // entrada con qué suele pagar sin tener que ir a buscarlo en Pagos.
+  const [metodosPago, setMetodosPago] = useState<MetodoPagoGuardadoAdminResponse[]>([]);
+  const [metodosPagoCargando, setMetodosPagoCargando] = useState(false);
+  useEffect(() => {
+    if (!profileId) { setMetodosPago([]); return; }
+    let cancelado = false;
+    setMetodosPagoCargando(true);
+    clienteService.getMetodosPago(profileId)
+      .then((data) => { if (!cancelado) setMetodosPago(data); })
+      .catch(() => { if (!cancelado) setMetodosPago([]); })
+      .finally(() => { if (!cancelado) setMetodosPagoCargando(false); });
     return () => { cancelado = true; };
   }, [profileId]);
 
@@ -154,20 +196,55 @@ export default function ModuleClientes({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label="Total"    value={clientes.length} icon={Users} />
-        <StatCard label="Ciudades" value={ciudades.size}   icon={MapPin}  gradient="from-[#C9A227] to-[#C9A227]" />
-        <StatCard label="Países"   value={paises.size}     icon={Globe}   gradient="from-[#A13B55] to-[#A13B55]" />
+        <StatCard label="Ciudades" value={ciudades.length} icon={MapPin}  gradient="from-[#C9A227] to-[#C9A227]" />
+        <StatCard label="Países"   value={paises.length}   icon={Globe}   gradient="from-[#A13B55] to-[#A13B55]" />
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, cédula o correo..."
-          className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm outline-none
-            bg-card text-foreground placeholder:text-muted-foreground/60
-            focus:ring-2 focus:ring-primary/40 focus:border-transparent"
-        />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, cédula o correo..."
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm outline-none
+              bg-card text-foreground placeholder:text-muted-foreground/60
+              focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+          />
+        </div>
+        <Select value={ciudadFilter} onValueChange={setCiudadFilter}>
+          <SelectTrigger className="w-auto min-w-[140px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="Ciudad" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas las ciudades</SelectItem>
+            {ciudades.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={paisFilter} onValueChange={setPaisFilter}>
+          <SelectTrigger className="w-auto min-w-[130px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="País" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los países</SelectItem>
+            {paises.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={conReservasFilter} onValueChange={(v) => setConReservasFilter(v as "todos" | "con" | "sin")}>
+          <SelectTrigger className="w-auto min-w-[150px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="Reservas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Con o sin reservas</SelectItem>
+            <SelectItem value="con">Con reservas</SelectItem>
+            <SelectItem value="sin">Sin reservas</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <button onClick={clearFilters} className="text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-2">
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {filtered.length > 0 ? (
@@ -367,6 +444,32 @@ export default function ModuleClientes({
                   </>
                 ) : (
                   <p className="text-xs text-muted-foreground py-1">Este cliente no ha completado sus preferencias de viaje todavía.</p>
+                )}
+              </div>
+
+              {/* Métodos de pago guardados — nunca se muestra la clave ni
+                  el número completo, solo alias/tipo/últimos4 (lo mismo
+                  que ya ve el propio cliente en su cuenta). */}
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4 mb-2 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5" /> Métodos de pago
+              </h4>
+              <div className="space-y-1.5">
+                {metodosPagoCargando ? (
+                  <p className="text-xs text-muted-foreground py-1">Cargando...</p>
+                ) : metodosPago.length > 0 ? (
+                  metodosPago.map((m) => (
+                    <div key={m.id_metodo_guardado} className="flex items-center gap-2.5 py-1">
+                      <CreditCard className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-xs text-foreground flex-1 min-w-0 truncate">
+                        {m.alias} <span className="text-muted-foreground">· {m.tipo}{m.ultimos4 ? ` •••• ${m.ultimos4}` : ""}</span>
+                      </span>
+                      {m.predeterminado && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary flex-shrink-0">Predeterminado</span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground py-1">Este cliente no tiene ningún método de pago guardado todavía.</p>
                 )}
               </div>
             </section>

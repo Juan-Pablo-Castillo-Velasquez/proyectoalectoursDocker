@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_
-from app.models.reserva_model import Reserva, Paquete, PaqueteHotel, Pago, MetodoPago, HistorialReserva, ReservaHabitacion, ReservaServicio
+from app.models.reserva_model import Reserva, Paquete, PaqueteHotel, PaqueteServicio, Pago, MetodoPago, HistorialReserva, ReservaHabitacion, ReservaServicio
 from app.models.hotel_model import Habitacion, Hotel
+from app.models.servicio_model import Servicio
 from app.core.exceptions import (
     ReservaDependencyError, PaqueteDependencyError, NotFoundError,
     HabitacionNoDisponibleError, HabitacionNoEncontradaError, PaqueteNoEncontradoError,
@@ -65,16 +66,60 @@ class PaqueteRepository:
                 db.add(PaqueteHotel(id_paquete=paquete_id, id_hotel=id_hotel, noches_incluidas=noches))
 
     @staticmethod
+    def _sync_servicios(db: Session, paquete_id: int, servicios_data: list):
+        """Igual que _sync_hoteles pero para paquete_servicios ("qué
+        incluye" el paquete) — la tabla ya existía y ya la lee GET
+        /paquetes/{id}/detalle, pero tampoco tenía ningún punto de
+        escritura: un paquete nuevo quedaba siempre sin ningún servicio
+        real asociado. Valida cada id_servicio contra la BD antes de
+        vincularlo, nunca confiando en lo que manda el frontend."""
+        if not servicios_data:
+            db.query(PaqueteServicio).filter(PaqueteServicio.id_paquete == paquete_id).delete()
+            return
+
+        ids_pedidos = [s["id_servicio"] for s in servicios_data]
+        servicios_reales = set(
+            row[0] for row in db.query(Servicio.id_servicio).filter(Servicio.id_servicio.in_(ids_pedidos)).all()
+        )
+        faltantes = set(ids_pedidos) - servicios_reales
+        if faltantes:
+            raise NotFoundError(f"Servicio(s) no encontrado(s): {sorted(faltantes)}")
+
+        existentes = {
+            ps.id_servicio: ps
+            for ps in db.query(PaqueteServicio).filter(PaqueteServicio.id_paquete == paquete_id).all()
+        }
+        ids_nuevos = set(ids_pedidos)
+        for id_servicio, ps in existentes.items():
+            if id_servicio not in ids_nuevos:
+                db.delete(ps)
+
+        for s in servicios_data:
+            id_servicio = s["id_servicio"]
+            dia_actividad = s.get("dia_actividad")
+            incluido = s.get("incluido", True)
+            if id_servicio in existentes:
+                existentes[id_servicio].dia_actividad = dia_actividad
+                existentes[id_servicio].incluido = incluido
+            else:
+                db.add(PaqueteServicio(
+                    id_paquete=paquete_id, id_servicio=id_servicio,
+                    dia_actividad=dia_actividad, incluido=incluido,
+                ))
+
+    @staticmethod
     def create(db: Session, paquete_data: dict):
-        # PaqueteCreate.dict() (sin exclude_unset) siempre trae la llave
-        # "hoteles", así que se saca del dict antes de construir Paquete()
-        # (no es una columna real del modelo) y se sincroniza aparte una vez
-        # que el paquete ya tiene id_paquete.
+        # PaqueteCreate.dict() (sin exclude_unset) siempre trae las llaves
+        # "hoteles"/"servicios", así que se sacan del dict antes de construir
+        # Paquete() (no son columnas reales del modelo) y se sincronizan
+        # aparte una vez que el paquete ya tiene id_paquete.
         hoteles_data = paquete_data.pop("hoteles", None) or []
+        servicios_data = paquete_data.pop("servicios", None) or []
         paquete = Paquete(**paquete_data)
         db.add(paquete)
         db.flush()
         PaqueteRepository._sync_hoteles(db, paquete.id_paquete, hoteles_data)
+        PaqueteRepository._sync_servicios(db, paquete.id_paquete, servicios_data)
         db.commit()
         db.refresh(paquete)
         return paquete
@@ -83,18 +128,22 @@ class PaqueteRepository:
     def update(db: Session, paquete_id: int, paquete_data: dict):
         paquete = db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
         if paquete:
-            # exclude_unset=True: "hoteles" solo aparece en el dict si el
-            # admin realmente lo mandó (ver update_paquete en
-            # reserva_route.py) — si no vino, no se tocan los hoteles ya
-            # vinculados, igual que "reactivar" solo manda {activo: true}
-            # sin tocar el resto de campos.
+            # exclude_unset=True: "hoteles"/"servicios" solo aparecen en el
+            # dict si el admin realmente los mandó (ver update_paquete en
+            # reserva_route.py) — si no vinieron, no se tocan los que ya
+            # estaban, igual que "reactivar" solo manda {activo: true} sin
+            # tocar el resto de campos.
             tiene_hoteles = "hoteles" in paquete_data
             hoteles_data = paquete_data.pop("hoteles", None) or []
+            tiene_servicios = "servicios" in paquete_data
+            servicios_data = paquete_data.pop("servicios", None) or []
             for key, value in paquete_data.items():
                 if value is not None:
                     setattr(paquete, key, value)
             if tiene_hoteles:
                 PaqueteRepository._sync_hoteles(db, paquete_id, hoteles_data)
+            if tiene_servicios:
+                PaqueteRepository._sync_servicios(db, paquete_id, servicios_data)
             db.commit()
             db.refresh(paquete)
         return paquete

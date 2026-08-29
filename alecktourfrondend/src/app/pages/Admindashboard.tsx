@@ -21,6 +21,7 @@ import ModuleUsuarios from "../components/admin/ModuleUsuarios";
 import ModulePagos, { type MetodoPago } from "../components/admin/ModulePagos";
 import ModuleActividad from "../components/admin/ModuleActividad";
 import ModuleConfiguracion from "../components/admin/ModuleConfiguracion";
+import ModuleMiCuenta from "../components/admin/ModuleMiCuenta";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
@@ -44,7 +45,7 @@ type PendingDelete =
   | { kind: "empresa"; id: number; label: string };
 
 export default function AdminDashboard() {
-  const { usuario, logout, isAdmin } = useAuth();
+  const { usuario, logout, isAdmin, updateUsuario } = useAuth();
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState<Module>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -470,7 +471,7 @@ export default function AdminDashboard() {
       <ModuleCrearReserva clientes={clientes} paquetes={paquetes} hoteles={hoteles} onSubmit={submitReserva} loading={loading} />
     ),
     hoteles: (
-      <ModuleHoteles hoteles={hoteles} onDelete={deleteHotel} onSubmit={submitHotel} loading={loading} />
+      <ModuleHoteles hoteles={hoteles} onDelete={deleteHotel} onSubmit={submitHotel} loading={loading} onHabitacionesChanged={fetchHoteles} />
     ),
     paquetes: (
       <ModulePaquetes paquetes={paquetes} reservas={reservas} hoteles={hoteles} onDelete={deletePaquete} onSubmit={submitPaquete} loading={loading} />
@@ -540,6 +541,12 @@ export default function AdminDashboard() {
       />
     ),
     configuracion: <ModuleConfiguracion />,
+    "mi-cuenta": (
+      <ModuleMiCuenta
+        usuario={usuario}
+        onFotoActualizada={(foto_perfil) => updateUsuario({ foto_perfil })}
+      />
+    ),
   };
 
   const usuarioInicial = usuario?.username?.[0]?.toUpperCase() ?? "A";

@@ -14,10 +14,29 @@ class Paquete(Base):
     duracion_dias = Column(Integer)
     precio_base = Column(Numeric(10, 2), CheckConstraint("precio_base >= 0"), nullable=False)
     activo = Column(Boolean, default=True)
+    # Ciudad de SALIDA del viaje (vuelo/transporte incluido), distinta de la
+    # ciudad de DESTINO (esa se deriva de paquete_hotel -> Hotel.ciudad). Sin
+    # este campo no había forma de avisar que un paquete armado para salir
+    # de Bogotá no le sirve tal cual a un cliente que vive en Barranquilla.
+    ciudad_salida = Column(String(100), nullable=True)
 
     paquete_servicios = relationship("PaqueteServicio", back_populates="paquete", cascade="all, delete-orphan")
     paquete_hotel = relationship("PaqueteHotel", back_populates="paquete", cascade="all, delete-orphan")
     reservas = relationship("Reserva", back_populates="paquete")
+
+    @property
+    def ciudad_destino(self):
+        """Ciudad de destino real, tomada del primer hotel vinculado
+        (paquete_hotel -> Hotel.ciudad) — mismo patrón que
+        Hotel.total_resenas/calificacion_promedio (propiedad calculada,
+        no una columna nueva). None si el paquete todavía no tiene ningún
+        hotel real asociado. Se expone en PaqueteResponse para que el
+        picker de Crear Reserva pueda mostrar salida Y destino sin pedir
+        el detalle completo de cada paquete uno por uno."""
+        for ph in self.paquete_hotel:
+            if ph.hotel and ph.hotel.ciudad:
+                return ph.hotel.ciudad
+        return None
 
 
 class PaqueteServicio(Base):

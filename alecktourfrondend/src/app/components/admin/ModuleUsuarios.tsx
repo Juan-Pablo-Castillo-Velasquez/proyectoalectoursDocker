@@ -7,6 +7,9 @@ import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import Avatar from "./ui/Avatar";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../ui/select";
 
 const EMPTY_FORM = {
   username: "", correo_electronico: "", password: "", roles: [] as string[],
@@ -27,14 +30,26 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
-  const filtered = usuarios.filter(u =>
-    `${u.username} ${u.correo_electronico} ${u.nombre_completo ?? ""}`.toLowerCase().includes(search.toLowerCase())
-  );
-
   // KPIs reales — activos/verificados calculados sobre el arreglo `usuarios`
   // que ya llega del backend, nada inventado.
   const activos = usuarios.filter(u => u.activo);
   const verificados = usuarios.filter(u => u.verificado);
+
+  const [rolFilter, setRolFilter] = useState("todos");
+  const [estadoFilter, setEstadoFilter] = useState<"todos" | "activos" | "inactivos">("todos");
+  const [verificadoFilter, setVerificadoFilter] = useState<"todos" | "verificados" | "no_verificados">("todos");
+
+  const filtered = usuarios.filter(u => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || `${u.username} ${u.correo_electronico} ${u.nombre_completo ?? ""}`.toLowerCase().includes(q);
+    const matchRol = rolFilter === "todos" || u.roles.includes(rolFilter);
+    const matchEstado = estadoFilter === "todos" || (estadoFilter === "activos" ? u.activo : !u.activo);
+    const matchVerificado = verificadoFilter === "todos" || (verificadoFilter === "verificados" ? u.verificado : !u.verificado);
+    return matchSearch && matchRol && matchEstado && matchVerificado;
+  });
+
+  const hasActiveFilters = search.trim() !== "" || rolFilter !== "todos" || estadoFilter !== "todos" || verificadoFilter !== "todos";
+  function clearFilters() { setSearch(""); setRolFilter("todos"); setEstadoFilter("todos"); setVerificadoFilter("todos"); }
 
   const toggleRol = (nombre_rol: string) => {
     setForm(f => ({
@@ -80,16 +95,52 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
         <StatCard label="Verificados" value={verificados.length} icon={UserCheck}  gradient="from-[#C9A227] to-[#C9A227]" />
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por usuario, correo o nombre..."
-          className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm outline-none
-            bg-card text-foreground placeholder:text-muted-foreground/60
-            focus:ring-2 focus:ring-primary/40 focus:border-transparent"
-        />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por usuario, correo o nombre..."
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm outline-none
+              bg-card text-foreground placeholder:text-muted-foreground/60
+              focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+          />
+        </div>
+        <Select value={rolFilter} onValueChange={setRolFilter}>
+          <SelectTrigger className="w-auto min-w-[130px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="Rol" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los roles</SelectItem>
+            {roles.map(r => <SelectItem key={r.id_rol} value={r.nombre_rol}>{r.nombre_rol}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={estadoFilter} onValueChange={(v) => setEstadoFilter(v as "todos" | "activos" | "inactivos")}>
+          <SelectTrigger className="w-auto min-w-[120px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Activos e inactivos</SelectItem>
+            <SelectItem value="activos">Activos</SelectItem>
+            <SelectItem value="inactivos">Inactivos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={verificadoFilter} onValueChange={(v) => setVerificadoFilter(v as "todos" | "verificados" | "no_verificados")}>
+          <SelectTrigger className="w-auto min-w-[150px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="Verificación" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Verificados y no</SelectItem>
+            <SelectItem value="verificados">Verificados</SelectItem>
+            <SelectItem value="no_verificados">No verificados</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <button onClick={clearFilters} className="text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-2">
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {filtered.length > 0 ? (

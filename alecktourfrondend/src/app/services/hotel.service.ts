@@ -97,4 +97,23 @@ export const hotelService = {
 
   delete: (id: number) =>
     apiFetch<{ message: string }>(`/hoteles/${id}`, { method: 'DELETE' }),
+
+  // Catálogo de tipos de habitación (Individual, Doble, Suite, etc.) — el
+  // backend ya tenía el modelo/schema pero ningún endpoint para leerlo.
+  getTiposHabitacion: () =>
+    apiFetch<TipoHabitacionResponse[]>('/hoteles/tipos-habitacion/'),
+
+  createTipoHabitacion: (data: { nombre_tipo: string; descripcion?: string; capacidad_personas: number }) =>
+    apiFetch<TipoHabitacionResponse>('/hoteles/tipos-habitacion/', { method: 'POST', body: data }),
+
+  // Habitaciones: el backend ya tenía el CRUD completo, solo faltaba el
+  // wrapper del lado del frontend para usarlo desde el admin.
+  createHabitacion: (hotelId: number, data: { id_tipo_habitacion: number; numero_habitacion: string; precio_noche: number; estado?: string }) =>
+    apiFetch<HabitacionResponse>(`/hoteles/${hotelId}/habitaciones`, { method: 'POST', body: data }),
+
+  updateHabitacion: (habitacionId: number, data: Partial<{ numero_habitacion: string; precio_noche: number; estado: string }>) =>
+    apiFetch<HabitacionResponse>(`/hoteles/habitaciones/${habitacionId}`, { method: 'PUT', body: data }),
+
+  deleteHabitacion: (habitacionId: number) =>
+    apiFetch<{ message: string }>(`/hoteles/habitaciones/${habitacionId}`, { method: 'DELETE' }),
 };

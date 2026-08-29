@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func
-from app.models.hotel_model import Hotel, Habitacion, Caracteristica, HotelCaracteristica
+from app.models.hotel_model import Hotel, Habitacion, Caracteristica, HotelCaracteristica, TipoHabitacion
 from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
 from app.core.exceptions import HotelDependencyError, NotFoundError
 
@@ -238,6 +238,30 @@ class HabitacionRepository:
             Habitacion.id_hotel == hotel_id,
             Habitacion.estado == "disponible"
         ).offset(skip).limit(limit).all()
+
+
+class TipoHabitacionRepository:
+    """CRUD de catálogo de tipos de habitación (Individual, Doble, Suite,
+    etc.) — el modelo y su schema ya existían (los usa cada Habitacion vía
+    id_tipo_habitacion) pero no había NINGÚN endpoint para listarlos ni
+    crear uno nuevo: el admin no tenía forma de saber qué tipos existen al
+    dar de alta una habitación."""
+
+    @staticmethod
+    def get_all(db: Session):
+        return db.query(TipoHabitacion).order_by(TipoHabitacion.nombre_tipo).all()
+
+    @staticmethod
+    def get_by_id(db: Session, tipo_id: int):
+        return db.query(TipoHabitacion).filter(TipoHabitacion.id_tipo_habitacion == tipo_id).first()
+
+    @staticmethod
+    def create(db: Session, tipo_data: dict):
+        tipo = TipoHabitacion(**tipo_data)
+        db.add(tipo)
+        db.commit()
+        db.refresh(tipo)
+        return tipo
 
 
 class CaracteristicaRepository:

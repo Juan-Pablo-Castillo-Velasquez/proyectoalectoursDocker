@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Bell, Mail, XCircle, Building2, Wallet, Check, Trash2, CheckCheck, Loader2,
+  Bell, Mail, XCircle, Building2, Wallet, Check, Trash2, CheckCheck, Loader2, Search,
 } from "lucide-react";
 import type { NotificacionItem } from "../../services/notificacion.service";
 import SectionHeader from "./ui/SectionHeader";
@@ -53,10 +53,20 @@ export default function ModuleNotificaciones({
   notificaciones, loading, onMarcarLeida, onMarcarTodasLeidas, onDelete,
 }: Props) {
   const [tipoFilter, setTipoFilter] = useState("todos");
+  const [leidoFilter, setLeidoFilter] = useState<"todos" | "leidas" | "no_leidas">("todos");
+  const [search, setSearch] = useState("");
 
   const tiposDisponibles = Array.from(new Set(notificaciones.map(n => n.tipo)));
-  const filtered = tipoFilter === "todos" ? notificaciones : notificaciones.filter(n => n.tipo === tipoFilter);
+  const filtered = notificaciones.filter(n => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || `${n.titulo} ${n.mensaje ?? ""}`.toLowerCase().includes(q);
+    const matchTipo = tipoFilter === "todos" || n.tipo === tipoFilter;
+    const matchLeido = leidoFilter === "todos" || (leidoFilter === "leidas" ? n.leido : !n.leido);
+    return matchSearch && matchTipo && matchLeido;
+  });
   const noLeidas = notificaciones.filter(n => !n.leido).length;
+  const hasActiveFilters = search.trim() !== "" || tipoFilter !== "todos" || leidoFilter !== "todos";
+  function clearFilters() { setSearch(""); setTipoFilter("todos"); setLeidoFilter("todos"); }
 
   return (
     <div className="space-y-5">
@@ -76,19 +86,47 @@ export default function ModuleNotificaciones({
         )}
       </div>
 
-      {tiposDisponibles.length > 1 && (
-        <Select value={tipoFilter} onValueChange={setTipoFilter}>
-          <SelectTrigger className="w-auto min-w-[140px] h-auto py-2 bg-card border-border text-xs">
-            <SelectValue placeholder="Tipo" />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por título o mensaje..."
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm outline-none
+              bg-card text-foreground placeholder:text-muted-foreground/60
+              focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+          />
+        </div>
+        {tiposDisponibles.length > 1 && (
+          <Select value={tipoFilter} onValueChange={setTipoFilter}>
+            <SelectTrigger className="w-auto min-w-[140px] h-auto py-2 bg-card border-border text-xs">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="todos">Tipo: todos</SelectItem>
+              {tiposDisponibles.map(t => (
+                <SelectItem key={t} value={t}>{TIPO_LABEL[t] ?? t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={leidoFilter} onValueChange={(v) => setLeidoFilter(v as "todos" | "leidas" | "no_leidas")}>
+          <SelectTrigger className="w-auto min-w-[150px] h-auto py-2 bg-card border-border text-xs">
+            <SelectValue placeholder="Leídas" />
           </SelectTrigger>
           <SelectContent className="bg-popover border-border">
-            <SelectItem value="todos">Tipo: todos</SelectItem>
-            {tiposDisponibles.map(t => (
-              <SelectItem key={t} value={t}>{TIPO_LABEL[t] ?? t}</SelectItem>
-            ))}
+            <SelectItem value="todos">Leídas y no leídas</SelectItem>
+            <SelectItem value="no_leidas">Sin leer</SelectItem>
+            <SelectItem value="leidas">Leídas</SelectItem>
           </SelectContent>
         </Select>
-      )}
+        {hasActiveFilters && (
+          <button onClick={clearFilters} className="text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-2">
+            Limpiar filtros
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <div className="h-[200px] flex items-center justify-center text-muted-foreground">

@@ -10,8 +10,10 @@ from app.core.deps import get_current_usuario, exigir_propietario_o_admin, usuar
 from app.core.cache import get_cached, set_cached, delete_pattern
 from app.core.exceptions import ClienteDependencyError, EmpleadoDependencyError, NotFoundError
 from app.schemas.cliente_schema import ClienteCreate, ClienteUpdate, ClienteResponse, EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse
+from app.schemas.metodo_pago_guardado_schema import MetodoPagoGuardadoResponse
 from app.repositories.cliente_repository import ClienteRepository, EmpleadoRepository
 from app.models.user_model import Usuario
+from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 
 router = APIRouter(prefix="/api", tags=["Clientes y Empleados"])
 
@@ -48,6 +50,27 @@ def get_cliente(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     return cliente
+
+
+@router.get("/clientes/{cliente_id}/metodos-pago", response_model=list[MetodoPagoGuardadoResponse])
+def get_metodos_pago_cliente(cliente_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+    """Métodos de pago guardados de un cliente, para que el admin pueda
+    ver con qué suele pagar sin exponer ningún dato sensible real — el
+    modelo ya solo guarda alias/tipo/últimos4 y la clave va hasheada (ver
+    MetodoPagoGuardado), así que MetodoPagoGuardadoResponse (el mismo
+    schema que ya usa el cliente para ver los suyos) es seguro de reusar
+    tal cual acá; antes este listado solo existía en el endpoint self-
+    service (GET /metodos-pago-guardados), nunca para que un admin
+    consultara los de un cliente puntual."""
+    cliente = ClienteRepository.get_by_id(db, cliente_id)
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return (
+        db.query(MetodoPagoGuardado)
+        .filter(MetodoPagoGuardado.id_cliente == cliente_id)
+        .order_by(MetodoPagoGuardado.predeterminado.desc(), MetodoPagoGuardado.fecha_creacion.desc())
+        .all()
+    )
 
 
 @router.post("/clientes", response_model=ClienteResponse, status_code=201)

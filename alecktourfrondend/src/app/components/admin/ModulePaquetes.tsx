@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Package, CheckCircle, CreditCard, Calendar, Hotel,
+  Eye, MapPin, Plane, Sparkles, Users,
 } from "lucide-react";
 import { Paquete, Reserva, HotelData, inputCls, labelCls } from "./types";
-import { paqueteService } from "../../services/paquete.service";
+import { paqueteService, PaqueteDetalleResponse } from "../../services/paquete.service";
+import { servicioService, ServicioResponse } from "../../services/servicio.service";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
@@ -12,15 +14,25 @@ import EmptyState from "./ui/EmptyState";
 import { Switch } from "../ui/switch";
 
 interface HotelSeleccionado { id_hotel: number; noches_incluidas: string }
+interface ServicioSeleccionado { id_servicio: number; dia_actividad: string }
 
 const EMPTY_FORM = {
   nombre_paquete: "", descripcion: "", duracion_dias: "1", precio_base: "", activo: true,
+  // Ciudad de SALIDA del viaje (vuelo/transporte incluido) — distinta de la
+  // ciudad de destino, que ya se calculaba de los hoteles/servicios
+  // vinculados. Sin esto no había forma de avisar que un paquete armado
+  // para salir de Bogotá no le sirve tal cual a un cliente de Barranquilla.
+  ciudad_salida: "",
   // paquete_hotel ya existía en el modelo (lo usa la página pública de
   // detalle vía GET /paquetes/{id}/detalle) pero no había forma de
   // editarlo desde el admin — todo paquete nuevo quedaba sin ningún hotel
   // real asociado, lo que permitía combinaciones ilógicas en Crear Reserva
   // (un paquete de una ciudad con un hotel de otra, sin ninguna relación).
   hoteles: [] as HotelSeleccionado[],
+  // Mismo hueco que tenían los hoteles: paquete_servicios ("qué incluye")
+  // ya existía y ya se leía en la página pública, pero no había forma de
+  // editarlo desde el admin.
+  servicios: [] as ServicioSeleccionado[],
 };
 
 type EstadoFilter = "todos" | "activo" | "inactivo";
@@ -48,6 +60,34 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [cargandoHoteles, setCargandoHoteles] = useState(false);
+
+  // Catálogo completo de servicios reales (GET /servicios/, ya existía
+  // para la página pública) — se carga una sola vez y de ahí se arma el
+  // picker de "qué incluye" el paquete, mismo patrón que `hoteles`.
+  const [catalogoServicios, setCatalogoServicios] = useState<ServicioResponse[]>([]);
+  useEffect(() => {
+    servicioService.getAll().then(setCatalogoServicios).catch(() => {});
+  }, []);
+
+  // Pop-up de detalle (mismo nivel que el de Reservas): ciudad de salida,
+  // destino real, hoteles y servicios incluidos — toda la info comercial
+  // de un paquete en un solo lugar en vez de repartida entre la tabla y el
+  // formulario de edición.
+  const [detailPaquete, setDetailPaquete] = useState<Paquete | null>(null);
+  const [detalle, setDetalle] = useState<PaqueteDetalleResponse | null>(null);
+  const [detalleLoading, setDetalleLoading] = useState(false);
+  const [detalleError, setDetalleError] = useState("");
+
+  function abrirDetalle(p: Paquete) {
+    setDetailPaquete(p);
+    setDetalle(null);
+    setDetalleError("");
+    setDetalleLoading(true);
+    paqueteService.getDetalle(p.id_paquete)
+      .then(setDetalle)
+      .catch((e: any) => setDetalleError(e?.message || "No se pudo cargar el detalle del paquete"))
+      .finally(() => setDetalleLoading(false));
+  }
 
   // Rendimiento real por paquete (reservas y ventas, excluyendo canceladas)
   // calculado en el cliente a partir de `reservas`, que el dashboard ya
@@ -86,16 +126,17 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
     setForm({
       nombre_paquete: p.nombre_paquete, descripcion: p.descripcion ?? "",
       duracion_dias: String(p.duracion_dias ?? 1), precio_base: String(p.precio_base ?? ""),
-      activo: p.activo, hoteles: [],
+      activo: p.activo, ciudad_salida: p.ciudad_salida ?? "", hoteles: [], servicios: [],
     });
     setMsg(null);
     setModalOpen(true);
 
-    // Carga los hoteles YA vinculados a este paquete (paquete_hotel) desde
-    // el endpoint que ya existía para la página pública de detalle — evita
-    // pedir un endpoint nuevo solo para leer lo mismo. El formulario se abre
-    // de inmediato (sin bloquear en la carga) y los checkboxes se marcan
-    // en cuanto llega la respuesta.
+    // Carga los hoteles Y servicios YA vinculados a este paquete
+    // (paquete_hotel / paquete_servicios) desde el endpoint que ya existía
+    // para la página pública de detalle — evita pedir un endpoint nuevo
+    // solo para leer lo mismo. El formulario se abre de inmediato (sin
+    // bloquear en la carga) y los checkboxes se marcan en cuanto llega la
+    // respuesta.
     setCargandoHoteles(true);
     paqueteService.getDetalle(p.id_paquete)
       .then((detalle) => {
@@ -105,9 +146,13 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             id_hotel: h.id_hotel,
             noches_incluidas: h.noches_incluidas != null ? String(h.noches_incluidas) : "",
           })),
+          servicios: detalle.servicios.map((s) => ({
+            id_servicio: s.id_servicio,
+            dia_actividad: s.dia_actividad != null ? String(s.dia_actividad) : "",
+          })),
         }));
       })
-      .catch(() => { /* si falla, el admin igual puede editar el resto y volver a marcar los hoteles */ })
+      .catch(() => { /* si falla, el admin igual puede editar el resto y volver a marcar hoteles/servicios */ })
       .finally(() => setCargandoHoteles(false));
   }
 
@@ -132,6 +177,25 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
     }));
   }
 
+  function toggleServicio(id_servicio: number) {
+    setForm((prev) => {
+      const yaEsta = prev.servicios.some((s) => s.id_servicio === id_servicio);
+      return {
+        ...prev,
+        servicios: yaEsta
+          ? prev.servicios.filter((s) => s.id_servicio !== id_servicio)
+          : [...prev.servicios, { id_servicio, dia_actividad: "" }],
+      };
+    });
+  }
+
+  function setDiaServicio(id_servicio: number, dia_actividad: string) {
+    setForm((prev) => ({
+      ...prev,
+      servicios: prev.servicios.map((s) => (s.id_servicio === id_servicio ? { ...s, dia_actividad } : s)),
+    }));
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
@@ -141,9 +205,15 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
           ...form,
           duracion_dias: parseInt(form.duracion_dias),
           precio_base: parseFloat(form.precio_base),
+          ciudad_salida: form.ciudad_salida.trim() || null,
           hoteles: form.hoteles.map((h) => ({
             id_hotel: h.id_hotel,
             noches_incluidas: h.noches_incluidas ? parseInt(h.noches_incluidas, 10) : null,
+          })),
+          servicios: form.servicios.map((s) => ({
+            id_servicio: s.id_servicio,
+            dia_actividad: s.dia_actividad ? parseInt(s.dia_actividad, 10) : null,
+            incluido: true,
           })),
         },
         editingId ?? undefined
@@ -224,6 +294,7 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             <thead className="bg-muted/40 border-b border-border">
               <tr>
                 <th className={thCls}>Paquete</th>
+                <th className={thCls}>Salida</th>
                 <th className={thCls}>Duración</th>
                 <th className={thCls}>Precio</th>
                 <th className={thCls}>Rendimiento</th>
@@ -238,6 +309,13 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
                     <p className="text-xs font-semibold text-foreground">{p.nombre_paquete}</p>
                     {p.descripcion && (
                       <p className="text-[11px] text-muted-foreground truncate max-w-[280px]">{p.descripcion}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {p.ciudad_salida ? (
+                      <span className="flex items-center gap-1"><Plane className="w-3 h-3" /> {p.ciudad_salida}</span>
+                    ) : (
+                      <span className="text-muted-foreground/50">Sin definir</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
@@ -273,6 +351,13 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
                           Reactivar
                         </button>
                       )}
+                      <button
+                        onClick={() => abrirDetalle(p)}
+                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+                        title="Ver detalle comercial"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEdit(p)}
                         className="p-1.5 text-primary/60 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
@@ -340,6 +425,23 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             </div>
           </div>
 
+          {/* Ciudad de SALIDA del viaje (vuelo/transporte incluido) —
+              distinta del destino, que se calcula solo de los hoteles y
+              servicios vinculados. Sin esto no había forma de avisar que
+              un paquete armado para salir de Bogotá no le sirve tal cual a
+              un cliente que vive en Barranquilla. */}
+          <div>
+            <label className={labelCls}>Ciudad de salida del viaje</label>
+            <div className="relative">
+              <Plane className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input value={form.ciudad_salida} onChange={e => setForm({ ...form, ciudad_salida: e.target.value })}
+                className={inputCls + " pl-9"} placeholder="Ej: Bogotá (opcional)" />
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 mt-1">
+              Desde dónde sale el vuelo/transporte incluido. El destino se toma de los hoteles/servicios que agregues abajo.
+            </p>
+          </div>
+
           {/* Hoteles vinculados (paquete_hotel) — antes esta tabla no tenía
               ningún punto de escritura en el admin: un paquete nuevo quedaba
               siempre sin hotel real asociado, lo que permitía armar
@@ -387,6 +489,55 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             )}
           </div>
 
+          {/* Servicios incluidos (paquete_servicios / "qué incluye") — mismo
+              hueco que tenían los hoteles: la tabla ya existía y ya se
+              mostraba en la página pública del paquete, pero no había
+              forma de editarla desde el admin. Cada servicio ya trae su
+              propia capacidad máxima ("para cuántas personas"), así que no
+              hace falta pedir ese dato de nuevo acá. */}
+          <div>
+            <label className={labelCls}>
+              Qué incluye (servicios) {cargandoHoteles && <span className="text-muted-foreground font-normal">(cargando...)</span>}
+            </label>
+            {catalogoServicios.length === 0 ? (
+              <p className="text-xs text-muted-foreground/70 mt-1">No hay servicios registrados todavía.</p>
+            ) : (
+              <div className="mt-1.5 max-h-44 overflow-y-auto space-y-1.5 border border-border rounded-xl p-2.5">
+                {catalogoServicios.map((s) => {
+                  const seleccionado = form.servicios.find((fs) => fs.id_servicio === s.id_servicio);
+                  return (
+                    <div key={s.id_servicio} className="flex items-center gap-2.5">
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!seleccionado}
+                          onChange={() => toggleServicio(s.id_servicio)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer flex-shrink-0"
+                        />
+                        <Sparkles className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-foreground truncate">
+                          {s.nombre_servicio}{" "}
+                          <span className="text-muted-foreground">· hasta {s.capacidad_maxima} personas</span>
+                        </span>
+                      </label>
+                      {seleccionado && (
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="día"
+                          value={seleccionado.dia_actividad}
+                          onChange={(e) => setDiaServicio(s.id_servicio, e.target.value)}
+                          title="Día del itinerario (opcional)"
+                          className="w-16 px-2 py-1 text-xs border border-border rounded-lg bg-card text-foreground outline-none focus:ring-2 focus:ring-primary/30 flex-shrink-0"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Toggle de estado — antes el form lo guardaba en memoria
               (EMPTY_FORM.activo) pero nunca se mostraba ningún control para
               cambiarlo; un admin no podía desactivar/reactivar un paquete
@@ -403,6 +554,103 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             {loading ? "Guardando..." : editingId ? "Guardar cambios" : "Crear paquete"}
           </button>
         </form>
+      </AdminModal>
+
+      {/* Pop-up de detalle comercial — mismo nivel que el de Reservas:
+          ciudad de salida, destino real, hoteles y qué incluye, todo junto
+          en vez de repartido entre la tabla y el formulario de edición. */}
+      <AdminModal
+        open={!!detailPaquete}
+        onOpenChange={(o) => { if (!o) { setDetailPaquete(null); setDetalle(null); } }}
+        title={detailPaquete?.nombre_paquete ?? "Detalle del paquete"}
+        description="Información comercial completa del paquete."
+        maxWidth="sm:max-w-lg"
+      >
+        {detalleLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
+        ) : detalleError ? (
+          <p className="text-sm text-destructive text-center py-8">{detalleError}</p>
+        ) : detalle && detailPaquete ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-card rounded-xl border border-border p-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                  <Plane className="w-3 h-3" /> Salida
+                </p>
+                <p className="text-sm font-medium text-foreground">{detailPaquete.ciudad_salida || "Sin definir"}</p>
+              </div>
+              <div className="bg-card rounded-xl border border-border p-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" /> Destino
+                </p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {detalle.destinos.length > 0 ? detalle.destinos.join(", ") : (detalle.hoteles[0]?.ciudad ?? "Sin definir")}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="w-3.5 h-3.5" /> {detailPaquete.duracion_dias} día{detailPaquete.duracion_dias === 1 ? "" : "s"}
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CreditCard className="w-3.5 h-3.5" /> ${detailPaquete.precio_base?.toLocaleString()}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Hotel className="w-3.5 h-3.5" /> Hoteles incluidos
+              </p>
+              {detalle.hoteles.length === 0 ? (
+                <p className="text-xs text-muted-foreground/70">Este paquete todavía no tiene ningún hotel vinculado.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {detalle.hoteles.map((h) => (
+                    <div key={h.id_hotel} className="flex items-center gap-2.5 p-2 border border-border rounded-lg bg-card">
+                      <Hotel className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-foreground truncate">{h.nombre_hotel}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {[h.ciudad, h.pais].filter(Boolean).join(", ")}
+                          {h.noches_incluidas ? ` · ${h.noches_incluidas} noche${h.noches_incluidas > 1 ? "s" : ""} incluidas` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Qué incluye
+              </p>
+              {detalle.servicios.length === 0 ? (
+                <p className="text-xs text-muted-foreground/70">Este paquete todavía no tiene ningún servicio vinculado.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {detalle.servicios.map((s) => (
+                    <div key={s.id_servicio} className="flex items-center gap-2.5 p-2 border border-border rounded-lg bg-card">
+                      <Sparkles className="w-3.5 h-3.5 text-[#C9A227] flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-foreground truncate">
+                          {s.nombre_servicio} {s.dia_actividad ? <span className="text-muted-foreground font-normal">· día {s.dia_actividad}</span> : null}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
+                          {s.categoria && <span>{s.categoria} · </span>}
+                          {s.capacidad_maxima != null && (
+                            <span className="flex items-center gap-0.5"><Users className="w-3 h-3" /> hasta {s.capacidad_maxima} personas</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </AdminModal>
     </div>
   );

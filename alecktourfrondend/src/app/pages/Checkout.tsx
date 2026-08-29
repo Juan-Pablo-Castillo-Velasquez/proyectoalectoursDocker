@@ -6,7 +6,7 @@ import { toast, Toaster } from "sonner";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
-import { HabitacionResponse, HotelResponse, hotelService } from "../services/hotel.service";
+import { HabitacionResponse, HotelDetailResponse, hotelService } from "../services/hotel.service";
 import { MetodoPago, pagoService, reservaService } from "../services/reserva.service";
 import { MetodoPagoGuardado, metodoPagoGuardadoService } from "../services/metodoPagoGuardado.service";
 import CardPayment from "../components/payment/CardPayment";
@@ -28,6 +28,12 @@ const STEPS = [
   { n: 4, label: "Pago" },
 ];
 
+function formatFechaCorta(fechaISO: string): string {
+  const d = new Date(`${fechaISO}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return fechaISO;
+  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+}
+
 export default function Checkout() {
   const { id } = useParams(); // id_hotel
   const [searchParams] = useSearchParams();
@@ -35,7 +41,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const { usuario, isAuthenticated } = useAuth();
 
-  const [hotel, setHotel] = useState<HotelResponse | null>(null);
+  const [hotel, setHotel] = useState<HotelDetailResponse | null>(null);
   const [habitacion, setHabitacion] = useState<HabitacionResponse | null>(null);
   const [metodos, setMetodos] = useState<MetodoPago[]>([]);
   // Métodos de pago guardados por el cliente (billetera real, ver
@@ -152,7 +158,7 @@ export default function Checkout() {
       if (m.length > 0) setMetodoPago(m[0].id_metodo);
 
       // Buscamos la habitación exacta que el usuario eligió en HotelDetail
-      const hab = (h as any).habitaciones?.find(
+      const hab = h.habitaciones?.find(
         (hb: HabitacionResponse) => hb.id_habitacion === Number(idHabitacion)
       );
       if (!hab) {
@@ -419,8 +425,8 @@ export default function Checkout() {
     </div>
   );
 
-  const caracteristicasHotel = ((hotel as any).hotel_caracteristicas ?? [])
-    .filter((hc: any) => hc.disponible && hc.caracteristica)
+  const caracteristicasHotel = (hotel.hotel_caracteristicas ?? [])
+    .filter((hc) => hc.disponible && hc.caracteristica)
     .slice(0, 4);
 
   return (
@@ -678,12 +684,12 @@ export default function Checkout() {
                     <div className="mt-4">
                       <p className="text-xs font-semibold text-foreground mb-2">Amenidades del hotel</p>
                       <div className="flex flex-wrap gap-2">
-                        {caracteristicasHotel.map((hc: any) => (
+                        {caracteristicasHotel.map((hc) => (
                           <span
                             key={hc.id_caracteristica}
                             className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-primary/5 border border-primary/10 text-primary"
                           >
-                            {hc.caracteristica.nombre_caracteristica}
+                            {hc.caracteristica?.nombre_caracteristica}
                           </span>
                         ))}
                       </div>
@@ -725,7 +731,11 @@ export default function Checkout() {
                       </div>
                       <div className="flex justify-between text-xs py-1">
                         <span className="text-muted-foreground">Fechas</span>
-                        <strong className="text-foreground">{fechaInicio} → {fechaFin}</strong>
+                        <strong className="text-foreground">
+                          {new Date(`${fechaInicio}T00:00:00`).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}
+                          {" → "}
+                          {new Date(`${fechaFin}T00:00:00`).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}
+                        </strong>
                       </div>
                       <div className="flex justify-between text-xs py-1">
                         <span className="text-muted-foreground">Noches</span>
@@ -1010,11 +1020,42 @@ export default function Checkout() {
                   <Bed className="w-3.5 h-3.5" />
                   {habitacion.tipo_habitacion?.nombre_tipo ?? "Habitación"} · #{habitacion.numero_habitacion}
                 </div>
-                <div className="flex gap-0.5 mt-2">
-                  {Array.from({ length: hotel.calificacion || 5 }, (_, i) => (
-                    <span key={i} className="text-chart-2 text-xs">★</span>
-                  ))}
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: hotel.calificacion || 5 }, (_, i) => (
+                      <span key={i} className="text-chart-2 text-xs">★</span>
+                    ))}
+                  </div>
+                  {hotel.calificacion_promedio != null && hotel.total_resenas > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {hotel.calificacion_promedio.toFixed(1)} · {hotel.total_resenas} reseña{hotel.total_resenas === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
+
+                {fechaInicio && fechaFin && (
+                  <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border/60 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-foreground font-medium">{formatFechaCorta(fechaInicio)}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="text-foreground font-medium">{formatFechaCorta(fechaFin)}</span>
+                    <span className="text-muted-foreground">· {nights} noche{nights === 1 ? "" : "s"}</span>
+                  </div>
+                )}
+
+                {caracteristicasHotel.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border/60">
+                    {caracteristicasHotel.map((hc) => (
+                      <span
+                        key={hc.id_caracteristica}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border border-border text-[10px] font-medium text-muted-foreground"
+                      >
+                        <CheckCircle2 className="w-2.5 h-2.5 text-primary" />
+                        {hc.caracteristica?.nombre_caracteristica}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Desglose matemático — con precio REAL de la habitación */}

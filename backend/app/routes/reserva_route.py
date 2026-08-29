@@ -225,11 +225,13 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
 
     servicios = [
         PaqueteServicioDetalle(
+            id_servicio=ps.id_servicio,
             nombre_servicio=ps.servicio.nombre_servicio,
             categoria=ps.servicio.categoria.nombre_categoria if ps.servicio.categoria else None,
             descripcion=ps.servicio.descripcion,
             dia_actividad=ps.dia_actividad,
             incluido=ps.incluido if ps.incluido is not None else True,
+            capacidad_maxima=ps.servicio.capacidad_maxima,
         )
         for ps in paquete.paquete_servicios
         if ps.servicio
@@ -242,6 +244,7 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
         duracion_dias=paquete.duracion_dias,
         precio_base=float(paquete.precio_base),
         activo=paquete.activo,
+        ciudad_salida=paquete.ciudad_salida,
         destinos=destinos,
         hoteles=hoteles,
         servicios=servicios,

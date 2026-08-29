@@ -18,6 +18,13 @@ export interface PaqueteResponse {
   duracion_dias: number;
   precio_base: number;
   activo: boolean;
+  // Ciudad de SALIDA del viaje (vuelo/transporte incluido) — distinta de la
+  // ciudad de destino, que se deriva de los hoteles reales vinculados
+  // (ver PaqueteDetalleResponse.hoteles[].ciudad).
+  ciudad_salida?: string | null;
+  // Calculada en el backend (primer hotel vinculado) — null si el paquete
+  // todavía no tiene ningún hotel real asociado.
+  ciudad_destino?: string | null;
 }
 
 export interface PaqueteHotelDetalle {
@@ -31,11 +38,13 @@ export interface PaqueteHotelDetalle {
 }
 
 export interface PaqueteServicioDetalle {
+  id_servicio: number;
   nombre_servicio: string;
   categoria: string | null;
   descripcion: string | null;
   dia_actividad: number | null;
   incluido: boolean;
+  capacidad_maxima: number | null;
 }
 
 // Igual que PaqueteResponse pero con destinos/hoteles/servicios reales —

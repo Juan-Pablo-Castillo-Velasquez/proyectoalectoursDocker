@@ -12,10 +12,11 @@ from app.schemas.hotel_schema import (
     HotelCreate, HotelUpdate, HotelResponse, HotelDetailResponse,
     HabitacionCreate, HabitacionUpdate, HabitacionResponse,
     CaracteristicaCreate, CaracteristicaResponse, HotelCaracteristicaCreate,
-    HabitacionFechasOcupadas,
+    HabitacionFechasOcupadas, TipoHabitacionCreate, TipoHabitacionResponse,
 )
 from app.repositories.hotel_repository import (
-    HotelRepository, HabitacionRepository, CaracteristicaRepository, HotelCaracteristicaRepository
+    HotelRepository, HabitacionRepository, CaracteristicaRepository, HotelCaracteristicaRepository,
+    TipoHabitacionRepository,
 )
 from app.core.security import require_admin
 
@@ -214,6 +215,24 @@ def delete_habitacion(habitacion_id: int, db: Session = Depends(get_db), admin_i
 
 
 # ===================== CARACTERÍSTICAS CRUD =====================
+
+@router.get("/tipos-habitacion/", response_model=list[TipoHabitacionResponse])
+def get_tipos_habitacion(db: Session = Depends(get_db)):
+    """Catálogo de tipos de habitación (Individual, Doble, Suite, etc.) —
+    antes no existía ningún endpoint para listarlos, así que el admin no
+    tenía forma de elegir uno al dar de alta una habitación nueva."""
+    return TipoHabitacionRepository.get_all(db)
+
+
+@router.post("/tipos-habitacion/", response_model=TipoHabitacionResponse, status_code=201)
+def create_tipo_habitacion(
+    tipo: TipoHabitacionCreate,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Crea un nuevo tipo de habitación"""
+    return TipoHabitacionRepository.create(db, tipo.dict())
+
 
 @router.get("/caracteristicas/", response_model=list[CaracteristicaResponse])
 def get_caracteristicas(db: Session = Depends(get_db)):

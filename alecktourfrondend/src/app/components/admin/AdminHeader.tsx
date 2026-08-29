@@ -239,22 +239,28 @@ export default function AdminHeader({
           </motion.div>
         </button>
 
-        <div className="text-right hidden sm:block ml-1">
-          <p className="text-white text-sm font-medium">{usuarioNombre}</p>
-          <p className="text-white/60 text-xs">Administrador</p>
-        </div>
-        {fotoUrl && !fotoError ? (
-          <img
-            src={fotoUrl}
-            alt={usuarioNombre ?? "Administrador"}
-            onError={() => setFotoError(true)}
-            className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-white/30"
-          />
-        ) : (
-          <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-            <Users className="w-5 h-5 text-white" />
+        <button
+          onClick={() => onNavigate("mi-cuenta")}
+          title="Mi cuenta"
+          className="flex items-center gap-2.5 pl-1 pr-1.5 py-1 rounded-full hover:bg-white/10 transition-colors"
+        >
+          <div className="text-right hidden sm:block">
+            <p className="text-white text-sm font-medium">{usuarioNombre}</p>
+            <p className="text-white/60 text-xs">Administrador</p>
           </div>
-        )}
+          {fotoUrl && !fotoError ? (
+            <img
+              src={fotoUrl}
+              alt={usuarioNombre ?? "Administrador"}
+              onError={() => setFotoError(true)}
+              className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-white/30"
+            />
+          ) : (
+            <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+          )}
+        </button>
         <button
           onClick={onLogout}
           className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all"

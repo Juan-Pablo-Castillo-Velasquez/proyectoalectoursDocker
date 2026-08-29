@@ -33,6 +33,13 @@ function esHoy(fechaISO: string): boolean {
   return d.getDate() === hoy.getDate() && d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear();
 }
 
+function dentroDeUltimosDias(fechaISO: string, dias: number): boolean {
+  const fecha = new Date(fechaISO).getTime();
+  if (Number.isNaN(fecha)) return false;
+  const limite = Date.now() - dias * 24 * 60 * 60 * 1000;
+  return fecha >= limite;
+}
+
 interface Props {
   actividad: ActividadRecienteItem[];
   loading?: boolean;
@@ -52,6 +59,7 @@ interface Props {
 export default function ModuleActividad({ actividad, loading, loadingMore, agotado, onCargarMas }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState("todos");
+  const [periodoFilter, setPeriodoFilter] = useState<"todos" | "hoy" | "7dias">("todos");
 
   const estadosDisponibles = Array.from(
     new Set(actividad.map(a => a.estado_nuevo).filter((e): e is string => !!e)),
@@ -64,14 +72,16 @@ export default function ModuleActividad({ actividad, loading, loadingMore, agota
       || String(a.id_reserva).includes(q)
       || (a.nombre_empleado ?? "").toLowerCase().includes(q)
       || (a.comentarios ?? "").toLowerCase().includes(q);
-    return matchEstado && matchSearch;
+    const matchPeriodo = periodoFilter === "todos"
+      || (periodoFilter === "hoy" ? esHoy(a.fecha_cambio) : dentroDeUltimosDias(a.fecha_cambio, 7));
+    return matchEstado && matchSearch && matchPeriodo;
   });
 
   const hoyCount = actividad.filter(a => esHoy(a.fecha_cambio)).length;
   const reservasAfectadas = new Set(actividad.map(a => a.id_reserva)).size;
 
-  const hasActiveFilters = estadoFilter !== "todos" || search.trim() !== "";
-  function clearFilters() { setSearch(""); setEstadoFilter("todos"); }
+  const hasActiveFilters = estadoFilter !== "todos" || search.trim() !== "" || periodoFilter !== "todos";
+  function clearFilters() { setSearch(""); setEstadoFilter("todos"); setPeriodoFilter("todos"); }
 
   const selectTriggerCls = "w-auto min-w-[140px] h-auto py-2 bg-card border-border text-xs";
 
@@ -114,6 +124,17 @@ export default function ModuleActividad({ actividad, loading, loadingMore, agota
             </SelectContent>
           </Select>
         )}
+
+        <Select value={periodoFilter} onValueChange={(v) => setPeriodoFilter(v as "todos" | "hoy" | "7dias")}>
+          <SelectTrigger className={selectTriggerCls}>
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            <SelectItem value="todos">Cualquier fecha</SelectItem>
+            <SelectItem value="hoy">Hoy</SelectItem>
+            <SelectItem value="7dias">Últimos 7 días</SelectItem>
+          </SelectContent>
+        </Select>
 
         {hasActiveFilters && (
           <button

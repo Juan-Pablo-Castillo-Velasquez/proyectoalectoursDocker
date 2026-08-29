@@ -24,4 +24,10 @@ export const usuarioService = {
 
   deleteFoto: () =>
     apiFetch<UsuarioResponse>('/usuarios/me/foto', { method: 'DELETE' }),
+
+  cambiarPassword: (data: { contrasena_actual: string; nueva_contrasena: string }) =>
+    apiFetch<{ message: string }>('/usuarios/me/password', {
+      method: 'PUT',
+      body: data,
+    }),
 };

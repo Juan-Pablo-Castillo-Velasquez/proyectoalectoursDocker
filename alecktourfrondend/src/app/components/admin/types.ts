@@ -30,7 +30,8 @@ export type Module =
   | "notificaciones"
   | "roles"
   | "actividad"
-  | "configuracion";
+  | "configuracion"
+  | "mi-cuenta";
 
 export interface Reserva {
   id_reserva: number;
@@ -114,6 +115,12 @@ export interface Paquete {
   duracion_dias: number;
   precio_base: number;
   activo: boolean;
+  // Ciudad de SALIDA del viaje — distinta de la ciudad de destino (esa sale
+  // de los hoteles vinculados al paquete, ver paquete_hotel).
+  ciudad_salida?: string | null;
+  // Calculada en el backend (primer hotel vinculado) — null si el paquete
+  // todavía no tiene ningún hotel real asociado.
+  ciudad_destino?: string | null;
 }
 
 export interface Cliente {

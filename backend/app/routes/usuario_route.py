@@ -3,11 +3,12 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.database import get_db
-from app.core.security import get_user_from_token, hash_password, require_admin
+from app.core.security import get_user_from_token, hash_password, verify_password, require_admin
 from app.core.cache import delete_pattern
 from app.models.user_model import Usuario
 from app.models.auth_model import Rol, UsuarioRol
@@ -179,6 +180,34 @@ def _borrar_archivo_si_existe(foto_perfil: Optional[str]) -> None:
 @router.get("/me", response_model=UsuarioResponse)
 def get_me(usuario: Usuario = Depends(get_current_usuario)):
     return usuario
+
+
+class CambiarPasswordRequest(BaseModel):
+    contrasena_actual: str
+    nueva_contrasena: str
+
+
+@router.put("/me/password")
+def cambiar_password_propio(
+    data: CambiarPasswordRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_usuario),
+):
+    """Cambio de contraseña de la cuenta ya autenticada (por token), no de
+    un cliente específico como /clientes/{id}/cambiar-contrasena (que exige
+    un id_cliente y por tanto no sirve para una cuenta de administrador sin
+    cliente vinculado) ni del flujo de 'olvidé mi contraseña' (token de un
+    solo uso por correo, ver password_reset). Sirve para cualquier Usuario:
+    admin, empleado o cliente."""
+    if not verify_password(data.contrasena_actual, usuario.password_hash):
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
+
+    if len(data.nueva_contrasena) < 8:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
+
+    usuario.password_hash = hash_password(data.nueva_contrasena)
+    db.commit()
+    return {"message": "Contraseña actualizada correctamente"}
 
 
 @router.post("/me/foto", response_model=UsuarioResponse)

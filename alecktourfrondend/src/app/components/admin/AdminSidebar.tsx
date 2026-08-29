@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, CalendarDays, XCircle, PlusCircle, Users, Hotel,
   Package, Building2, Wallet, Bell, UserPlus, ShieldCheck, Activity,
-  Settings, Plane, ChevronLeft, ChevronRight,
+  Settings, Plane, ChevronLeft, ChevronRight, UserCircle,
 } from "lucide-react";
 import type { Module } from "./types";
 import {
@@ -41,8 +41,8 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Operaciones",
     items: [
       { id: "reservas", label: "Reservas", icon: CalendarDays, ready: true },
-      { id: "cancelaciones", label: "Solicitudes de cancelación", icon: XCircle, ready: true },
       { id: "crear-reserva", label: "Crear reserva", icon: PlusCircle, ready: true },
+      { id: "cancelaciones", label: "Solicitudes de cancelación", icon: XCircle, ready: true },
       { id: "clientes", label: "Clientes", icon: Users, ready: true },
     ],
   },
@@ -78,6 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: "roles", label: "Roles y permisos", icon: ShieldCheck, ready: false },
       { id: "actividad", label: "Actividad del sistema", icon: Activity, ready: true },
       { id: "configuracion", label: "Configuración", icon: Settings, ready: true },
+      { id: "mi-cuenta", label: "Mi cuenta", icon: UserCircle, ready: true },
     ],
   },
 ];

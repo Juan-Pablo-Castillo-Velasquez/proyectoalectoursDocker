@@ -52,6 +52,7 @@ interface Props {
 export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, clientes = [] }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
+  const [clienteFilter, setClienteFilter] = useState<"todos" | "ya_cliente" | "no_cliente">("todos");
   const [editing, setEditing] = useState<SolicitudCorporativa | null>(null);
   const [nuevoEstado, setNuevoEstado] = useState<Estado>("nuevo");
   const [saving, setSaving] = useState(false);
@@ -68,7 +69,9 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
         || s.nombre_empresa.toLowerCase().includes(q)
         || s.nombre_contacto.toLowerCase().includes(q)
         || s.email_corporativo.toLowerCase().includes(q);
-      return matchEstado && matchSearch;
+      const esCliente = !!clientePorCorreo(s.email_corporativo);
+      const matchCliente = clienteFilter === "todos" || (clienteFilter === "ya_cliente" ? esCliente : !esCliente);
+      return matchEstado && matchSearch && matchCliente;
     })
     .sort((a, b) => {
       // Mismo criterio que ModuleCancelaciones.tsx: los leads "nuevo" (sin
@@ -83,6 +86,9 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
       }
       return new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime();
     });
+
+  const hasActiveFilters = search.trim() !== "" || estadoFilter !== "todos" || clienteFilter !== "todos";
+  function clearFilters() { setSearch(""); setEstadoFilter("todos"); setClienteFilter("todos"); }
 
   const nuevas = solicitudes.filter(s => s.estado === "nuevo").length;
   const cerradas = solicitudes.filter(s => s.estado === "cerrado").length;
@@ -138,6 +144,23 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
             {ESTADOS.map(e => <SelectItem key={e} value={e} className="capitalize">{e}</SelectItem>)}
           </SelectContent>
         </Select>
+        {clientes.length > 0 && (
+          <Select value={clienteFilter} onValueChange={(v) => setClienteFilter(v as "todos" | "ya_cliente" | "no_cliente")}>
+            <SelectTrigger className="w-auto min-w-[150px] h-auto py-2 bg-card border-border text-xs">
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="todos">Clientes y leads</SelectItem>
+              <SelectItem value="ya_cliente">Ya es cliente</SelectItem>
+              <SelectItem value="no_cliente">Lead nuevo</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {hasActiveFilters && (
+          <button onClick={clearFilters} className="text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-2">
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {filtered.length > 0 ? (
