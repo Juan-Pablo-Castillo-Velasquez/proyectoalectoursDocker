@@ -209,7 +209,15 @@ async def global_exception_handler(request: Request, exc: Exception):
             "detail": "Error interno del servidor. Revisa los logs del servidor para ver el detalle.",
         },
         headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:5173"),
+            # Fase 2 del plan de mejora ("arreglar links con localhost en
+            # correos reales"): este fallback solo aplica cuando la
+            # petición no trae header Origin (no es una llamada CORS de
+            # navegador); antes de esto asumía siempre localhost, ahora
+            # prioriza el primer dominio real configurado en CORS_ORIGINS.
+            "Access-Control-Allow-Origin": request.headers.get(
+                "origin",
+                _cors_origins_env[0] if _cors_origins_env else "http://localhost:5173",
+            ),
             "Access-Control-Allow-Credentials": "true",
         },
     )

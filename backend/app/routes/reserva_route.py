@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import os
+import threading
 import uuid
 from typing import Optional
 from app.services.reserva_detail_service import ReservaDetailService
@@ -30,6 +32,7 @@ from app.repositories.reserva_repository import (
 from app.models.reserva_model import Pago, MetodoPago, HistorialReserva, Paquete, PaqueteServicio, PaqueteHotel
 from app.models.servicio_model import Servicio
 from app.models.hotel_model import Hotel, HotelCaracteristica
+from app.core.mail import send_reservation_confirmation
 from app.services import payment_service
 from app.services.notificacion_service import crear_notificacion
 from app.core.security import require_admin
@@ -88,6 +91,52 @@ def _asignar_numero_factura(db: Session, pago: Pago) -> None:
             mensaje=f"Pago #{pago.id_pago} ({pago.numero_factura}) por ${pago.monto:,.0f} confirmado.",
             id_referencia=pago.id_reserva,
         )
+
+
+def _enviar_confirmacion_reserva_en_hilo(
+    email: str | None,
+    reserva_id: int,
+    hotel_name: str | None,
+    check_in: str,
+    check_out: str,
+    total_price: float,
+    guest_name: str,
+) -> None:
+    """
+    Envia el correo de confirmacion de reserva (Fase 2 del plan de mejora:
+    la "confirmacion por correo" que Checkout.tsx ya promete al cliente
+    -linea 561-563- no tenia ninguna infraestructura de envio real detras;
+    send_reservation_confirmation ya existia en app/core/mail.py pero solo
+    se usaba en app/core/examples.py, que no es una ruta activa.
+
+    Se extraen los valores planos ANTES de llamar a esta funcion (nunca se
+    pasa el objeto Reserva ni la sesion de BD a otro hilo: la sesion puede
+    cerrarse en cuanto este endpoint responda, y un lazy-load de
+    reserva.cliente desde otro hilo en ese momento fallaria). Corre en un
+    hilo aparte, best-effort: si el envio falla, solo queda en el log —
+    nunca debe romper la respuesta de un pago que ya se aplico y confirmo
+    en la base de datos.
+    """
+    if not email:
+        return
+
+    def _run() -> None:
+        try:
+            asyncio.run(send_reservation_confirmation(
+                email=email,
+                reservation_id=reserva_id,
+                hotel_name=hotel_name or "AlecTours",
+                check_in=check_in,
+                check_out=check_out,
+                total_price=total_price,
+                guest_name=guest_name,
+            ))
+        except Exception as e:
+            logger.error(
+                f"No se pudo enviar el correo de confirmacion de la reserva #{reserva_id}: {e}"
+            )
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 # ===================== PAQUETES CRUD =====================
@@ -536,6 +585,18 @@ def pagar_reserva(
     delete_pattern(RESERVAS_CACHE_PATTERN)
     delete_pattern(PAGOS_CACHE_PATTERN)
 
+    if reserva.estado == "confirmada":
+        cliente = reserva.cliente
+        _enviar_confirmacion_reserva_en_hilo(
+            email=cliente.correo if cliente else None,
+            reserva_id=reserva.id_reserva,
+            hotel_name=reserva.hotel_nombre,
+            check_in=str(reserva.fecha_inicio) if reserva.fecha_inicio else "",
+            check_out=str(reserva.fecha_fin) if reserva.fecha_fin else "",
+            total_price=reserva.precio_total,
+            guest_name=f"{cliente.nombre} {cliente.apellido}".strip() if cliente else "Cliente",
+        )
+
     return PagarResponse(pago=pago, reserva=reserva)
 
 
@@ -589,6 +650,18 @@ def confirmar_pago(
     _asignar_numero_factura(db, pago)
     delete_pattern(RESERVAS_CACHE_PATTERN)
     delete_pattern(PAGOS_CACHE_PATTERN)
+
+    if reserva.estado == "confirmada":
+        cliente = reserva.cliente
+        _enviar_confirmacion_reserva_en_hilo(
+            email=cliente.correo if cliente else None,
+            reserva_id=reserva.id_reserva,
+            hotel_name=reserva.hotel_nombre,
+            check_in=str(reserva.fecha_inicio) if reserva.fecha_inicio else "",
+            check_out=str(reserva.fecha_fin) if reserva.fecha_fin else "",
+            total_price=reserva.precio_total,
+            guest_name=f"{cliente.nombre} {cliente.apellido}".strip() if cliente else "Cliente",
+        )
 
     return PagarResponse(pago=pago, reserva=reserva)
 

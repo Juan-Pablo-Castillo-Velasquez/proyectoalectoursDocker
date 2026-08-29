@@ -42,7 +42,12 @@ from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 from app.models.configuracion_model import ConfiguracionSistema
 from app.models.notificacion_model import Notificacion
 from app.models.empresa_model import SolicitudCorporativa
+from app.models.reserva_model import SolicitudCancelacion, HistorialReserva
 from app.repositories.reserva_repository import ReservaRepository, PagoRepository
+from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
+from app.schemas.reserva_schema import PagarRequest
+from app.schemas.solicitud_cancelacion_schema import SolicitudCancelacionResolve
+from app.routes import reserva_route, solicitud_cancelacion_route
 
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -307,3 +312,228 @@ class TestIdempotenciaPagos:
         db.commit()
 
         assert PagoRepository.existe_pago_en_proceso(db, reserva.id_reserva) is False
+
+
+class _HiloSincrono:
+    """Reemplaza threading.Thread dentro de un módulo de ruta para las
+    pruebas: el envío de correo (Fase 2 del plan de mejora) corre en un
+    hilo aparte para no bloquear la respuesta ni depender de la sesión de
+    BD tras cerrarse — pero eso hace la aserción en un test una carrera
+    contra el hilo real. Este doble corre el "hilo" en el mismo hilo del
+    test, de forma síncrona, así se puede afirmar sobre el envío sin
+    sleeps ni condiciones de carrera.
+    """
+
+    def __init__(self, target=None, daemon=None, **kwargs):
+        self._target = target
+
+    def start(self):
+        if self._target:
+            self._target()
+
+
+class TestCorreoConfirmacionReserva:
+    """Fase 2 del plan de mejora: 'Confirmación por correo' prometida en
+    Checkout.tsx (líneas 561-563) sin infraestructura de envío para
+    reservas. send_reservation_confirmation ya existía en app/core/mail.py
+    pero solo se usaba en app/core/examples.py (no es una ruta activa) —
+    estas pruebas verifican que ahora sí se llama desde el flujo real de
+    pago (pagar_reserva / confirmar_pago), solo cuando la reserva de
+    verdad queda 'confirmada', nunca si el pago fue rechazado."""
+
+    def _preparar_reserva_y_metodo(self, db, codigo_metodo, nombre_metodo):
+        cliente = _crear_cliente(db)
+        _, habitacion = _crear_hotel_y_habitacion(db, precio_noche=150000)
+        reserva = ReservaRepository.create(db, {
+            "id_cliente": cliente.id_cliente,
+            "numero_personas": 1,
+            "fecha_inicio": date(2026, 4, 1),
+            "fecha_fin": date(2026, 4, 3),
+            "habitaciones": [{
+                "id_habitacion": habitacion.id_habitacion,
+                "fecha_checkin": date(2026, 4, 1),
+                "fecha_checkout": date(2026, 4, 3),
+            }],
+        })
+        metodo = MetodoPago(nombre_metodo=nombre_metodo, codigo=codigo_metodo)
+        db.add(metodo)
+        db.commit()
+        usuario = Usuario(
+            username=f"user{cliente.id_cliente}",
+            correo_electronico=f"user{cliente.id_cliente}@test.com",
+            password_hash="hash-de-prueba",
+            id_cliente=cliente.id_cliente,
+        )
+        db.add(usuario)
+        db.commit()
+        return cliente, reserva, metodo, usuario
+
+    def test_pago_aprobado_al_instante_envia_correo_de_confirmacion(self, db, monkeypatch):
+        llamadas = []
+
+        async def fake_send(**kwargs):
+            llamadas.append(kwargs)
+            return True
+
+        monkeypatch.setattr(reserva_route.threading, "Thread", _HiloSincrono)
+        monkeypatch.setattr(reserva_route, "send_reservation_confirmation", fake_send)
+
+        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(
+            db, "tarjeta_credito", "Tarjeta de crédito"
+        )
+        data = PagarRequest(id_metodo_pago=metodo.id_metodo, tipo_pago="completo", ultimos4="4242")
+
+        resultado = reserva_route.pagar_reserva(
+            reserva.id_reserva, data, db=db, current_user=usuario, authorization=None
+        )
+
+        assert resultado.reserva.estado == "confirmada"
+        assert len(llamadas) == 1
+        assert llamadas[0]["email"] == cliente.correo
+        assert llamadas[0]["reservation_id"] == reserva.id_reserva
+        assert llamadas[0]["guest_name"] == f"{cliente.nombre} {cliente.apellido}"
+
+    def test_pago_rechazado_no_envia_correo_de_confirmacion(self, db, monkeypatch):
+        llamadas = []
+
+        async def fake_send(**kwargs):
+            llamadas.append(kwargs)
+            return True
+
+        monkeypatch.setattr(reserva_route.threading, "Thread", _HiloSincrono)
+        monkeypatch.setattr(reserva_route, "send_reservation_confirmation", fake_send)
+
+        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(
+            db, "tarjeta_credito", "Tarjeta de crédito"
+        )
+        # "0002" es el valor de prueba que payment_service siempre rechaza.
+        data = PagarRequest(id_metodo_pago=metodo.id_metodo, tipo_pago="completo", ultimos4="0002")
+
+        resultado = reserva_route.pagar_reserva(
+            reserva.id_reserva, data, db=db, current_user=usuario, authorization=None
+        )
+
+        assert resultado.reserva.estado == "pendiente"
+        assert resultado.pago.estado == "rechazado"
+        assert llamadas == []
+
+    def test_confirmar_pago_pse_aprobado_envia_correo_de_confirmacion(self, db, monkeypatch):
+        llamadas = []
+
+        async def fake_send(**kwargs):
+            llamadas.append(kwargs)
+            return True
+
+        monkeypatch.setattr(reserva_route.threading, "Thread", _HiloSincrono)
+        monkeypatch.setattr(reserva_route, "send_reservation_confirmation", fake_send)
+
+        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(db, "pse", "PSE")
+        # Documento normal (no "0000000000") -> se aprueba al confirmar.
+        data = PagarRequest(
+            id_metodo_pago=metodo.id_metodo, tipo_pago="completo",
+            banco="Bancolombia", documento="123456789",
+        )
+
+        inicio = reserva_route.pagar_reserva(
+            reserva.id_reserva, data, db=db, current_user=usuario, authorization=None
+        )
+        # PSE queda 'procesando' de inmediato — todavía no se manda nada.
+        assert inicio.pago.estado == "procesando"
+        assert llamadas == []
+
+        pago_id = inicio.pago.id_pago
+        resultado = reserva_route.confirmar_pago(
+            pago_id, db=db, current_user=usuario, authorization=None
+        )
+
+        assert resultado.reserva.estado == "confirmada"
+        assert len(llamadas) == 1
+        assert llamadas[0]["email"] == cliente.correo
+        assert llamadas[0]["reservation_id"] == reserva.id_reserva
+
+
+class TestCorreoCancelacionReserva:
+    """Misma fase del plan de mejora: aprobar una solicitud de cancelación
+    ahora sí avisa por correo al cliente de que su reserva quedó cancelada
+    de verdad (send_cancellation_email, antes también sin ningún punto de
+    llamada real)."""
+
+    def test_aprobar_solicitud_cancela_la_reserva_y_envia_correo(self, db, monkeypatch):
+        llamadas = []
+
+        async def fake_send(**kwargs):
+            llamadas.append(kwargs)
+            return True
+
+        monkeypatch.setattr(solicitud_cancelacion_route.threading, "Thread", _HiloSincrono)
+        monkeypatch.setattr(solicitud_cancelacion_route, "send_cancellation_email", fake_send)
+
+        cliente = _crear_cliente(db)
+        reserva = Reserva(
+            id_cliente=cliente.id_cliente,
+            numero_personas=1,
+            estado="pendiente",
+            fecha_inicio=date(2026, 5, 1),
+            fecha_fin=date(2026, 5, 3),
+        )
+        db.add(reserva)
+        db.commit()
+
+        solicitud = SolicitudCancelacionRepository.create(
+            db,
+            id_reserva=reserva.id_reserva,
+            id_cliente=cliente.id_cliente,
+            motivo="Cambio de planes personales",
+            motivo_detalle=None,
+        )
+
+        data = SolicitudCancelacionResolve(estado="aprobada", comentario_resolucion="Aprobado por soporte")
+        resultado = solicitud_cancelacion_route.admin_resolver_solicitud(
+            solicitud.id_solicitud, data, db=db, admin_id=1
+        )
+
+        assert resultado.estado == "aprobada"
+        db.refresh(reserva)
+        assert reserva.estado == "cancelada"
+        assert len(llamadas) == 1
+        assert llamadas[0]["email"] == cliente.correo
+        assert llamadas[0]["reservation_id"] == reserva.id_reserva
+
+    def test_rechazar_solicitud_no_cancela_ni_envia_correo(self, db, monkeypatch):
+        llamadas = []
+
+        async def fake_send(**kwargs):
+            llamadas.append(kwargs)
+            return True
+
+        monkeypatch.setattr(solicitud_cancelacion_route.threading, "Thread", _HiloSincrono)
+        monkeypatch.setattr(solicitud_cancelacion_route, "send_cancellation_email", fake_send)
+
+        cliente = _crear_cliente(db)
+        reserva = Reserva(
+            id_cliente=cliente.id_cliente,
+            numero_personas=1,
+            estado="pendiente",
+            fecha_inicio=date(2026, 6, 1),
+            fecha_fin=date(2026, 6, 3),
+        )
+        db.add(reserva)
+        db.commit()
+
+        solicitud = SolicitudCancelacionRepository.create(
+            db,
+            id_reserva=reserva.id_reserva,
+            id_cliente=cliente.id_cliente,
+            motivo="Cambio de planes personales",
+            motivo_detalle=None,
+        )
+
+        data = SolicitudCancelacionResolve(estado="rechazada", comentario_resolucion="No aplica reembolso")
+        resultado = solicitud_cancelacion_route.admin_resolver_solicitud(
+            solicitud.id_solicitud, data, db=db, admin_id=1
+        )
+
+        assert resultado.estado == "rechazada"
+        db.refresh(reserva)
+        assert reserva.estado == "pendiente"
+        assert llamadas == []

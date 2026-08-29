@@ -1,0 +1,96 @@
+# docker-compose.prod.yml — despliegue real del backend (Fase 2 del plan
+# de mejora: "Usar el stage prod del Dockerfile en el despliegue real").
+#
+# El Dockerfile del backend ya tenía un stage `prod` bien construido
+# (usuario no-root, sin --reload, con `--workers 4` y healthcheck real
+# contra /health) pero nunca se usaba — docker-compose.yml (el de
+# desarrollo local) siempre apuntaba a `target: dev`. Este archivo es
+# aparte, no un override: se usa solo para el despliegue real, en un
+# servidor propio (VPS/similar) — el frontend de este proyecto se
+# despliega directo en Vercel (ver alecktourfrondend/), no con Docker, así
+# que este compose no incluye ese servicio.
+#
+# Diferencias a propósito frente a docker-compose.yml (dev):
+#   - backend usa target: prod (sin --reload, con workers, usuario no-root)
+#   - sin bind-mount de ./backend:/app — el código va horneado en la
+#     imagen, como corresponde en producción (nada de hot-reload aquí)
+#   - sin mailpit ni pgadmin: en producción el correo va a un SMTP real
+#     (configurado por variables MAIL_* en backend/.env, ver
+#     backend/.env.example) y un admin de base de datos expuesto al host
+#     es justo el tipo de hallazgo que el plan de mejora marcó como
+#     riesgo (credenciales hardcodeadas + puertos expuestos)
+#   - postgres y redis NO exponen puerto al host: solo el backend los
+#     necesita, y lo hace por la red interna de Docker
+#   - credenciales de Postgres via variables de entorno (sin default
+#     hardcodeado) en vez de admin/admin123 como en el compose de dev
+#
+# Uso:
+#   1. Completa backend/.env con los valores REALES de producción
+#      (SECRET_KEY fuerte y propio, DATABASE_URL, MAIL_* de un SMTP real,
+#      FRONTEND_URL y CORS_ORIGINS apuntando al dominio real de Vercel —
+#      ver backend/.env.example).
+#   2. Exporta POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB (o ponlos
+#      en un .env.prod y pasa --env-file .env.prod).
+#   3. docker compose -f docker-compose.prod.yml up -d --build
+#
+# Ver también docs/referencia-tecnica/despliegue-produccion.md.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres_db_prod
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - alecktours_network_prod
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache_prod
+    restart: unless-stopped
+    networks:
+      - alecktours_network_prod
+
+  backend:
+    build:
+      context: ./backend
+      target: prod
+
+    container_name: fastapi_backend_prod
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - ./backend/.env
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    networks:
+      - alecktours_network_prod
+
+volumes:
+  postgres_data_prod:
+
+networks:
+  alecktours_network_prod:
+    driver: bridge

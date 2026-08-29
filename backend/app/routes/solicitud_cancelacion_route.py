@@ -1,5 +1,8 @@
 # Guardar como: backend/app/routes/solicitud_cancelacion_route.py
 
+import asyncio
+import logging
+import threading
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
@@ -7,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_admin
 from app.core.deps import get_current_usuario
-from app.core.mail import send_email
+from app.core.mail import send_cancellation_email, send_email
 from app.core.cache import delete_pattern
 from app.models.user_model import Usuario
 from app.models.reserva_model import Reserva, HistorialReserva
@@ -21,6 +24,36 @@ from app.repositories.solicitud_cancelacion_repository import SolicitudCancelaci
 from app.services.notificacion_service import crear_notificacion, get_actividad_cliente
 
 router = APIRouter(prefix="/api", tags=["Solicitudes de cancelación"])
+
+logger = logging.getLogger(__name__)
+
+
+def _enviar_cancelacion_en_hilo(email: str | None, reserva_id: int, guest_name: str) -> None:
+    """
+    Envia la confirmacion de cancelacion (Fase 2 del plan de mejora) en un
+    hilo aparte, best-effort — mismo patron que
+    reserva_route._enviar_confirmacion_reserva_en_hilo: send_cancellation_email
+    ya existia en app/core/mail.py pero nunca se llamaba desde una ruta
+    activa (solo en app/core/examples.py). No se calcula reembolso: no hay
+    ninguna politica de reembolso real definida en el proyecto, así que no
+    se inventa una acá — el correo sale sin ese monto.
+    """
+    if not email:
+        return
+
+    def _run() -> None:
+        try:
+            asyncio.run(send_cancellation_email(
+                email=email,
+                reservation_id=reserva_id,
+                guest_name=guest_name,
+            ))
+        except Exception as e:
+            logger.error(
+                f"No se pudo enviar el correo de cancelacion de la reserva #{reserva_id}: {e}"
+            )
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 @router.post(
@@ -189,11 +222,13 @@ def admin_resolver_solicitud(
     if admin and admin.empleado:
         solicitud.id_empleado_resolutor = admin.empleado.id_empleado
 
+    reserva_recien_cancelada = None
     if data.estado == "aprobada":
         reserva = db.query(Reserva).filter(Reserva.id_reserva == solicitud.id_reserva).first()
         if reserva and reserva.estado not in ("cancelada", "finalizada"):
             estado_anterior = reserva.estado
             reserva.estado = "cancelada"
+            reserva_recien_cancelada = reserva
             db.add(HistorialReserva(
                 id_reserva=reserva.id_reserva,
                 estado_anterior=estado_anterior,
@@ -209,4 +244,18 @@ def admin_resolver_solicitud(
         # listado de Reservas del admin (reserva_route.py) queda cacheado
         # hasta 60s si no se invalida acá.
         delete_pattern("reservas:list:*")
+
+    # Confirmación por correo al cliente de que su reserva quedó cancelada
+    # de verdad (Fase 2 del plan de mejora) — solo si en ESTA llamada de
+    # verdad se aplicó el cambio (reserva_recien_cancelada), nunca si la
+    # solicitud se marcó aprobada pero la reserva ya estaba cancelada por
+    # otro lado.
+    if reserva_recien_cancelada is not None:
+        cliente = reserva_recien_cancelada.cliente
+        _enviar_cancelacion_en_hilo(
+            email=cliente.correo if cliente else None,
+            reserva_id=reserva_recien_cancelada.id_reserva,
+            guest_name=f"{cliente.nombre} {cliente.apellido}".strip() if cliente else "Cliente",
+        )
+
     return solicitud

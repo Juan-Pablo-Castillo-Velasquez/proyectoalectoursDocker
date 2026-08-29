@@ -86,7 +86,6 @@ export default function Checkout() {
   const [pseValue, setPseValue] = useState<PSEPaymentValue>(emptyPSEValue);
   const [nequiValue, setNequiValue] = useState<NequiPaymentValue>(emptyNequiValue);
   const [securityPin, setSecurityPin] = useState('');
-  const DEMO_PIN = '1234';
 
   // ── Estado visual del pago: idle mientras se llena el formulario,
   //    processing/approved/rejected una vez enviado (ver PaymentStatus) ──
@@ -116,7 +115,19 @@ export default function Checkout() {
     (esNequi && isNequiValueValid(nequiValue)) ||
     (!esTarjeta && !esPSE && !esNequi);
 
-  const pinValido = securityPin === DEMO_PIN;
+  // Fase 2 del plan de mejora: antes esto comparaba contra un PIN fijo
+  // ('1234', visible en la propia pantalla) — cero seguridad real. Acá
+  // solo se valida el formato; la verificación real (o su creación, si es
+  // la primera vez que el cliente paga con este tipo de método) pasa por
+  // el backend dentro de handleSubmit, contra metodoGuardadoDelTipo.
+  const pinCompletado = securityPin.length >= 4;
+
+  // Método guardado (billetera real del cliente, ver MetodoPagoGuardado en
+  // el backend) para el TIPO de pago actualmente elegido. Si existe, su
+  // PIN ya está hasheado en el backend y hay que verificarlo contra ese;
+  // si no, es el primer pago del cliente con este tipo y el PIN que
+  // ingrese ahora se guarda como el suyo real para la próxima vez.
+  const metodoGuardadoDelTipo = metodosGuardados.find((g) => g.tipo === codigoMetodo);
 
   const construirDatosMetodo = () => {
     if (esTarjeta) return { ultimos4: cardLast4(cardValue) };
@@ -295,8 +306,37 @@ export default function Checkout() {
       toast.error('Revisa los datos del método de pago elegido.');
       return;
     }
-    if (!pinValido) {
-      toast.error('PIN de seguridad incorrecto. En este entorno de prueba es 1234.');
+    if (securityPin.length < 4) {
+      toast.error('Ingresa tu PIN de seguridad (mínimo 4 dígitos).');
+      return;
+    }
+
+    // Verificación real del PIN (Fase 2 del plan de mejora): si el cliente
+    // ya tiene un método guardado de este tipo, se valida contra su PIN
+    // hasheado en el backend; si es la primera vez que paga con este tipo
+    // de método, el PIN que acaba de escribir se guarda ahora como su
+    // método real — ya no hay ningún valor fijo con qué comparar.
+    try {
+      if (metodoGuardadoDelTipo) {
+        const { valido } = await metodoPagoGuardadoService.verificarClave(
+          metodoGuardadoDelTipo.id_metodo_guardado,
+          securityPin,
+        );
+        if (!valido) {
+          toast.error('El PIN de seguridad no es correcto.');
+          return;
+        }
+      } else {
+        const nuevoMetodoGuardado = await metodoPagoGuardadoService.create({
+          alias: metodoSeleccionado?.nombre_metodo ?? 'Método de pago',
+          tipo: codigoMetodo,
+          ultimos4: (construirDatosMetodo() as any).ultimos4,
+          clave: securityPin,
+        });
+        setMetodosGuardados((prev) => [...prev, nuevoMetodoGuardado]);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo confirmar tu PIN de seguridad. Intenta de nuevo.');
       return;
     }
 
@@ -884,14 +924,18 @@ export default function Checkout() {
                       </div>
                       <div>
                         <h2 className="text-lg font-medium text-foreground">3. Confirma con tu PIN de seguridad</h2>
-                        <p className="text-xs text-muted-foreground">Entorno de prueba: tu PIN es <span className="font-mono font-bold">1234</span></p>
+                        <p className="text-xs text-muted-foreground">
+                          {metodoGuardadoDelTipo
+                            ? <>Ingresa el PIN que configuraste para <span className="font-medium text-foreground">{metodoGuardadoDelTipo.alias}</span>.</>
+                            : 'Es tu primer pago con este método: crea un PIN de 4 a 6 dígitos, lo usarás también en tus próximos pagos.'}
+                        </p>
                       </div>
                     </div>
                     <input
                       type="password" inputMode="numeric" placeholder="••••"
                       value={securityPin}
-                      onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      maxLength={4}
+                      onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
                       className="w-full max-w-[160px] px-4 py-3 rounded-xl border border-border bg-input-background text-foreground text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none"
                     />
                   </div>
@@ -929,11 +973,11 @@ export default function Checkout() {
                 </button>
               ) : (
                 <div className="flex flex-col items-end gap-1.5">
-                  {(!metodoValido || !pinValido) && (
+                  {(!metodoValido || !pinCompletado) && (
                     <p className="text-[11px] text-muted-foreground">
                       {!metodoValido
                         ? 'Completa los datos del método de pago para continuar.'
-                        : 'Ingresa tu PIN de seguridad (1234 en este entorno de prueba).'}
+                        : 'Ingresa tu PIN de seguridad para continuar.'}
                     </p>
                   )}
                   <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}

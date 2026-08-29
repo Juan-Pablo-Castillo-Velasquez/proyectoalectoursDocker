@@ -5,6 +5,7 @@ Configurado para Mailpit (desarrollo) — sin TLS, sin autenticación
    
 
 from typing import Optional
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -102,7 +103,7 @@ El equipo de AlecTours
 async def send_verification_email(
     email: str,
     verification_token: str,
-    base_url: str = "http://localhost:3000"
+    base_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173"),
 ) -> bool:
     """
     Envía un email de verificación con un enlace.
@@ -147,7 +148,7 @@ El equipo de AlecTours
 async def send_password_reset_email(
     email: str,
     reset_token: str,
-    base_url: str = "http://localhost:5173"
+    base_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173"),
 ) -> bool:
     reset_link = f"{base_url}/reset-password?token={reset_token}"
     subject = "Restablecer contraseña - AlecTours"

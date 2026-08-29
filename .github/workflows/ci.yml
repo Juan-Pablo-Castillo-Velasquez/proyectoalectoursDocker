@@ -14,6 +14,25 @@ jobs:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
 
+    # Redis real para el job de CI — sin esto, cualquier test que llame a
+    # una ruta que invalida caché (delete_pattern/get_cached en
+    # app/core/cache.py, ej. pagar_reserva, confirmar_pago,
+    # admin_resolver_solicitud) fallaba con "Temporary failure in name
+    # resolution" al intentar resolver el host 'redis' de docker-compose,
+    # que no existe en el runner. Hallazgo directo de las pruebas de
+    # correo de la Fase 2 del plan de mejora, que son las primeras en
+    # ejercitar rutas completas (no solo repositorios) en este proyecto.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -46,6 +65,7 @@ jobs:
           MAIL_PORT: 1025
           MAIL_SERVER: localhost
           MAIL_FROM_NAME: AlecTours
+          REDIS_URL: redis://localhost:6379/0
         run: pytest test_delete_exceptions.py test_reservas_pagos.py test_destino_servicio_delete.py -v
 
   docker:
