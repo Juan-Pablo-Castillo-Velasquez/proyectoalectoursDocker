@@ -458,7 +458,12 @@ CREATE TABLE IF NOT EXISTS reserva_servicios (
 CREATE TABLE IF NOT EXISTS metodos_pago (
     id_metodo SERIAL PRIMARY KEY,
 
-    nombre_metodo VARCHAR(50) NOT NULL
+    nombre_metodo VARCHAR(50) NOT NULL,
+
+    -- Código estable en snake_case usado por el backend para decidir el
+    -- flujo de pago sin comparar el nombre en español — Alembic
+    -- d4c8a1f39b02_metodos_pago_codigo_y_estados_pago.py
+    codigo VARCHAR(30) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS pagos (
@@ -475,14 +480,25 @@ CREATE TABLE IF NOT EXISTS pagos (
 
     referencia VARCHAR(100),
 
+    -- Alembic c8e2f5a91d47_add_factura_a_pagos.py
+    numero_factura VARCHAR(20) UNIQUE,
+    comprobante_url VARCHAR(255),
+
     estado VARCHAR(20)
         CHECK (
             estado IN (
                 'pendiente',
+                'procesando',
                 'pagado',
-                'rechazado'
+                'rechazado',
+                'cancelado'
             )
         ),
+
+    -- Decidido al iniciar el pago (valores de prueba de tarjeta/celular/
+    -- documento), resuelto al confirmar — Alembic
+    -- d4c8a1f39b02_metodos_pago_codigo_y_estados_pago.py
+    simular_rechazo BOOLEAN NOT NULL DEFAULT FALSE,
 
     FOREIGN KEY (id_reserva)
         REFERENCES reservas(id_reserva),
@@ -581,6 +597,94 @@ CREATE INDEX IF NOT EXISTS idx_solicitudes_cancelacion_cliente
 CREATE INDEX IF NOT EXISTS idx_solicitudes_cancelacion_estado
     ON solicitudes_cancelacion(estado);
 
+-- ─────────────────────────────────────────────────────────────────────────
+-- Tablas añadidas en la sincronización de Fase 1 del plan de mejora
+-- (2026-08-29): ya existían como migraciones de Alembic aplicadas, pero
+-- nunca se habían reflejado en este archivo de referencia.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS metodos_pago_guardados (
+    id_metodo_guardado SERIAL PRIMARY KEY,
+    id_cliente INTEGER NOT NULL,
+
+    alias VARCHAR(50) NOT NULL,
+    tipo VARCHAR(30) NOT NULL,
+    ultimos4 VARCHAR(4),
+    clave_hash VARCHAR(255) NOT NULL,
+    predeterminado BOOLEAN NOT NULL DEFAULT FALSE,
+
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_cliente)
+        REFERENCES clientes(id_cliente)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_metodos_pago_guardados_id_metodo_guardado
+    ON metodos_pago_guardados(id_metodo_guardado);
+
+CREATE TABLE IF NOT EXISTS configuracion_sistema (
+    id_config SERIAL PRIMARY KEY,
+
+    clave VARCHAR(100) NOT NULL UNIQUE,
+    valor TEXT,
+    descripcion VARCHAR(255),
+
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id_notificacion SERIAL PRIMARY KEY,
+
+    tipo VARCHAR(30) NOT NULL,
+    titulo VARCHAR(200) NOT NULL,
+    mensaje TEXT,
+    id_referencia INTEGER,
+    leido BOOLEAN NOT NULL DEFAULT FALSE,
+
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_notificaciones_leido
+    ON notificaciones(leido);
+
+CREATE TABLE IF NOT EXISTS solicitudes_corporativas (
+    id_solicitud SERIAL PRIMARY KEY,
+
+    nombre_empresa VARCHAR(150) NOT NULL,
+    numero_empleados VARCHAR(20),
+    nombre_contacto VARCHAR(100) NOT NULL,
+    email_corporativo VARCHAR(150) NOT NULL,
+    telefono VARCHAR(30) NOT NULL,
+    mensaje TEXT,
+
+    estado VARCHAR(20) NOT NULL DEFAULT 'nuevo'
+        CHECK (estado IN ('nuevo', 'contactado', 'cerrado', 'descartado')),
+
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS favoritos (
+    id_favorito SERIAL PRIMARY KEY,
+    id_cliente INTEGER NOT NULL,
+    id_hotel INTEGER NOT NULL,
+
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_cliente)
+        REFERENCES clientes(id_cliente)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (id_hotel)
+        REFERENCES hoteles(id_hotel)
+        ON DELETE CASCADE,
+
+    UNIQUE (id_cliente, id_hotel)
+);
+
+CREATE INDEX IF NOT EXISTS ix_favoritos_id_favorito
+    ON favoritos(id_favorito);
+
 INSERT INTO roles (nombre_rol)
 VALUES
 ('admin'),
@@ -593,9 +697,13 @@ INSERT INTO roles (nombre_rol) VALUES
 ('guia_turistico'), ('auditor'), ('marketing')
 ON CONFLICT (nombre_rol) DO NOTHING;
 
-INSERT INTO metodos_pago (nombre_metodo) VALUES 
-('Tarjeta de Crédito'), ('Tarjeta de Débito'), ('Efectivo'), ('Transferencia Bancaria'), 
-('PayPal'), ('Criptomonedas'), ('Nequi'), ('Daviplata'), ('PSE'), ('Cheque');
+-- Nombres sin tilde para igualar exactamente el seed real de Alembic
+-- (523e6283e58b_seed_datos_demo.py) — db_schema.sql tenía tildes, un
+-- segundo drift encontrado en la sincronización de Fase 1, además de la
+-- columna `codigo` que faltaba (ver d4c8a1f39b02_metodos_pago_codigo_y_estados_pago.py).
+INSERT INTO metodos_pago (nombre_metodo, codigo) VALUES 
+('Tarjeta de Credito', 'tarjeta_credito'), ('Tarjeta de Debito', 'tarjeta_debito'), ('Efectivo', 'efectivo'), ('Transferencia Bancaria', 'transferencia'), 
+('PayPal', 'paypal'), ('Criptomonedas', 'cripto'), ('Nequi', 'nequi'), ('Daviplata', 'daviplata'), ('PSE', 'pse'), ('Cheque', 'cheque');
 
 INSERT INTO hoteles (nombre_hotel, calificacion, direccion, ciudad, pais, codigo_postal, correo_electronico, telefono) VALUES
 ('Hotel Paraíso', 5, 'Calle 1 # 2-3', 'Bogotá', 'Colombia', '110111', 'contacto@paraiso.com', '+573001234567'),

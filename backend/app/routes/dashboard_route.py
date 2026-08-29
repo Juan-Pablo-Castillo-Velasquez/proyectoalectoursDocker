@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.core.cache import get_cached, set_cached
+from app.core.security import require_admin
 from app.models.reserva_model import Reserva, Pago, MetodoPago, Paquete, HistorialReserva, SolicitudCancelacion
 from app.models.cliente_model import Cliente
 from app.models.hotel_model import Hotel
@@ -63,7 +64,7 @@ def _variacion(actual: float, anterior: float) -> TendenciaValor:
 
 
 @router.get("/resumen", response_model=DashboardResumenResponse)
-def get_dashboard_resumen(db: Session = Depends(get_db)):
+def get_dashboard_resumen(db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     cached = get_cached(DASHBOARD_CACHE_KEY)
     if cached is not None:
         return cached

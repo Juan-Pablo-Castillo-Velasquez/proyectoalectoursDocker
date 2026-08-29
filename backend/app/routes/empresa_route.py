@@ -7,6 +7,7 @@ from app.schemas.empresa_schema import (
     SolicitudCorporativaCreate, SolicitudCorporativaUpdate, SolicitudCorporativaResponse,
 )
 from app.services.notificacion_service import crear_notificacion
+from app.core.security import require_admin
 
 router = APIRouter(prefix="/api/solicitudes-corporativas", tags=["Empresas y Contactos"])
 
@@ -34,6 +35,7 @@ def listar_solicitudes_corporativas(
     estado: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=300),
     db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     query = db.query(SolicitudCorporativa)
     if estado:
@@ -42,7 +44,7 @@ def listar_solicitudes_corporativas(
 
 
 @router.put("/{id_solicitud}", response_model=SolicitudCorporativaResponse)
-def actualizar_estado_solicitud(id_solicitud: int, data: SolicitudCorporativaUpdate, db: Session = Depends(get_db)):
+def actualizar_estado_solicitud(id_solicitud: int, data: SolicitudCorporativaUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     item = db.query(SolicitudCorporativa).filter(SolicitudCorporativa.id_solicitud == id_solicitud).first()
     if not item:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
@@ -53,7 +55,7 @@ def actualizar_estado_solicitud(id_solicitud: int, data: SolicitudCorporativaUpd
 
 
 @router.delete("/{id_solicitud}")
-def eliminar_solicitud_corporativa(id_solicitud: int, db: Session = Depends(get_db)):
+def eliminar_solicitud_corporativa(id_solicitud: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     item = db.query(SolicitudCorporativa).filter(SolicitudCorporativa.id_solicitud == id_solicitud).first()
     if not item:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")

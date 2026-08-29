@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_user_from_token, require_admin
+from app.core.security import require_admin
+from app.core.deps import get_current_usuario
 from app.core.mail import send_email
 from app.core.cache import delete_pattern
 from app.models.user_model import Usuario
@@ -20,26 +21,6 @@ from app.repositories.solicitud_cancelacion_repository import SolicitudCancelaci
 from app.services.notificacion_service import crear_notificacion, get_actividad_cliente
 
 router = APIRouter(prefix="/api", tags=["Solicitudes de cancelación"])
-
-
-def get_current_usuario(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Usuario:
-    """Mismo patrón de auth usado en resena_route.py / preferencias_route.py"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    user_id = get_user_from_token(parts[1])
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Token expirado o inválido")
-
-    user = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    return user
 
 
 @router.post(

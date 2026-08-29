@@ -37,7 +37,7 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg2://admin:admin123@localhost:5432/alektours_db
-          SECRET_KEY: ci-test-secret-key
+          SECRET_KEY: ci-test-secret-key-solo-para-ci-no-usar-en-produccion-32chars
           ALGORITHM: HS256
           ACCESS_TOKEN_EXPIRE_MINUTES: 30
           MAIL_USERNAME: test@test.com
@@ -46,7 +46,7 @@ jobs:
           MAIL_PORT: 1025
           MAIL_SERVER: localhost
           MAIL_FROM_NAME: AlecTours
-        run: pytest test_delete_exceptions.py -v
+        run: pytest test_delete_exceptions.py test_reservas_pagos.py test_destino_servicio_delete.py -v
 
   docker:
     name: Docker Build & Validate

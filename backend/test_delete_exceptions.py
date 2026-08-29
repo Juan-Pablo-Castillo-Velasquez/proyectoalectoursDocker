@@ -14,6 +14,22 @@ from app.core.exceptions import (
 from app.models.hotel_model import Hotel, Habitacion
 from app.models.cliente_model import Cliente, Empleado
 from app.models.reserva_model import Reserva, Paquete, Pago
+# Registra en el mapper de SQLAlchemy TODOS los modelos que tienen alguna
+# relationship() apuntando a ellos por nombre de clase (ej. Hotel.resenas =
+# relationship("Resena", ...)) — sin este import, configurar cualquier
+# mapper (create_all, o la primera query) falla con "failed to locate a
+# name" porque SQLAlchemy nunca llegó a ver esa clase. Mismo motivo por el
+# que app/main.py importa todos los modelos antes de arrancar la app real
+# (ver el comentario ahí). Bug real encontrado: esta suite completa
+# (los únicos tests que corre el CI) fallaba 100% por este motivo antes de
+# este fix — Fase 1 del plan de mejora.
+from app.models.user_model import Usuario
+from app.models.resena_model import Resena
+from app.models.favorito_model import Favorito
+from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
+from app.models.configuracion_model import ConfiguracionSistema
+from app.models.notificacion_model import Notificacion
+from app.models.empresa_model import SolicitudCorporativa
 from app.repositories.hotel_repository import HotelRepository
 from app.repositories.cliente_repository import ClienteRepository, EmpleadoRepository
 from app.repositories.reserva_repository import PaqueteRepository, ReservaRepository, PagoRepository

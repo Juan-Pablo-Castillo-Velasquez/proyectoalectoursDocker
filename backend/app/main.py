@@ -100,13 +100,25 @@ def health_check(db: Session = Depends(get_db)):
         return JSONResponse(status_code=503, content={"status": "error", "database": "down"})
 
 
+# Orígenes permitidos: los de desarrollo local siempre están (para no
+# romper `docker compose up` ni el `npm run dev` de nadie), más los que
+# vengan de la variable de entorno CORS_ORIGINS (coma-separados) — así el
+# dominio real de Vercel se agrega en el entorno de producción sin tocar
+# código ni hardcodear una URL que todavía no conocemos aquí.
+_CORS_ORIGINS_DEV = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+]
+_cors_origins_env = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:8000",
-    ],
+    allow_origins=_CORS_ORIGINS_DEV + _cors_origins_env,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -184,12 +196,17 @@ async def seguridad_middleware(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # El traceback completo queda en los logs del servidor (exc_info=True);
+    # al cliente solo se le devuelve un mensaje genérico. Antes se incluía
+    # str(exc) también en la respuesta HTTP ("error_message"), lo que
+    # filtraba detalles internos (nombres de constraints de la BD, rutas
+    # del servidor, etc.) a cualquiera que llamara la API — corregido en
+    # la Fase 1 del plan de mejora ("manejo de errores consistente").
     logger.error(f"Error no controlado en {request.url.path}: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
-            "detail": "Error interno del servidor. Revisa los logs de Docker para ver el traceback completo.",
-            "error_message": str(exc),
+            "detail": "Error interno del servidor. Revisa los logs del servidor para ver el detalle.",
         },
         headers={
             "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:5173"),

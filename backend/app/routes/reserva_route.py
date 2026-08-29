@@ -1,7 +1,9 @@
+import logging
 import os
 import uuid
+from typing import Optional
 from app.services.reserva_detail_service import ReservaDetailService
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from app.core.database import get_db
@@ -31,9 +33,12 @@ from app.models.hotel_model import Hotel, HotelCaracteristica
 from app.services import payment_service
 from app.services.notificacion_service import crear_notificacion
 from app.core.security import require_admin
+from app.core.deps import get_current_usuario, exigir_propietario_o_admin, usuario_es_admin
 from app.models.user_model import Usuario
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
+
+logger = logging.getLogger(__name__)
 
 PAQUETES_CACHE_PATTERN = "paquetes:list:*"
 RESERVAS_CACHE_PATTERN = "reservas:list:*"
@@ -195,7 +200,7 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/paquetes", response_model=PaqueteResponse, status_code=201)
-def create_paquete(paquete: PaqueteCreate, db: Session = Depends(get_db)):
+def create_paquete(paquete: PaqueteCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Crea un nuevo paquete turístico, opcionalmente vinculado a hotel(es)
     reales (paquete_hotel — ver PaqueteRepository._sync_hoteles)."""
     try:
@@ -207,7 +212,7 @@ def create_paquete(paquete: PaqueteCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/paquetes/{paquete_id}", response_model=PaqueteResponse)
-def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depends(get_db)):
+def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Actualiza un paquete existente"""
     db_paquete = PaqueteRepository.get_by_id(db, paquete_id)
     if not db_paquete:
@@ -221,7 +226,7 @@ def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depend
 
 
 @router.delete("/paquetes/{paquete_id}")
-def delete_paquete(paquete_id: int, db: Session = Depends(get_db)):
+def delete_paquete(paquete_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Desactiva un paquete"""
     try:
         PaqueteRepository.delete(db, paquete_id)
@@ -232,7 +237,8 @@ def delete_paquete(paquete_id: int, db: Session = Depends(get_db)):
     except PaqueteDependencyError as e:
         raise HTTPException(status_code=409, detail=e.detail)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 # ===================== RESERVAS CRUD =====================
@@ -241,7 +247,8 @@ def delete_paquete(paquete_id: int, db: Session = Depends(get_db)):
 def get_reservas(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Obtiene lista de reservas. Cacheada solo 60s (más corto que
     hoteles/paquetes/clientes) porque una reserva cambia por muchos caminos
@@ -265,9 +272,12 @@ def get_reservas_cliente(
     cliente_id: int,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
 ):
     """Obtiene reservas de un cliente"""
+    exigir_propietario_o_admin(current_user, cliente_id, authorization)
     return ReservaRepository.get_by_cliente(db, cliente_id, skip, limit)
 
 
@@ -276,7 +286,8 @@ def get_reservas_estado(
     estado: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Obtiene reservas por estado"""
     if estado not in ["pendiente", "confirmada", "cancelada", "finalizada"]:
@@ -288,20 +299,47 @@ def get_reservas_estado(
 # para que FastAPI no los confunda con el parámetro dinámico
 
 @router.get("/reservas/{reserva_id}/habitaciones", response_model=list[ReservaHabitacionDetail])
-def get_habitaciones_reserva(reserva_id: int, db: Session = Depends(get_db)):
+def get_habitaciones_reserva(
+    reserva_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """Obtiene habitaciones asociadas a una reserva"""
+    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
     return ReservaDetailService.get_habitaciones(db, reserva_id)
 
 
 @router.get("/reservas/{reserva_id}/servicios", response_model=list[ReservaServicioDetail])
-def get_servicios_reserva(reserva_id: int, db: Session = Depends(get_db)):
+def get_servicios_reserva(
+    reserva_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """Obtiene servicios asociados a una reserva"""
+    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
     return ReservaDetailService.get_servicios(db, reserva_id)
 
 
 @router.get("/reservas/{reserva_id}/historial", response_model=list[ReservaHistorialDetail])
-def get_historial_reserva(reserva_id: int, db: Session = Depends(get_db)):
+def get_historial_reserva(
+    reserva_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """Obtiene historial de cambios de una reserva"""
+    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
     return ReservaDetailService.get_historial(db, reserva_id)
 
 
@@ -334,6 +372,7 @@ def get_actividad_reciente(
     # endpoint, límite más alto en vez de duplicar la consulta.
     limit: int = Query(15, ge=1, le=300),
     db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """
     Feed de 'Actividad reciente' para el Dashboard y el módulo de Actividad
@@ -348,16 +387,27 @@ def get_actividad_reciente(
 
 
 @router.get("/reservas/{reserva_id}", response_model=ReservaDetailResponse)
-def get_reserva(reserva_id: int, db: Session = Depends(get_db)):
+def get_reserva(
+    reserva_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """Obtiene detalles completos de una reserva con paquete, pagos y habitaciones"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
     return reserva
 
 
 @router.post("/reservas", response_model=ReservaResponse, status_code=201)
-def create_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
+def create_reserva(
+    reserva: ReservaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """
     Crea una nueva reserva.
 
@@ -367,6 +417,13 @@ def create_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
     - Calcula el precio con el valor REAL de la habitación en la BD (ignora cualquier
       precio que mande el frontend, para evitar manipulación)
     """
+    # Antes se aceptaba el id_cliente que mandara el frontend tal cual, sin
+    # verificar que fuera el mismo cliente autenticado — cualquiera con
+    # sesión podía crear reservas a nombre de otro cliente. El frontend
+    # (Checkout.tsx) ya siempre manda el id_cliente del usuario logueado,
+    # así que esto no cambia el comportamiento normal.
+    if current_user.id_cliente != reserva.id_cliente and not usuario_es_admin(authorization):
+        raise HTTPException(status_code=403, detail="No puedes crear una reserva a nombre de otro cliente")
     try:
         nueva = ReservaRepository.create(db, reserva.dict())
         delete_pattern(RESERVAS_CACHE_PATTERN)
@@ -379,11 +436,18 @@ def create_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/reservas/{reserva_id}/pagar", response_model=PagarResponse)
-def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get_db)):
+def pagar_reserva(
+    reserva_id: int,
+    data: PagarRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """
     Inicia el pago de una reserva (100% simulado, sin pasarela real). El
     monto SIEMPRE se calcula en el backend a partir del precio real de
@@ -401,11 +465,22 @@ def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get
     reserva = ReservaRepository.get_by_id(db, reserva_id)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
 
     if reserva.estado != "pendiente":
         raise HTTPException(
             status_code=409,
             detail=f"Esta reserva ya está en estado '{reserva.estado}', no se puede pagar de nuevo",
+        )
+
+    # Idempotencia (Fase 1 del plan de mejora): un pago async (PSE/Nequi) deja
+    # la reserva en 'pendiente' mientras el Pago queda 'procesando' — sin este
+    # chequeo, un segundo clic o un reintento del frontend pasaba el chequeo
+    # de arriba igual y creaba un segundo Pago para la misma reserva.
+    if PagoRepository.existe_pago_en_proceso(db, reserva_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Ya hay un pago en proceso para esta reserva. Espera a que se confirme antes de intentar de nuevo.",
         )
 
     metodo = db.query(MetodoPago).filter(MetodoPago.id_metodo == data.id_metodo_pago).first()
@@ -465,7 +540,12 @@ def pagar_reserva(reserva_id: int, data: PagarRequest, db: Session = Depends(get
 
 
 @router.post("/pagos/{pago_id}/confirmar", response_model=PagarResponse)
-def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
+def confirmar_pago(
+    pago_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """
     Confirma un pago que quedo 'procesando' (PSE/Nequi) — simula que el
     banco o la app ya respondieron. El resultado (aprobado/rechazado) ya
@@ -484,6 +564,7 @@ def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
     reserva = ReservaRepository.get_by_id(db, pago.id_reserva)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
 
     estado_anterior = reserva.estado
 
@@ -513,7 +594,7 @@ def confirmar_pago(pago_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/reservas/{reserva_id}", response_model=ReservaResponse)
-def update_reserva(reserva_id: int, reserva: ReservaUpdate, db: Session = Depends(get_db)):
+def update_reserva(reserva_id: int, reserva: ReservaUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Actualiza una reserva existente"""
     db_reserva = ReservaRepository.get_by_id(db, reserva_id)
     if not db_reserva:
@@ -524,7 +605,7 @@ def update_reserva(reserva_id: int, reserva: ReservaUpdate, db: Session = Depend
 
 
 @router.delete("/reservas/{reserva_id}")
-def delete_reserva(reserva_id: int, db: Session = Depends(get_db)):
+def delete_reserva(reserva_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Elimina una reserva"""
     try:
         ReservaRepository.delete(db, reserva_id)
@@ -535,7 +616,8 @@ def delete_reserva(reserva_id: int, db: Session = Depends(get_db)):
     except ReservaDependencyError as e:
         raise HTTPException(status_code=409, detail=e.detail)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 # ===================== MÉTODOS DE PAGO CRUD =====================
@@ -555,7 +637,7 @@ def get_metodos_pago(db: Session = Depends(get_db)):
 
 
 @router.post("/metodos-pago", response_model=MetodoPagoResponse, status_code=201)
-def create_metodo_pago(metodo: MetodoPagoCreate, db: Session = Depends(get_db)):
+def create_metodo_pago(metodo: MetodoPagoCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Crea un nuevo método de pago"""
     nuevo = MetodoPagoRepository.create(db, metodo.dict())
     delete_pattern(METODOS_PAGO_CACHE_KEY)
@@ -568,7 +650,8 @@ def create_metodo_pago(metodo: MetodoPagoCreate, db: Session = Depends(get_db)):
 def get_pagos(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=300),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Obtiene lista de pagos. Cacheada 60s — mismo criterio de TTL corto que
     reservas, ya que un pago cambia de estado por varios caminos."""
@@ -584,8 +667,17 @@ def get_pagos(
 
 
 @router.get("/pagos/reserva/{reserva_id}", response_model=list[PagoResponse])
-def get_pagos_reserva(reserva_id: int, db: Session = Depends(get_db)):
+def get_pagos_reserva(
+    reserva_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """Obtiene pagos de una reserva"""
+    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
     return PagoRepository.get_by_reserva(db, reserva_id)
 
 
@@ -594,7 +686,8 @@ def get_pagos_estado(
     estado: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Obtiene pagos por estado"""
     if estado not in ["pendiente", "pagado", "rechazado"]:
@@ -603,16 +696,26 @@ def get_pagos_estado(
 
 
 @router.get("/pagos/{pago_id}", response_model=PagoResponse)
-def get_pago(pago_id: int, db: Session = Depends(get_db)):
+def get_pago(
+    pago_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
     """Obtiene detalles de un pago"""
     pago = PagoRepository.get_by_id(db, pago_id)
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
+    reserva = ReservaRepository.get_by_id(db, pago.id_reserva)
+    if reserva:
+        exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
+    elif not usuario_es_admin(authorization):
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a estos datos")
     return pago
 
 
 @router.post("/pagos", response_model=PagoResponse, status_code=201)
-def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
+def create_pago(pago: PagoCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Crea un nuevo pago"""
     nuevo = PagoRepository.create(db, pago.dict())
     delete_pattern(PAGOS_CACHE_PATTERN)
@@ -620,7 +723,7 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/pagos/{pago_id}", response_model=PagoResponse)
-def update_pago(pago_id: int, pago: PagoUpdate, db: Session = Depends(get_db)):
+def update_pago(pago_id: int, pago: PagoUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Actualiza un pago existente"""
     db_pago = PagoRepository.get_by_id(db, pago_id)
     if not db_pago:
@@ -633,7 +736,7 @@ def update_pago(pago_id: int, pago: PagoUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/pagos/{pago_id}")
-def delete_pago(pago_id: int, db: Session = Depends(get_db)):
+def delete_pago(pago_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Elimina un pago"""
     try:
         PagoRepository.delete(db, pago_id)
@@ -643,7 +746,8 @@ def delete_pago(pago_id: int, db: Session = Depends(get_db)):
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/pagos/{pago_id}/comprobante", response_model=PagoResponse)
@@ -651,6 +755,7 @@ async def subir_comprobante_pago(
     pago_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Adjunta un comprobante externo (imagen o PDF) a un pago — por ejemplo
     el voucher de una transferencia o consignación que el cliente envía por
@@ -687,7 +792,7 @@ async def subir_comprobante_pago(
 
 
 @router.delete("/pagos/{pago_id}/comprobante", response_model=PagoResponse)
-def eliminar_comprobante_pago(pago_id: int, db: Session = Depends(get_db)):
+def eliminar_comprobante_pago(pago_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Quita el comprobante adjunto de un pago (por ejemplo si se subió por
     error o hay que reemplazarlo)."""
     pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()

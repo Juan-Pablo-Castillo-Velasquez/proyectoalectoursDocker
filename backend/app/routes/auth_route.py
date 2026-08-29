@@ -1,6 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+import os
 import threading
+
+# URL del frontend real, para los links de verificación/reset que se
+# mandan por correo — antes estaba fija en "http://localhost:5173", así
+# que cualquier correo real (fuera de dev) llevaba un link roto. Con
+# FRONTEND_URL sin definir en el entorno, sigue apuntando a localhost
+# (mismo comportamiento de siempre en dev).
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 from app.core.database import get_db
 from app.schemas.user_schema import UsuarioLogin, UsuarioCreate, UsuarioResponse, PasswordResetRequest, PasswordResetConfirm
@@ -18,7 +26,7 @@ def send_email_in_thread(email: str, token: str):
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
 
-        verification_link = f"http://localhost:5173/verify?token={token}"
+        verification_link = f"{FRONTEND_URL}/verify?token={token}"
         html_body = f"""
         <html><body style="font-family: Arial, sans-serif; margin: 20px;">
             <h2>Verifica tu correo</h2>
@@ -94,7 +102,7 @@ async def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_
         await send_password_reset_email(
             email=user.correo_electronico,
             reset_token=token,
-            base_url="http://localhost:5173"
+            base_url=FRONTEND_URL,
         )
 
     return {"message": "Si el correo existe, recibirás un enlace para restablecer tu contraseña"}

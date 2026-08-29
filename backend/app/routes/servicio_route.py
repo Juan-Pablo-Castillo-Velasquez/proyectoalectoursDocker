@@ -1,16 +1,20 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.servicio_model import Servicio, CategoriaServicio
+from app.models.servicio_model import Servicio, CategoriaServicio, ServicioProveedor
+from app.models.reserva_model import PaqueteServicio, ReservaServicio
 from app.schemas.servicio_schema import (
     ServicioCreate,
     ServicioUpdate,
     ServicioResponse,
     CategoriaServicioResponse,
 )
+from app.core.security import require_admin
+from app.core.exceptions import ServicioDependencyError
 
 router = APIRouter(prefix="/api/servicios", tags=["Servicios"])
 
@@ -45,7 +49,7 @@ def get_servicio(servicio_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=ServicioResponse, status_code=201)
-def create_servicio(data: ServicioCreate, db: Session = Depends(get_db)):
+def create_servicio(data: ServicioCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     servicio = Servicio(**data.dict())
     db.add(servicio)
     db.commit()
@@ -54,7 +58,7 @@ def create_servicio(data: ServicioCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{servicio_id}", response_model=ServicioResponse)
-def update_servicio(servicio_id: int, data: ServicioUpdate, db: Session = Depends(get_db)):
+def update_servicio(servicio_id: int, data: ServicioUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     servicio = db.query(Servicio).filter(Servicio.id_servicio == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -66,10 +70,35 @@ def update_servicio(servicio_id: int, data: ServicioUpdate, db: Session = Depend
 
 
 @router.delete("/{servicio_id}")
-def delete_servicio(servicio_id: int, db: Session = Depends(get_db)):
+def delete_servicio(servicio_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     servicio = db.query(Servicio).filter(Servicio.id_servicio == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    # Antes esto no se validaba. PaqueteServicio.id_servicio y
+    # ServicioProveedor.id_servicio son ondelete="CASCADE": borrar un
+    # servicio usado en un paquete activo eliminaba ese vínculo en
+    # silencio, dejando el paquete roto sin ningún aviso (mismo problema
+    # ya corregido para hoteles). ReservaServicio.id_servicio no tiene
+    # ondelete configurado, así que borrar un servicio con reservas
+    # lanzaba un IntegrityError sin manejar (500 genérico) — Fase 1 del
+    # plan de mejora ("manejo de errores consistente").
+    paquetes_count = db.query(func.count(PaqueteServicio.id_paquete)).filter(
+        PaqueteServicio.id_servicio == servicio_id
+    ).scalar() or 0
+
+    reservas_count = db.query(func.count(ReservaServicio.id_reserva)).filter(
+        ReservaServicio.id_servicio == servicio_id
+    ).scalar() or 0
+
+    proveedores_count = db.query(func.count(ServicioProveedor.id_proveedor)).filter(
+        ServicioProveedor.id_servicio == servicio_id
+    ).scalar() or 0
+
+    if paquetes_count > 0 or reservas_count > 0 or proveedores_count > 0:
+        error = ServicioDependencyError(servicio_id, paquetes_count, reservas_count, proveedores_count)
+        raise HTTPException(status_code=error.status_code, detail=error.detail)
+
     db.delete(servicio)
     db.commit()
     return {"message": "Servicio eliminado exitosamente"}

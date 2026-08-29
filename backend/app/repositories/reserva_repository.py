@@ -308,7 +308,24 @@ class PagoRepository:
     @staticmethod
     def get_by_reserva(db: Session, reserva_id: int):
         return db.query(Pago).filter(Pago.id_reserva == reserva_id).all()
-    
+
+    @staticmethod
+    def existe_pago_en_proceso(db: Session, reserva_id: int) -> bool:
+        """Fase 1 del plan de mejora — cierra el hueco de idempotencia real:
+        para métodos async (PSE/Nequi) el Pago queda 'procesando' pero
+        Reserva.estado NO cambia (sigue 'pendiente'), así que antes un
+        segundo clic en "pagar" —o un reintento del frontend tras un
+        timeout— pasaba igual el chequeo de `reserva.estado != "pendiente"`
+        en pagar_reserva y creaba un SEGUNDO Pago para la misma reserva
+        (riesgo real de cobro duplicado). Se llama antes de crear cualquier
+        Pago nuevo."""
+        return (
+            db.query(Pago)
+            .filter(Pago.id_reserva == reserva_id, Pago.estado == "procesando")
+            .first()
+            is not None
+        )
+
     @staticmethod
     def get_by_estado(db: Session, estado: str, skip: int = 0, limit: int = 10):
         return db.query(Pago).filter(Pago.estado == estado).order_by(Pago.fecha_pago.desc()).offset(skip).limit(limit).all()

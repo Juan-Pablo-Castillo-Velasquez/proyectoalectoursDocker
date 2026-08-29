@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Optional
 
@@ -16,8 +17,11 @@ from app.schemas.hotel_schema import (
 from app.repositories.hotel_repository import (
     HotelRepository, HabitacionRepository, CaracteristicaRepository, HotelCaracteristicaRepository
 )
+from app.core.security import require_admin
 
 router = APIRouter(prefix="/api/hoteles", tags=["Hoteles"])
+
+logger = logging.getLogger(__name__)
 
 HOTELES_CACHE_PATTERN = "hoteles:list:*"
 
@@ -83,7 +87,7 @@ def get_fechas_ocupadas(hotel_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=HotelResponse, status_code=201)
-def create_hotel(hotel: HotelCreate, db: Session = Depends(get_db)):
+def create_hotel(hotel: HotelCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Crea un nuevo hotel"""
     nuevo = HotelRepository.create(db, hotel.dict())
     delete_pattern(HOTELES_CACHE_PATTERN)
@@ -91,7 +95,7 @@ def create_hotel(hotel: HotelCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{hotel_id}", response_model=HotelResponse)
-def update_hotel(hotel_id: int, hotel: HotelUpdate, db: Session = Depends(get_db)):
+def update_hotel(hotel_id: int, hotel: HotelUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Actualiza un hotel existente"""
     db_hotel = HotelRepository.get_by_id(db, hotel_id)
     if not db_hotel:
@@ -102,7 +106,7 @@ def update_hotel(hotel_id: int, hotel: HotelUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{hotel_id}")
-def delete_hotel(hotel_id: int, db: Session = Depends(get_db)):
+def delete_hotel(hotel_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Elimina un hotel"""
     try:
         resultado = HotelRepository.delete(db, hotel_id)
@@ -113,7 +117,8 @@ def delete_hotel(hotel_id: int, db: Session = Depends(get_db)):
     except HotelDependencyError as e:
         raise HTTPException(status_code=409, detail=e.detail)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 # ===================== HABITACIONES CRUD =====================
@@ -159,7 +164,8 @@ def get_habitacion(habitacion_id: int, db: Session = Depends(get_db)):
 def create_habitacion(
     hotel_id: int,
     habitacion: HabitacionCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Crea una nueva habitación en un hotel"""
     hotel = HotelRepository.get_by_id(db, hotel_id)
@@ -181,7 +187,8 @@ def create_habitacion(
 def update_habitacion(
     habitacion_id: int,
     habitacion: HabitacionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Actualiza una habitación existente"""
     db_habitacion = HabitacionRepository.get_by_id(db, habitacion_id)
@@ -193,7 +200,7 @@ def update_habitacion(
 
 
 @router.delete("/habitaciones/{habitacion_id}")
-def delete_habitacion(habitacion_id: int, db: Session = Depends(get_db)):
+def delete_habitacion(habitacion_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     """Elimina una habitación"""
     try:
         HabitacionRepository.delete(db, habitacion_id)
@@ -202,7 +209,8 @@ def delete_habitacion(habitacion_id: int, db: Session = Depends(get_db)):
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 # ===================== CARACTERÍSTICAS CRUD =====================
@@ -216,7 +224,8 @@ def get_caracteristicas(db: Session = Depends(get_db)):
 @router.post("/caracteristicas/", response_model=CaracteristicaResponse, status_code=201)
 def create_caracteristica(
     caracteristica: CaracteristicaCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Crea una nueva característica"""
     return CaracteristicaRepository.create(db, caracteristica.dict())
@@ -227,7 +236,8 @@ def add_caracteristica_hotel(
     hotel_id: int,
     caracteristica_id: int,
     disponible: bool = True,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Añade una característica a un hotel"""
     hotel = HotelRepository.get_by_id(db, hotel_id)
@@ -247,7 +257,8 @@ def add_caracteristica_hotel(
 def remove_caracteristica_hotel(
     hotel_id: int,
     caracteristica_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     """Elimina una característica de un hotel"""
     HotelCaracteristicaRepository.remove_caracteristica(db, hotel_id, caracteristica_id)

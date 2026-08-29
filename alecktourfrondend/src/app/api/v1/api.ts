@@ -1,4 +1,9 @@
-export const BASE_URL = "http://localhost:8000";
+// En producción, VITE_API_BASE_URL debe apuntar al backend real (definida
+// como variable de entorno en Vercel) — antes esto era un valor fijo a
+// localhost, así que el sitio ya desplegado no podía hablar con NINGÚN
+// backend real. Sin la variable definida (dev local), sigue usando
+// localhost como siempre.
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const API_PREFIX = "/api";
 
 interface FetchOptions extends RequestInit {

@@ -1,17 +1,19 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.servicio_model import Destino
+from app.models.servicio_model import Destino, Servicio
 from app.schemas.destino_schema import (
     DestinoCreate,
     DestinoUpdate,
     DestinoResponse,
     DestinoSugerenciaResponse,
 )
+from app.core.security import require_admin
+from app.core.exceptions import DestinoDependencyError
 
 router = APIRouter(prefix="/api/destinos", tags=["Destinos"])
 
@@ -62,7 +64,7 @@ def get_destino(destino_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=DestinoResponse, status_code=201)
-def create_destino(data: DestinoCreate, db: Session = Depends(get_db)):
+def create_destino(data: DestinoCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     destino = Destino(**data.dict())
     db.add(destino)
     db.commit()
@@ -71,7 +73,7 @@ def create_destino(data: DestinoCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{destino_id}", response_model=DestinoResponse)
-def update_destino(destino_id: int, data: DestinoUpdate, db: Session = Depends(get_db)):
+def update_destino(destino_id: int, data: DestinoUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     destino = db.query(Destino).filter(Destino.id_destino == destino_id).first()
     if not destino:
         raise HTTPException(status_code=404, detail="Destino no encontrado")
@@ -83,10 +85,23 @@ def update_destino(destino_id: int, data: DestinoUpdate, db: Session = Depends(g
 
 
 @router.delete("/{destino_id}")
-def delete_destino(destino_id: int, db: Session = Depends(get_db)):
+def delete_destino(destino_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     destino = db.query(Destino).filter(Destino.id_destino == destino_id).first()
     if not destino:
         raise HTTPException(status_code=404, detail="Destino no encontrado")
+
+    # Antes esto no se validaba: Servicio.id_destino no tiene ondelete
+    # configurado, así que borrar un destino con servicios asociados
+    # lanzaba un IntegrityError sin manejar (500 genérico, sin explicar
+    # la causa real) en vez de un error claro — Fase 1 del plan de mejora
+    # ("manejo de errores consistente").
+    servicios_count = db.query(func.count(Servicio.id_servicio)).filter(
+        Servicio.id_destino == destino_id
+    ).scalar() or 0
+    if servicios_count > 0:
+        error = DestinoDependencyError(destino_id, servicios_count)
+        raise HTTPException(status_code=error.status_code, detail=error.detail)
+
     db.delete(destino)
     db.commit()
     return {"message": "Destino eliminado exitosamente"}

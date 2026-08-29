@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.notificacion_model import Notificacion
 from app.schemas.notificacion_schema import NotificacionResponse
+from app.core.security import require_admin
 
 router = APIRouter(prefix="/api/notificaciones", tags=["Notificaciones"])
 
@@ -12,6 +13,7 @@ def listar_notificaciones(
     solo_no_leidas: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
 ):
     query = db.query(Notificacion)
     if solo_no_leidas:
@@ -20,20 +22,20 @@ def listar_notificaciones(
 
 
 @router.get("/no-leidas/conteo")
-def contar_no_leidas(db: Session = Depends(get_db)):
+def contar_no_leidas(db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     total = db.query(Notificacion).filter(Notificacion.leido.is_(False)).count()
     return {"total": total}
 
 
 @router.put("/leer-todas")
-def marcar_todas_leidas(db: Session = Depends(get_db)):
+def marcar_todas_leidas(db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     db.query(Notificacion).filter(Notificacion.leido.is_(False)).update({"leido": True})
     db.commit()
     return {"message": "Todas las notificaciones marcadas como leídas"}
 
 
 @router.put("/{id_notificacion}/leer", response_model=NotificacionResponse)
-def marcar_leida(id_notificacion: int, db: Session = Depends(get_db)):
+def marcar_leida(id_notificacion: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     item = db.query(Notificacion).filter(Notificacion.id_notificacion == id_notificacion).first()
     if not item:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
@@ -44,7 +46,7 @@ def marcar_leida(id_notificacion: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{id_notificacion}")
-def eliminar_notificacion(id_notificacion: int, db: Session = Depends(get_db)):
+def eliminar_notificacion(id_notificacion: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     item = db.query(Notificacion).filter(Notificacion.id_notificacion == id_notificacion).first()
     if not item:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")

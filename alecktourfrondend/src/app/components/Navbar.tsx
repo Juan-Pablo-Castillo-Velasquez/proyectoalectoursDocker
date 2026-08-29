@@ -19,6 +19,7 @@ import { BASE_URL } from "../api/v1/api";
 import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import LoginModal from "./LoginModal";
+import NotificacionesBell from "./NotificacionesBell";
 import RegisterModal from "./RegisterModal";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -529,6 +530,10 @@ export default function Navbar() {
                 </div>
               </div>
 
+              {isAuthenticated && cliente && (
+                <NotificacionesBell idCliente={cliente.id_cliente} />
+              )}
+
               <ThemeToggle />
 
               {/* AUTH */}
@@ -646,6 +651,10 @@ export default function Navbar() {
                 MOBILE
             ========================================================= */}
             <div className="flex items-center gap-2 xl:hidden">
+              {isAuthenticated && cliente && (
+                <NotificacionesBell idCliente={cliente.id_cliente} />
+              )}
+
               <ThemeToggle />
 
               <motion.button

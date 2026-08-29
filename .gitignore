@@ -43,6 +43,9 @@ env/
 postgres_data/
 pgadmin_data/
 
+# Backups locales de la base de datos (backend/scripts/backup_db.sh)
+backend/backups/
+
 # Alembic
 alembic/versions/__pycache__/
 

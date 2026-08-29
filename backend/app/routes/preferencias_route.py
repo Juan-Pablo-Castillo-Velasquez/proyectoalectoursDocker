@@ -4,35 +4,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.core.security import get_current_user as get_current_user_id, get_user_from_token
+from app.core.deps import get_current_usuario, exigir_propietario_o_admin
 from app.models.cliente_model import PreferenciaCliente
 from app.models.user_model import Usuario
 from app.models.reserva_model import Paquete, PaqueteServicio, PaqueteHotel
 from app.models.servicio_model import Servicio
 from app.schemas.reserva_schema import PaqueteResponse
 
-
-def get_current_usuario(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Usuario:
-    """Obtiene el usuario actual desde el token JWT"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Token inválido")
-    
-    token = parts[1]
-    user_id = get_user_from_token(token)
-    
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Token expirado o inválido")
-    
-    user = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    return user
 
 router = APIRouter(
     prefix="/api/preferencias-cliente",
@@ -69,15 +47,15 @@ def create_preferencia(data: PreferenciaCreate, db: Session = Depends(get_db), c
     # Validar que el usuario está autenticado
     if not current_user:
         raise HTTPException(status_code=401, detail="No autenticado")
-    
+
     # Si el usuario no tiene id_cliente, rechazar
     if not current_user.id_cliente:
         raise HTTPException(status_code=400, detail="Debes completar tu perfil de cliente primero")
-    
+
     # Validar que el id_cliente pertenece al usuario autenticado
     if current_user.id_cliente != data.id_cliente:
         raise HTTPException(status_code=403, detail="No tienes permiso para guardar preferencias de otro cliente")
-    
+
     existente = db.query(PreferenciaCliente).filter(
         PreferenciaCliente.id_cliente == data.id_cliente
     ).first()
@@ -97,10 +75,18 @@ def create_preferencia(data: PreferenciaCreate, db: Session = Depends(get_db), c
 
 
 @router.get("/{cliente_id}", response_model=PreferenciaResponse)
-def get_preferencia(cliente_id: int, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_usuario)):
-    # Validar que el usuario está autenticado
-    if not current_user:
-        raise HTTPException(status_code=401, detail="No autenticado")
+def get_preferencia(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: Optional[str] = Header(None),
+):
+    # IDOR corregido (Fase 0 del plan de mejora): este endpoint exigía sesión
+    # pero nunca comparaba el cliente_id de la URL contra el del usuario
+    # autenticado, a diferencia de create_preferencia (arriba) y
+    # get_sugerencias (abajo) — cualquier cliente logueado podía leer las
+    # preferencias de cualquier otro cambiando el número en la URL.
+    exigir_propietario_o_admin(current_user, cliente_id, authorization)
 
     preferencia = db.query(PreferenciaCliente).filter(
         PreferenciaCliente.id_cliente == cliente_id
