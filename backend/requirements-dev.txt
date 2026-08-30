@@ -1,0 +1,7 @@
+# Dependencias solo para desarrollo local / CI — nunca se instalan en la
+# imagen Docker de producción (esa usa requirements.txt a secas, ver
+# Dockerfile). Instalar con: pip install -r requirements-dev.txt
+-r requirements.txt
+
+ruff==0.16.5
+pytest==8.3.3

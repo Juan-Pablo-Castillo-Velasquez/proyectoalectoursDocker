@@ -8,18 +8,17 @@ idéntica en preferencias_route.py, solicitud_cancelacion_route.py y
 resena_route.py. Ahora vive en un solo lugar y esos archivos importan de
 aquí — ver Fase 0 del plan de mejora (docs/referencia-tecnica/).
 """
-from typing import Optional
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_user_from_token, decode_token
+from app.core.security import decode_token, get_user_from_token
 from app.models.user_model import Usuario
 
 
 def get_current_usuario(
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ) -> Usuario:
     """Exige un JWT válido en el header Authorization y devuelve el Usuario
@@ -42,7 +41,7 @@ def get_current_usuario(
     return usuario
 
 
-def usuario_es_admin(authorization: Optional[str]) -> bool:
+def usuario_es_admin(authorization: str | None) -> bool:
     """Mismo chequeo que require_admin (security.py) pero sin lanzar
     excepción — para combinarlo con un chequeo de propiedad ('el dueño del
     recurso O un admin'), en vez de exigir solo una de las dos cosas."""
@@ -59,8 +58,8 @@ def usuario_es_admin(authorization: Optional[str]) -> bool:
 
 def exigir_propietario_o_admin(
     current_user: Usuario,
-    id_cliente_recurso: Optional[int],
-    authorization: Optional[str],
+    id_cliente_recurso: int | None,
+    authorization: str | None,
 ) -> None:
     """Lanza 403 salvo que quien llama sea el dueño del recurso (mismo
     id_cliente) o tenga rol admin en su JWT. Centraliza el patrón repetido

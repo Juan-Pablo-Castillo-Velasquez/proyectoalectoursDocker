@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
 from datetime import date
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class CaracteristicaCreate(BaseModel):
@@ -17,14 +17,14 @@ class CaracteristicaResponse(BaseModel):
 
 class TipoHabitacionCreate(BaseModel):
     nombre_tipo: str = Field(..., min_length=1, max_length=50)
-    descripcion: Optional[str] = Field(None, max_length=200)
+    descripcion: str | None = Field(None, max_length=200)
     capacidad_personas: int = Field(..., gt=0)
 
 
 class TipoHabitacionResponse(BaseModel):
     id_tipo_habitacion: int
     nombre_tipo: str
-    descripcion: Optional[str]
+    descripcion: str | None
     capacidad_personas: int
 
     class Config:
@@ -47,9 +47,9 @@ class HabitacionCreate(BaseModel):
 
 
 class HabitacionUpdate(BaseModel):
-    numero_habitacion: Optional[str] = None
-    precio_noche: Optional[float] = Field(None, ge=0)
-    estado: Optional[str] = None
+    numero_habitacion: str | None = None
+    precio_noche: float | None = Field(None, ge=0)
+    estado: str | None = None
 
     @field_validator("estado")
     @classmethod
@@ -66,7 +66,7 @@ class HabitacionResponse(BaseModel):
     numero_habitacion: str
     precio_noche: float
     estado: str
-    tipo_habitacion: Optional[TipoHabitacionResponse] = None
+    tipo_habitacion: TipoHabitacionResponse | None = None
 
     class Config:
         from_attributes = True
@@ -75,6 +75,7 @@ class HabitacionResponse(BaseModel):
 class RangoOcupado(BaseModel):
     """Un rango de fechas ya reservado — solo fechas, nunca quién reservó
     (no expone datos de otros clientes)."""
+
     fecha_checkin: date
     fecha_checkout: date
 
@@ -85,8 +86,9 @@ class HabitacionFechasOcupadas(BaseModel):
     que ya tiene estos datos (mismo criterio de reserva "activa" que
     _verificar_disponibilidad en reserva_repository.py), sin necesitar
     ninguna tabla ni columna nueva."""
+
     id_habitacion: int
-    rangos: List[RangoOcupado]
+    rangos: list[RangoOcupado]
 
 
 class HotelCaracteristicaCreate(BaseModel):
@@ -98,7 +100,7 @@ class HotelCaracteristicaResponse(BaseModel):
     id_hotel: int
     id_caracteristica: int
     disponible: bool
-    caracteristica: Optional[CaracteristicaResponse] = None
+    caracteristica: CaracteristicaResponse | None = None
 
     class Config:
         from_attributes = True
@@ -106,45 +108,45 @@ class HotelCaracteristicaResponse(BaseModel):
 
 class HotelCreate(BaseModel):
     nombre_hotel: str = Field(..., min_length=1, max_length=100)
-    calificacion: Optional[int] = Field(None, ge=1, le=5)
-    direccion: Optional[str] = Field(None, max_length=255)
-    ciudad: Optional[str] = Field(None, max_length=100)
-    pais: Optional[str] = Field(None, max_length=100)
-    codigo_postal: Optional[str] = Field(None, max_length=20)
-    correo_electronico: Optional[str] = Field(None, max_length=100)
-    telefono: Optional[str] = Field(None, max_length=20)
+    calificacion: int | None = Field(None, ge=1, le=5)
+    direccion: str | None = Field(None, max_length=255)
+    ciudad: str | None = Field(None, max_length=100)
+    pais: str | None = Field(None, max_length=100)
+    codigo_postal: str | None = Field(None, max_length=20)
+    correo_electronico: str | None = Field(None, max_length=100)
+    telefono: str | None = Field(None, max_length=20)
 
 
 class HotelUpdate(BaseModel):
-    nombre_hotel: Optional[str] = None
-    calificacion: Optional[int] = Field(None, ge=1, le=5)
-    direccion: Optional[str] = None
-    ciudad: Optional[str] = None
-    pais: Optional[str] = None
-    codigo_postal: Optional[str] = None
-    correo_electronico: Optional[str] = None
-    telefono: Optional[str] = None
+    nombre_hotel: str | None = None
+    calificacion: int | None = Field(None, ge=1, le=5)
+    direccion: str | None = None
+    ciudad: str | None = None
+    pais: str | None = None
+    codigo_postal: str | None = None
+    correo_electronico: str | None = None
+    telefono: str | None = None
 
 
 class HotelResponse(BaseModel):
     id_hotel: int
     nombre_hotel: str
-    calificacion: Optional[int]
-    direccion: Optional[str]
-    ciudad: Optional[str]
-    pais: Optional[str]
-    codigo_postal: Optional[str]
-    correo_electronico: Optional[str]
-    telefono: Optional[str]
+    calificacion: int | None
+    direccion: str | None
+    ciudad: str | None
+    pais: str | None
+    codigo_postal: str | None
+    correo_electronico: str | None
+    telefono: str | None
     # Reseñas reales de clientes (propiedades calculadas en el modelo Hotel a
     # partir de la tabla `resenas`) — nunca cifras inventadas en el frontend.
     total_resenas: int = 0
-    calificacion_promedio: Optional[float] = None
+    calificacion_promedio: float | None = None
 
     class Config:
         from_attributes = True
 
 
 class HotelDetailResponse(HotelResponse):
-    habitaciones: List[HabitacionResponse] = []
-    hotel_caracteristicas: List[HotelCaracteristicaResponse] = []
+    habitaciones: list[HabitacionResponse] = []
+    hotel_caracteristicas: list[HotelCaracteristicaResponse] = []

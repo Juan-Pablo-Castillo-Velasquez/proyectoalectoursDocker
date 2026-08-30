@@ -1,49 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
-from typing import List, Optional
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
-from app.core.deps import get_current_usuario, exigir_propietario_o_admin
+from app.core.deps import exigir_propietario_o_admin, get_current_usuario
 from app.models.cliente_model import PreferenciaCliente
-from app.models.user_model import Usuario
-from app.models.reserva_model import Paquete, PaqueteServicio, PaqueteHotel
+from app.models.reserva_model import Paquete, PaqueteHotel, PaqueteServicio
 from app.models.servicio_model import Servicio
+from app.models.user_model import Usuario
 from app.schemas.reserva_schema import PaqueteResponse
 
-
-router = APIRouter(
-    prefix="/api/preferencias-cliente",
-    tags=["Preferencias"]
-)
+router = APIRouter(prefix="/api/preferencias-cliente", tags=["Preferencias"])
 
 
 class PreferenciaCreate(BaseModel):
     id_cliente: int
-    intereses: Optional[List[str]] = []
-    compania: Optional[str] = None
-    presupuesto: Optional[str] = None
-    clima: Optional[str] = None
-    ritmo: Optional[str] = None
-    transporte: Optional[str] = None
+    intereses: list[str] | None = []
+    compania: str | None = None
+    presupuesto: str | None = None
+    clima: str | None = None
+    ritmo: str | None = None
+    transporte: str | None = None
 
 
 class PreferenciaResponse(BaseModel):
     id_preferencia: int
     id_cliente: int
-    intereses: Optional[List[str]] = []
-    compania: Optional[str] = None
-    presupuesto: Optional[str] = None
-    clima: Optional[str] = None
-    ritmo: Optional[str] = None
-    transporte: Optional[str] = None
+    intereses: list[str] | None = []
+    compania: str | None = None
+    presupuesto: str | None = None
+    clima: str | None = None
+    ritmo: str | None = None
+    transporte: str | None = None
 
     class Config:
         from_attributes = True
 
 
 @router.post("/", response_model=PreferenciaResponse, status_code=201)
-def create_preferencia(data: PreferenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_usuario)):
+def create_preferencia(
+    data: PreferenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_usuario)
+):
     # Validar que el usuario está autenticado
     if not current_user:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -56,9 +53,7 @@ def create_preferencia(data: PreferenciaCreate, db: Session = Depends(get_db), c
     if current_user.id_cliente != data.id_cliente:
         raise HTTPException(status_code=403, detail="No tienes permiso para guardar preferencias de otro cliente")
 
-    existente = db.query(PreferenciaCliente).filter(
-        PreferenciaCliente.id_cliente == data.id_cliente
-    ).first()
+    existente = db.query(PreferenciaCliente).filter(PreferenciaCliente.id_cliente == data.id_cliente).first()
     if existente:
         # Actualiza si ya existe
         for key, value in data.dict(exclude={"id_cliente"}).items():
@@ -79,7 +74,7 @@ def get_preferencia(
     cliente_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     # IDOR corregido (Fase 0 del plan de mejora): este endpoint exigía sesión
     # pero nunca comparaba el cliente_id de la URL contra el del usuario
@@ -88,9 +83,7 @@ def get_preferencia(
     # preferencias de cualquier otro cambiando el número en la URL.
     exigir_propietario_o_admin(current_user, cliente_id, authorization)
 
-    preferencia = db.query(PreferenciaCliente).filter(
-        PreferenciaCliente.id_cliente == cliente_id
-    ).first()
+    preferencia = db.query(PreferenciaCliente).filter(PreferenciaCliente.id_cliente == cliente_id).first()
     if not preferencia:
         raise HTTPException(status_code=404, detail="Preferencias no encontradas")
     return preferencia
@@ -119,8 +112,8 @@ _RANGOS_PRESUPUESTO = {
 
 
 class PaqueteSugeridoResponse(PaqueteResponse):
-    destinos: List[str] = []
-    hoteles: List[str] = []
+    destinos: list[str] = []
+    hoteles: list[str] = []
 
 
 def _score_paquete(paquete: Paquete, preferencia: PreferenciaCliente) -> int:
@@ -136,11 +129,13 @@ def _score_paquete(paquete: Paquete, preferencia: PreferenciaCliente) -> int:
             score += 1
 
     # Ritmo: viajes largos (más días) para "relax", cortos para "active"
-    if paquete.duracion_dias:
-        if preferencia.ritmo == "relax" and paquete.duracion_dias >= 4:
-            score += 1
-        elif preferencia.ritmo == "active" and paquete.duracion_dias <= 4:
-            score += 1
+    if paquete.duracion_dias and (
+        preferencia.ritmo == "relax"
+        and paquete.duracion_dias >= 4
+        or preferencia.ritmo == "active"
+        and paquete.duracion_dias <= 4
+    ):
+        score += 1
 
     # Intereses: busca coincidencias de texto en categoría/servicio/destino
     intereses = preferencia.intereses or []
@@ -166,7 +161,7 @@ def _score_paquete(paquete: Paquete, preferencia: PreferenciaCliente) -> int:
     return score
 
 
-@router.get("/{cliente_id}/sugerencias", response_model=List[PaqueteSugeridoResponse])
+@router.get("/{cliente_id}/sugerencias", response_model=list[PaqueteSugeridoResponse])
 def get_sugerencias(
     cliente_id: int,
     limit: int = Query(6, ge=1, le=20),
@@ -182,9 +177,7 @@ def get_sugerencias(
     if current_user.id_cliente != cliente_id:
         raise HTTPException(status_code=403, detail="No tienes permiso para ver sugerencias de otro cliente")
 
-    preferencia = db.query(PreferenciaCliente).filter(
-        PreferenciaCliente.id_cliente == cliente_id
-    ).first()
+    preferencia = db.query(PreferenciaCliente).filter(PreferenciaCliente.id_cliente == cliente_id).first()
     if not preferencia:
         raise HTTPException(
             status_code=404,
@@ -195,12 +188,8 @@ def get_sugerencias(
         db.query(Paquete)
         .filter(Paquete.activo.is_(True))
         .options(
-            joinedload(Paquete.paquete_servicios)
-            .joinedload(PaqueteServicio.servicio)
-            .joinedload(Servicio.categoria),
-            joinedload(Paquete.paquete_servicios)
-            .joinedload(PaqueteServicio.servicio)
-            .joinedload(Servicio.destino),
+            joinedload(Paquete.paquete_servicios).joinedload(PaqueteServicio.servicio).joinedload(Servicio.categoria),
+            joinedload(Paquete.paquete_servicios).joinedload(PaqueteServicio.servicio).joinedload(Servicio.destino),
             joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel),
         )
         .all()
@@ -211,16 +200,14 @@ def get_sugerencias(
 
     resultado = []
     for paquete, _score in puntuados[:limit]:
-        destinos = sorted({
-            ps.servicio.destino.nombre_destino
-            for ps in paquete.paquete_servicios
-            if ps.servicio and ps.servicio.destino
-        })
-        hoteles = sorted({
-            ph.hotel.nombre_hotel
-            for ph in paquete.paquete_hotel
-            if ph.hotel
-        })
+        destinos = sorted(
+            {
+                ps.servicio.destino.nombre_destino
+                for ps in paquete.paquete_servicios
+                if ps.servicio and ps.servicio.destino
+            }
+        )
+        hoteles = sorted({ph.hotel.nombre_hotel for ph in paquete.paquete_hotel if ph.hotel})
         resultado.append(
             PaqueteSugeridoResponse(
                 id_paquete=paquete.id_paquete,

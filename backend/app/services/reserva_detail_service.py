@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
+
 from app.repositories.reserva_detail_repository import ReservaDetailRepository
 
-class ReservaDetailService:
 
+class ReservaDetailService:
     @staticmethod
     def get_habitaciones(db: Session, reserva_id: int):
         return ReservaDetailRepository.get_habitaciones(db, reserva_id)

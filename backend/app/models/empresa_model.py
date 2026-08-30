@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, CheckConstraint, func
+from sqlalchemy import TIMESTAMP, CheckConstraint, Column, Integer, String, Text, func
+
 from app.core.database import Base
 
 
@@ -9,6 +10,7 @@ class SolicitudCorporativa(Base):
     es un CRM con múltiples contactos por empresa a través del tiempo: si
     más adelante hace falta agrupar varias solicitudes de la misma empresa,
     se puede separar en una tabla Empresa aparte con una migración nueva."""
+
     __tablename__ = "solicitudes_corporativas"
 
     id_solicitud = Column(Integer, primary_key=True, index=True)

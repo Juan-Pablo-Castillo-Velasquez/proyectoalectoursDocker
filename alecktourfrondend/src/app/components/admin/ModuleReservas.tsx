@@ -244,15 +244,13 @@ interface SidePanelProps {
 }
 
 function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReserva = [], onClose, onDelete, onUpdateEstado }: SidePanelProps) {
-  if (!reserva) return null;
-
   const solicitudPendiente = solicitudesReserva.find(s => s.estado === "pendiente");
 
   // reserva.precio_total ya viene calculado real desde el backend
   // (habitaciones + servicios + paquete) — se prefiere sobre una
   // estimación manual en el navegador. Se deja el cálculo con paquete
   // como respaldo únicamente para el caso raro de que aún no llegue.
-  const totalReal = reserva.precio_total ?? (paquete ? paquete.precio_base * reserva.numero_personas : 0);
+  const totalReal = reserva?.precio_total ?? (paquete && reserva ? paquete.precio_base * reserva.numero_personas : 0);
 
   const [habitaciones, setHabitaciones] = useState<any[]>([]);
   const [servicios,    setServicios]    = useState<any[]>([]);
@@ -271,12 +269,13 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
   // instante) y se reemplaza por la lista real apenas responde el backend.
   const [pagosCompletos, setPagosCompletos] = useState<PagoResponse[] | null>(null);
   useEffect(() => {
+    if (!reserva) return;
     let cancelado = false;
     reservaService.getPagos(reserva.id_reserva)
       .then((data) => { if (!cancelado) setPagosCompletos(data); })
       .catch(() => { if (!cancelado) setPagosCompletos(null); });
     return () => { cancelado = true; };
-  }, [reserva.id_reserva]);
+  }, [reserva?.id_reserva]);
 
   const pagosReales: PagoResponse[] = pagosCompletos ?? (pago ? [pago as unknown as PagoResponse] : []);
   const montoPagado = pagosReales.filter(p => p.estado === "pagado").reduce((sum, p) => sum + p.monto, 0);
@@ -306,16 +305,17 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
     }
   }
 
-  const [estadoLocal,  setEstadoLocal]  = useState<EstadoReserva>(reserva.estado as EstadoReserva);
+  const [estadoLocal,  setEstadoLocal]  = useState<EstadoReserva>(reserva?.estado as EstadoReserva);
   const [savingEstado, setSavingEstado] = useState(false);
   const [saveSuccess,  setSaveSuccess]  = useState(false);
   const [saveError,    setSaveError]    = useState("");
-  const hasChanges = estadoLocal !== reserva.estado;
+  const hasChanges = !!reserva && estadoLocal !== reserva.estado;
 
   // El historial se carga solo al abrir el detalle (independiente del botón
   // "Ver habitaciones y servicios") porque la trazabilidad debe verse de
   // entrada, no quedar detrás de un clic extra.
   useEffect(() => {
+    if (!reserva) return;
     let cancelado = false;
     setHistorialLoading(true);
     reservaDetailService.getHistorial(reserva.id_reserva)
@@ -323,7 +323,18 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
       .catch(() => { if (!cancelado) setHistorial([]); })
       .finally(() => { if (!cancelado) setHistorialLoading(false); });
     return () => { cancelado = true; };
-  }, [reserva.id_reserva]);
+  }, [reserva?.id_reserva]);
+
+  // El guard de "sin reserva" va DESPUÉS de todos los hooks de arriba
+  // (useState/useEffect) a propósito: llamarlos condicionalmente violaba
+  // las Rules of Hooks de React (detectado por ESLint al configurar
+  // react-hooks/rules-of-hooks en esta ronda). Hoy el padre solo monta
+  // <SidePanel> cuando hay una reserva seleccionada, así que esto nunca
+  // se disparó en producción -- pero si algún día se monta el panel de
+  // forma persistente (ej. para animar el cierre) con reserva en null,
+  // React perdería la cuenta del orden de los hooks entre renders y
+  // podría crashear o corromper el estado.
+  if (!reserva) return null;
 
   async function handleSaveEstado() {
     if (!hasChanges) return;
@@ -769,11 +780,15 @@ interface Props {
    * valor abre el modal de esa reserva; no fuerza nada si el admin ya cerró
    * el modal y no llegó un id nuevo. */
   reservaIdInicial?: number | null;
+  /** Cuando el Dashboard navega acá desde una tarjeta de KPI (ej. "Reservas
+   * canceladas") — deja el filtro de estado pre-aplicado en vez de que el
+   * admin tenga que volver a elegirlo. Mismo criterio que `reservaIdInicial`. */
+  estadoInicial?: string | null;
 }
 
 export default function ModuleReservas({
   reservas, clientes = [], empleados = [], paquetes = [], pagos = [], solicitudes = [],
-  onDelete, onNueva, onUpdateEstado, reservaIdInicial = null,
+  onDelete, onNueva, onUpdateEstado, reservaIdInicial = null, estadoInicial = null,
 }: Props) {
   const [search,       setSearch]       = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
@@ -788,6 +803,13 @@ export default function ModuleReservas({
   useEffect(() => {
     if (reservaIdInicial != null) setSelectedId(reservaIdInicial);
   }, [reservaIdInicial]);
+
+  // Ver comentario de `estadoInicial` en Props.
+  useEffect(() => {
+    if (estadoInicial && (ESTADOS as readonly string[]).includes(estadoInicial)) {
+      setEstadoFilter(estadoInicial as EstadoFilter);
+    }
+  }, [estadoInicial]);
   const [hiddenCols,   setHiddenCols]   = useState<Set<ColumnKey>>(new Set(DEFAULT_HIDDEN));
 
   const isVisible = (key: ColumnKey) => !hiddenCols.has(key);

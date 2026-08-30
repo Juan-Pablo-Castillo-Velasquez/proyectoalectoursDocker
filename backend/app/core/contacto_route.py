@@ -24,8 +24,7 @@ async def enviar_contacto(data: ContactoRequest):
 
     if not enviado:
         raise HTTPException(
-            status_code=502,
-            detail="No pudimos enviar tu mensaje en este momento. Intenta de nuevo más tarde."
+            status_code=502, detail="No pudimos enviar tu mensaje en este momento. Intenta de nuevo más tarde."
         )
 
     return {"ok": True, "message": "Mensaje enviado correctamente"}

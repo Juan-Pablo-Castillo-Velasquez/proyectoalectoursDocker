@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.cache import get_cached, set_cached
+from app.core.database import get_db
 from app.repositories.hotel_repository import HotelRepository
 
 router = APIRouter(prefix="/api/promociones", tags=["Promociones"])
@@ -35,15 +35,17 @@ def get_destacados(db: Session = Depends(get_db)):
     data = []
     for i, fila in enumerate(filas):
         precio = float(fila.precio_desde or 0)
-        data.append({
-            "id": fila.id_hotel,
-            "title": fila.nombre_hotel,
-            "tag": f"{fila.ciudad}, {fila.pais}",
-            "discount": f"★ {fila.calificacion}",
-            "price": f"{precio:,.0f}".replace(",", "."),
-            "oldPrice": "",
-            "img": IMAGENES_FALLBACK[i % len(IMAGENES_FALLBACK)],
-        })
+        data.append(
+            {
+                "id": fila.id_hotel,
+                "title": fila.nombre_hotel,
+                "tag": f"{fila.ciudad}, {fila.pais}",
+                "discount": f"★ {fila.calificacion}",
+                "price": f"{precio:,.0f}".replace(",", "."),
+                "oldPrice": "",
+                "img": IMAGENES_FALLBACK[i % len(IMAGENES_FALLBACK)],
+            }
+        )
 
     set_cached("home:destacados", data, ttl_seconds=600)  # 10 min
     return data
@@ -61,15 +63,17 @@ def get_seleccion_casa(db: Session = Depends(get_db)):
     data = []
     for i, fila in enumerate(filas):
         precio = float(fila.precio_desde or 0)
-        data.append({
-            "id": fila.id_hotel,
-            "name": fila.nombre_hotel,
-            "tag": f"{fila.ciudad}, {fila.pais}",
-            "img": IMAGENES_FALLBACK[i % len(IMAGENES_FALLBACK)],
-            "rating": float(fila.calificacion),
-            "price": f"{precio:,.0f}".replace(",", "."),
-            "nights": NOCHES_FALLBACK[i % len(NOCHES_FALLBACK)],
-        })
+        data.append(
+            {
+                "id": fila.id_hotel,
+                "name": fila.nombre_hotel,
+                "tag": f"{fila.ciudad}, {fila.pais}",
+                "img": IMAGENES_FALLBACK[i % len(IMAGENES_FALLBACK)],
+                "rating": float(fila.calificacion),
+                "price": f"{precio:,.0f}".replace(",", "."),
+                "nights": NOCHES_FALLBACK[i % len(NOCHES_FALLBACK)],
+            }
+        )
 
     set_cached("home:seleccion_casa", data, ttl_seconds=600)  # 10 min
     return data

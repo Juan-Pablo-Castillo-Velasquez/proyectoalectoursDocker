@@ -1,26 +1,28 @@
 # Guardar como: backend/app/routes/solicitud_cancelacion_route.py
 
 import asyncio
+import contextlib
 import logging
 import threading
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from datetime import UTC
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.cache import delete_pattern
 from app.core.database import get_db
-from app.core.security import require_admin
 from app.core.deps import get_current_usuario
 from app.core.mail import send_cancellation_email, send_email
-from app.core.cache import delete_pattern
+from app.core.security import require_admin
+from app.models.reserva_model import HistorialReserva, Reserva
 from app.models.user_model import Usuario
-from app.models.reserva_model import Reserva, HistorialReserva
+from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
+from app.schemas.notificacion_schema import ActividadClienteItem
 from app.schemas.solicitud_cancelacion_schema import (
     SolicitudCancelacionCreate,
-    SolicitudCancelacionResponse,
     SolicitudCancelacionResolve,
+    SolicitudCancelacionResponse,
 )
-from app.schemas.notificacion_schema import ActividadClienteItem
-from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
 from app.services.notificacion_service import crear_notificacion, get_actividad_cliente
 
 router = APIRouter(prefix="/api", tags=["Solicitudes de cancelación"])
@@ -43,15 +45,15 @@ def _enviar_cancelacion_en_hilo(email: str | None, reserva_id: int, guest_name: 
 
     def _run() -> None:
         try:
-            asyncio.run(send_cancellation_email(
-                email=email,
-                reservation_id=reserva_id,
-                guest_name=guest_name,
-            ))
-        except Exception as e:
-            logger.error(
-                f"No se pudo enviar el correo de cancelacion de la reserva #{reserva_id}: {e}"
+            asyncio.run(
+                send_cancellation_email(
+                    email=email,
+                    reservation_id=reserva_id,
+                    guest_name=guest_name,
+                )
             )
+        except Exception as e:
+            logger.error(f"No se pudo enviar el correo de cancelacion de la reserva #{reserva_id}: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
 
@@ -89,7 +91,9 @@ async def crear_solicitud_cancelacion(
         )
 
     if SolicitudCancelacionRepository.get_pendiente_by_reserva(db, reserva_id):
-        raise HTTPException(status_code=409, detail="Ya existe una solicitud de cancelación pendiente para esta reserva")
+        raise HTTPException(
+            status_code=409, detail="Ya existe una solicitud de cancelación pendiente para esta reserva"
+        )
 
     if data.motivo == "Otro motivo" and not (data.motivo_detalle and data.motivo_detalle.strip()):
         raise HTTPException(status_code=422, detail="Debes detallar el motivo cuando eliges 'Otro motivo'")
@@ -117,7 +121,7 @@ async def crear_solicitud_cancelacion(
     # Confirmación por correo al cliente (best-effort: si falla el envío,
     # la solicitud ya quedó guardada, no rompemos la respuesta por esto).
     if usuario.correo_electronico:
-        try:
+        with contextlib.suppress(Exception):
             await send_email(
                 email=usuario.correo_electronico,
                 subject=f"Recibimos tu solicitud de cancelación - Reserva #{reserva_id} - AlecTours",
@@ -134,8 +138,6 @@ async def crear_solicitud_cancelacion(
                     "<p>Saludos,<br>El equipo de AlecTours</p>"
                 ),
             )
-        except Exception:
-            pass
 
     return solicitud
 
@@ -182,9 +184,10 @@ def get_solicitudes_cliente(
 
 # ===================== ADMIN =====================
 
+
 @router.get("/solicitudes-cancelacion", response_model=list[SolicitudCancelacionResponse])
 def admin_get_solicitudes(
-    estado: Optional[str] = Query(None),
+    estado: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -212,11 +215,11 @@ def admin_resolver_solicitud(
     if solicitud.estado != "pendiente":
         raise HTTPException(status_code=409, detail=f"Esta solicitud ya fue '{solicitud.estado}'")
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     solicitud.estado = data.estado
     solicitud.comentario_resolucion = data.comentario_resolucion
-    solicitud.fecha_resolucion = datetime.now(timezone.utc)
+    solicitud.fecha_resolucion = datetime.now(UTC)
 
     admin = db.query(Usuario).filter(Usuario.id_usuario == admin_id).first()
     if admin and admin.empleado:
@@ -229,13 +232,15 @@ def admin_resolver_solicitud(
             estado_anterior = reserva.estado
             reserva.estado = "cancelada"
             reserva_recien_cancelada = reserva
-            db.add(HistorialReserva(
-                id_reserva=reserva.id_reserva,
-                estado_anterior=estado_anterior,
-                estado_nuevo="cancelada",
-                id_empleado_responsable=solicitud.id_empleado_resolutor,
-                comentarios=f"Cancelación aprobada: {data.comentario_resolucion or solicitud.motivo}",
-            ))
+            db.add(
+                HistorialReserva(
+                    id_reserva=reserva.id_reserva,
+                    estado_anterior=estado_anterior,
+                    estado_nuevo="cancelada",
+                    id_empleado_responsable=solicitud.id_empleado_resolutor,
+                    comentarios=f"Cancelación aprobada: {data.comentario_resolucion or solicitud.motivo}",
+                )
+            )
 
     db.commit()
     db.refresh(solicitud)
@@ -244,6 +249,9 @@ def admin_resolver_solicitud(
         # listado de Reservas del admin (reserva_route.py) queda cacheado
         # hasta 60s si no se invalida acá.
         delete_pattern("reservas:list:*")
+        # Los KPIs del dashboard (tasa de cancelación, tendencia de
+        # cancelaciones, etc.) también deben reflejar esta cancelación real.
+        delete_pattern("kpi:dashboard:resumen")
 
     # Confirmación por correo al cliente de que su reserva quedó cancelada
     # de verdad (Fase 2 del plan de mejora) — solo si en ESTA llamada de

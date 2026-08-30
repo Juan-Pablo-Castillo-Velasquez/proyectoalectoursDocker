@@ -1,6 +1,7 @@
 import { ChevronDown, HelpCircle, MessageCircle, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 
@@ -34,6 +35,7 @@ const FAQ_DATA: FAQItem[] = [
 ];
 
 export default function FAQ() {
+  const navigate = useNavigate();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -191,6 +193,7 @@ export default function FAQ() {
               </div>
             </div>
             <motion.button
+              onClick={() => navigate("/contact")}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="px-6 py-3 bg-background text-primary font-bold rounded-xl text-sm shadow-md hover:bg-background/90 transition-colors whitespace-nowrap cursor-pointer"

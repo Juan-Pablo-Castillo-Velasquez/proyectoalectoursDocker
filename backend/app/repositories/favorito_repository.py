@@ -4,7 +4,6 @@ from app.models.favorito_model import Favorito
 
 
 class FavoritoRepository:
-
     @staticmethod
     def get_by_cliente(db: Session, id_cliente: int):
         return (
@@ -22,11 +21,7 @@ class FavoritoRepository:
 
     @staticmethod
     def get_by_cliente_and_hotel(db: Session, id_cliente: int, id_hotel: int):
-        return (
-            db.query(Favorito)
-            .filter(Favorito.id_cliente == id_cliente, Favorito.id_hotel == id_hotel)
-            .first()
-        )
+        return db.query(Favorito).filter(Favorito.id_cliente == id_cliente, Favorito.id_hotel == id_hotel).first()
 
     @staticmethod
     def create(db: Session, id_cliente: int, id_hotel: int) -> Favorito:
@@ -38,11 +33,7 @@ class FavoritoRepository:
 
     @staticmethod
     def delete(db: Session, id_cliente: int, id_hotel: int) -> bool:
-        favorito = (
-            db.query(Favorito)
-            .filter(Favorito.id_cliente == id_cliente, Favorito.id_hotel == id_hotel)
-            .first()
-        )
+        favorito = db.query(Favorito).filter(Favorito.id_cliente == id_cliente, Favorito.id_hotel == id_hotel).first()
         if not favorito:
             return False
         db.delete(favorito)

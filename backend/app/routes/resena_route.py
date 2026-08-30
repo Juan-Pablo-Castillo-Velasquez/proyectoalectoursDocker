@@ -1,17 +1,16 @@
-from typing import Optional, List
 from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.core.cache import delete_pattern, get_cached, redis_client, set_cached
 from app.core.database import get_db
 from app.core.security import get_user_from_token
-from app.core.cache import redis_client, get_cached, set_cached, delete_pattern
-from app.models.user_model import Usuario
-from app.models.reserva_model import Reserva
 from app.models.resena_model import Resena
+from app.models.reserva_model import Reserva
+from app.models.user_model import Usuario
 from app.repositories.resena_repository import ResenaRepository
 
 router = APIRouter(prefix="/api/resenas", tags=["Reseñas"])
@@ -23,7 +22,7 @@ HOME_CACHE_KEY = "home:resenas_destacadas"
 AVATAR_BG = "7B1E3A"
 
 
-def get_current_usuario(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Usuario:
+def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
     """Mismo patrón de auth usado en preferencias_route.py"""
     if not authorization:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -47,7 +46,7 @@ class ResenaCreate(BaseModel):
     id_reserva: int
     calificacion: int = Field(..., ge=1, le=5)
     comentario: str = Field(..., min_length=10, max_length=1000)
-    foto_url: Optional[str] = None
+    foto_url: str | None = None
 
 
 class ResenaResponse(BaseModel):
@@ -56,9 +55,9 @@ class ResenaResponse(BaseModel):
     id_hotel: int
     calificacion: int
     comentario: str
-    foto_url: Optional[str] = None
+    foto_url: str | None = None
     fecha_creacion: datetime
-    nombre_cliente: Optional[str] = None
+    nombre_cliente: str | None = None
 
     class Config:
         from_attributes = True
@@ -167,7 +166,7 @@ def get_resenas_todas(
     }
 
 
-@router.get("/hotel/{id_hotel}", response_model=List[ResenaResponse])
+@router.get("/hotel/{id_hotel}", response_model=list[ResenaResponse])
 def get_resenas_hotel(id_hotel: int, db: Session = Depends(get_db)):
     resenas = ResenaRepository.get_by_hotel(db, id_hotel)
     return [

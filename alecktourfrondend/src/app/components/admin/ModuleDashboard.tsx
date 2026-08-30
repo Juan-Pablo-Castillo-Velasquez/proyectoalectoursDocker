@@ -2,16 +2,21 @@ import { useEffect, useState } from "react";
 import {
   CalendarDays, CheckCircle, Hotel, PlusCircle, Package, Users,
   TrendingUp, TrendingDown, Minus, DollarSign, ArrowUpRight, AlertCircle,
-  XCircle, Activity, Building2,
+  XCircle, Activity, Building2, Info, Percent, Clock,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
-  ComposedChart, Line,
+  ComposedChart, Line, LineChart,
 } from "recharts";
 import { dashboardService, type DashboardResumen, type TendenciaValor } from "../../services/dashboard.service";
 import { reservaDetailService, type ActividadRecienteItem } from "../../services/reserva.service";
 import StatusBadge from "./ui/StatusBadge";
+import {
+  Tooltip as InfoTooltip,
+  TooltipTrigger as InfoTooltipTrigger,
+  TooltipContent as InfoTooltipContent,
+} from "../ui/tooltip";
 
 interface Props {
   setActiveModule: (m: any) => void;
@@ -20,6 +25,15 @@ interface Props {
    * recurso real en vez de solo cambiar de pestaña (ver punto 44,
    * "coherencia operacional", del brief de FASE A). */
   onVerReserva: (id: number) => void;
+  /** Navega a un módulo dejando un filtro de estado pre-aplicado (ej. clic
+   * en "Pendientes" de la tarjeta de Pagos abre Pagos ya filtrado por
+   * "pendiente") — ver ModuleReservas/ModulePagos.estadoInicial. */
+  onFiltrarModulo: (m: any, estado?: string) => void;
+}
+
+function formatDuracionHoras(horas: number): string {
+  if (horas > 48) return `${(horas / 24).toFixed(1)} días`;
+  return `${horas.toFixed(1)} h`;
 }
 
 // Formato relativo simple ("Hace 5 min", "Ayer") para el feed de actividad
@@ -71,7 +85,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function ModuleDashboard({ setActiveModule, onVerReserva }: Props) {
+export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltrarModulo }: Props) {
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -209,29 +223,29 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva }: Props
         <h3 className="font-semibold text-foreground mb-3">Resumen operativo</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <GrupoResumen icon={CalendarDays} titulo="Reservas">
-            <FilaResumen label="Total" value={resumen.reservas_total} strong />
-            <FilaResumen label="Confirmadas" value={resumen.reservas_confirmadas} />
-            <FilaResumen label="Pendientes" value={resumen.reservas_pendientes} />
-            <FilaResumen label="Canceladas" value={resumen.reservas_canceladas} />
-            <FilaResumen label="Finalizadas" value={resumen.reservas_finalizadas} />
+            <FilaResumen label="Total" value={resumen.reservas_total} strong onClick={() => onFiltrarModulo("reservas")} />
+            <FilaResumen label="Confirmadas" value={resumen.reservas_confirmadas} onClick={() => onFiltrarModulo("reservas", "confirmada")} />
+            <FilaResumen label="Pendientes" value={resumen.reservas_pendientes} onClick={() => onFiltrarModulo("reservas", "pendiente")} />
+            <FilaResumen label="Canceladas" value={resumen.reservas_canceladas} onClick={() => onFiltrarModulo("reservas", "cancelada")} />
+            <FilaResumen label="Finalizadas" value={resumen.reservas_finalizadas} onClick={() => onFiltrarModulo("reservas", "finalizada")} />
           </GrupoResumen>
           <GrupoResumen icon={DollarSign} titulo="Pagos">
-            <FilaResumen label="Pagados" value={resumen.pagos_pagados} strong />
-            <FilaResumen label="Pendientes" value={resumen.pagos_pendientes} />
-            <FilaResumen label="Fallidos" value={resumen.pagos_fallidos} />
+            <FilaResumen label="Pagados" value={resumen.pagos_pagados} strong onClick={() => onFiltrarModulo("pagos", "pagado")} />
+            <FilaResumen label="Pendientes" value={resumen.pagos_pendientes} onClick={() => onFiltrarModulo("pagos", "pendiente")} />
+            <FilaResumen label="Fallidos" value={resumen.pagos_fallidos} onClick={() => onFiltrarModulo("pagos", "rechazado")} />
             <FilaResumen label="Reembolsos" value={resumen.pagos_reembolsados} />
           </GrupoResumen>
           <GrupoResumen icon={Users} titulo="Clientes">
-            <FilaResumen label="Total" value={resumen.clientes_total} strong />
-            <FilaResumen label="Nuevos este mes" value={resumen.clientes_nuevos_mes} />
-            <FilaResumen label="Activos" value={resumen.clientes_activos} />
-            <FilaResumen label="Con viaje próximo" value={resumen.clientes_con_reserva_proxima} />
+            <FilaResumen label="Total" value={resumen.clientes_total} strong onClick={() => onFiltrarModulo("clientes")} />
+            <FilaResumen label="Nuevos este mes" value={resumen.clientes_nuevos_mes} onClick={() => onFiltrarModulo("clientes")} />
+            <FilaResumen label="Activos" value={resumen.clientes_activos} onClick={() => onFiltrarModulo("clientes")} />
+            <FilaResumen label="Con viaje próximo" value={resumen.clientes_con_reserva_proxima} onClick={() => onFiltrarModulo("clientes")} />
           </GrupoResumen>
           <GrupoResumen icon={Activity} titulo="Operación (7 días)">
             <FilaResumen label="Check-ins próximos" value={resumen.checkins_proximos_7d} strong />
             <FilaResumen label="Check-outs próximos" value={resumen.checkouts_proximos_7d} />
-            <FilaResumen label="Cancelaciones pend." value={resumen.solicitudes_cancelacion_pendientes} />
-            <FilaResumen label="Contactos pend." value={resumen.contactos_empresariales_pendientes} />
+            <FilaResumen label="Cancelaciones pend." value={resumen.solicitudes_cancelacion_pendientes} onClick={() => onFiltrarModulo("cancelaciones")} />
+            <FilaResumen label="Contactos pend." value={resumen.contactos_empresariales_pendientes} onClick={() => onFiltrarModulo("empresas")} />
           </GrupoResumen>
         </div>
       </div>
@@ -240,10 +254,45 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva }: Props
       <div>
         <h3 className="font-semibold text-foreground mb-3">Tendencias del mes</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <TarjetaTendencia label="Reservas" tendencia={resumen.tendencia_reservas} icon={CalendarDays} />
-          <TarjetaTendencia label="Ingresos" tendencia={resumen.tendencia_ingresos} icon={DollarSign} formato="moneda" />
-          <TarjetaTendencia label="Cancelaciones" tendencia={resumen.tendencia_cancelaciones} icon={XCircle} invertido />
-          <TarjetaTendencia label="Clientes nuevos" tendencia={resumen.tendencia_clientes_nuevos} icon={Users} />
+          <TarjetaTendencia
+            label="Reservas" tendencia={resumen.tendencia_reservas} icon={CalendarDays}
+            serie={resumen.reservas_ultimos_14d} onClick={() => onFiltrarModulo("reservas")}
+          />
+          <TarjetaTendencia
+            label="Ingresos" tendencia={resumen.tendencia_ingresos} icon={DollarSign} formato="moneda"
+            serie={resumen.ingresos_ultimos_14d} onClick={() => onFiltrarModulo("pagos", "pagado")}
+          />
+          <TarjetaTendencia
+            label="Cancelaciones" tendencia={resumen.tendencia_cancelaciones} icon={XCircle} invertido
+            onClick={() => onFiltrarModulo("reservas", "cancelada")}
+          />
+          <TarjetaTendencia
+            label="Clientes nuevos" tendencia={resumen.tendencia_clientes_nuevos} icon={Users}
+            onClick={() => onFiltrarModulo("clientes")}
+          />
+        </div>
+      </div>
+
+      {/* Métricas derivadas — calculadas con las tablas ya existentes (ver
+          dashboard_route.py): conversión, cancelación y tiempo de
+          confirmación. None cuando todavía no hay base real para el
+          cálculo (ninguna reserva, o ninguna confirmada todavía). */}
+      <div>
+        <h3 className="font-semibold text-foreground mb-3">Métricas derivadas</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <TarjetaMetricaSimple
+            label="Tasa de conversión" icon={Percent} valorTexto={resumen.tasa_conversion_pct != null ? `${resumen.tasa_conversion_pct}%` : null}
+            descripcion="Reservas que llegaron a confirmarse" onClick={() => onFiltrarModulo("reservas", "confirmada")}
+          />
+          <TarjetaMetricaSimple
+            label="Tasa de cancelación" icon={XCircle} valorTexto={resumen.tasa_cancelacion_pct != null ? `${resumen.tasa_cancelacion_pct}%` : null}
+            descripcion="Reservas que terminaron canceladas" onClick={() => onFiltrarModulo("reservas", "cancelada")}
+          />
+          <TarjetaMetricaSimple
+            label="Tiempo de confirmación" icon={Clock}
+            valorTexto={resumen.tiempo_promedio_confirmacion_horas != null ? formatDuracionHoras(resumen.tiempo_promedio_confirmacion_horas) : null}
+            descripcion="Promedio entre crear la reserva y confirmarla"
+          />
         </div>
       </div>
 
@@ -465,7 +514,7 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva }: Props
 function GrupoResumen({ icon: Icon, titulo, children }: { icon: any; titulo: string; children: React.ReactNode }) {
   return (
     <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-1.5">
+      <p className="text-xs font-bold uppercase tracking-wide text-foreground/70 mb-3 flex items-center gap-1.5">
         <Icon className="w-3.5 h-3.5" /> {titulo}
       </p>
       <div className="space-y-2 text-sm">{children}</div>
@@ -473,10 +522,12 @@ function GrupoResumen({ icon: Icon, titulo, children }: { icon: any; titulo: str
   );
 }
 
-function FilaResumen({ label, value, strong }: { label: string; value: number | null; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
+function FilaResumen({
+  label, value, strong, onClick,
+}: { label: string; value: number | null; strong?: boolean; onClick?: () => void }) {
+  const contenido = (
+    <>
+      <span className={onClick ? "" : "text-muted-foreground"}>{label}</span>
       {value == null ? (
         <span className="text-xs text-muted-foreground italic">Sin datos</span>
       ) : (
@@ -484,14 +535,33 @@ function FilaResumen({ label, value, strong }: { label: string; value: number | 
           {value.toLocaleString("es-CO")}
         </span>
       )}
-    </div>
+    </>
+  );
+
+  if (!onClick) {
+    return <div className="flex items-center justify-between gap-2">{contenido}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-between gap-2 -mx-1.5 px-1.5 py-0.5 rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors text-left"
+    >
+      {contenido}
+    </button>
   );
 }
 
 function TarjetaTendencia({
-  label, tendencia, icon: Icon, formato, invertido,
+  label, tendencia, icon: Icon, formato, invertido, serie, onClick,
 }: {
   label: string; tendencia: TendenciaValor; icon: any; formato?: "moneda"; invertido?: boolean;
+  /** Serie de los últimos 14 días para el mini-sparkline — solo Reservas e
+   * Ingresos la tienen hoy (ver dashboard_route.py); el resto de tarjetas
+   * simplemente no la reciben y no muestran sparkline. */
+  serie?: { fecha: string; total: number }[];
+  onClick?: () => void;
 }) {
   const valorFmt = formato === "moneda"
     ? `$${(tendencia.actual / 1000000).toFixed(1)}M`
@@ -499,7 +569,20 @@ function TarjetaTendencia({
 
   let contenidoTendencia: React.ReactNode;
   if (tendencia.variacion_pct == null) {
-    contenidoTendencia = <span className="text-xs text-muted-foreground">Sin datos suficientes del período anterior</span>;
+    contenidoTendencia = (
+      <InfoTooltip>
+        <InfoTooltipTrigger asChild>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-help">
+            <Info className="w-3.5 h-3.5" /> Sin variación calculable
+          </span>
+        </InfoTooltipTrigger>
+        <InfoTooltipContent>
+          <p className="max-w-[220px]">
+            El mes anterior no tuvo actividad suficiente para calcular un cambio real.
+          </p>
+        </InfoTooltipContent>
+      </InfoTooltip>
+    );
   } else {
     const positivo = tendencia.variacion_pct > 0;
     const neutro = tendencia.variacion_pct === 0;
@@ -515,13 +598,50 @@ function TarjetaTendencia({
   }
 
   return (
-    <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+    <div
+      onClick={onClick}
+      className={`bg-card rounded-2xl p-4 shadow-sm border border-border ${onClick ? "cursor-pointer hover:shadow-md hover:border-primary/30 transition-all" : ""}`}
+    >
       <div className="flex items-center gap-2 mb-2 text-muted-foreground">
         <Icon className="w-4 h-4" />
         <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
       </div>
       <p className="text-2xl font-bold text-foreground mb-1">{valorFmt}</p>
       {contenidoTendencia}
+      {serie && serie.length > 1 && (
+        <div className="h-8 -mx-1 mt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={serie} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
+              <Line
+                type="monotone" dataKey="total" stroke="#7B1E3A" strokeWidth={1.75}
+                dot={false} isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TarjetaMetricaSimple({
+  label, icon: Icon, valorTexto, descripcion, onClick,
+}: { label: string; icon: any; valorTexto: string | null; descripcion: string; onClick?: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-card rounded-2xl p-4 shadow-sm border border-border ${onClick ? "cursor-pointer hover:shadow-md hover:border-primary/30 transition-all" : ""}`}
+    >
+      <div className="flex items-center gap-2 mb-2 text-muted-foreground">
+        <Icon className="w-4 h-4" />
+        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      {valorTexto == null ? (
+        <p className="text-sm text-muted-foreground italic">Sin datos suficientes todavía</p>
+      ) : (
+        <p className="text-2xl font-bold text-foreground mb-1">{valorTexto}</p>
+      )}
+      <p className="text-xs text-muted-foreground">{descripcion}</p>
     </div>
   );
 }

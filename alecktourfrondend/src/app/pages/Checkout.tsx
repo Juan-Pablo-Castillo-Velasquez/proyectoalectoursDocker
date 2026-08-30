@@ -15,6 +15,7 @@ import NequiPayment from "../components/payment/NequiPayment";
 import PayPalPayment from "../components/payment/PayPalPayment";
 import PaymentSelector from "../components/payment/PaymentSelector";
 import PaymentStatus from "../components/payment/PaymentStatus";
+import ReservationLoader from "../components/checkout/ReservationLoader";
 import {
   CardPaymentValue, NequiPaymentValue, PSEPaymentValue, PaymentOutcome,
   cardLast4, emptyCardValue, emptyNequiValue, emptyPSEValue,
@@ -52,6 +53,11 @@ export default function Checkout() {
   const [cliente, setCliente] = useState<ClienteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Paso real (1-3) y error del overlay de checkout (ver ReservationLoader) —
+  // solo cubre crear reserva + iniciar pago; el resto del flujo (espera PSE,
+  // aprobado/rechazado) lo sigue manejando <PaymentStatus /> como antes.
+  const [loaderStep, setLoaderStep] = useState<1 | 2 | 3>(1);
+  const [loaderError, setLoaderError] = useState<string | null>(null);
 
   // ── Wizard ──
   const [step, setStep] = useState(1);
@@ -284,6 +290,7 @@ export default function Checkout() {
       return;
     }
 
+    setLoaderStep(3);
     finalizarPago(pago.estado, reservaActualizada, pago);
   };
 
@@ -348,11 +355,13 @@ export default function Checkout() {
 
     setIsProcessing(true);
     setPaymentStatus('idle');
-    toast.loading('Verificando disponibilidad y creando reserva...', { id: 'checkout' });
+    setLoaderError(null);
+    setLoaderStep(1);
 
     try {
       // Si ya existe una reserva de un intento anterior (p. ej. un pago
-      // rechazado), se reutiliza en vez de crear una segunda.
+      // rechazado), se reutiliza en vez de crear una segunda — en ese caso
+      // el overlay salta directo al paso 2 (no vuelve a mostrar el 1).
       let reservaId: number | undefined = reservaActual?.id_reserva;
       if (!reservaId) {
         // El precio NO se manda: el backend lo calcula con precio_noche de
@@ -374,12 +383,13 @@ export default function Checkout() {
         reservaId = reserva.id_reserva;
       }
 
-      toast.loading('Procesando pago...', { id: 'checkout' });
+      setLoaderStep(2);
       await ejecutarPago(reservaId);
-      toast.dismiss('checkout');
     } catch (err: any) {
-      // El backend devuelve 409 con mensaje claro si alguien más reservó la habitación primero
-      toast.error(err.message || 'Error al procesar la reserva', { id: 'checkout' });
+      // El backend devuelve 409 con mensaje claro si alguien más reservó la
+      // habitación primero. El overlay se queda abierto mostrando el error
+      // (en vez de un simple toast) hasta que el usuario lo cierre.
+      setLoaderError(err.message || 'Error al procesar la reserva');
     } finally {
       setIsProcessing(false);
     }
@@ -433,6 +443,12 @@ export default function Checkout() {
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
       <Navbar />
       <Toaster position="top-center" richColors />
+      <ReservationLoader
+        step={loaderStep}
+        isVisible={(isProcessing && paymentStatus === 'idle') || !!loaderError}
+        error={loaderError}
+        onDismiss={() => setLoaderError(null)}
+      />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
 

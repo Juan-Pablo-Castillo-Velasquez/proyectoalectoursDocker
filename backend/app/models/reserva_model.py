@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text, Date, TIMESTAMP, ForeignKey, CheckConstraint, Numeric
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, Column, Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -74,15 +74,9 @@ class Reserva(Base):
     fecha_fin = Column(Date)
     numero_personas = Column(Integer, CheckConstraint("numero_personas > 0"), nullable=False)
     estado = Column(
-        String(20),
-        CheckConstraint("estado IN ('pendiente', 'confirmada', 'cancelada', 'finalizada')"),
-        nullable=False
+        String(20), CheckConstraint("estado IN ('pendiente', 'confirmada', 'cancelada', 'finalizada')"), nullable=False
     )
-    canal_origen = Column(
-        String(20),
-        CheckConstraint("canal_origen IN ('web', 'empleado', 'telefono')"),
-        default='web'
-    )
+    canal_origen = Column(String(20), CheckConstraint("canal_origen IN ('web', 'empleado', 'telefono')"), default="web")
 
     cliente = relationship("Cliente", back_populates="reservas")
     empleado = relationship("Empleado", back_populates="reservas")
@@ -91,7 +85,9 @@ class Reserva(Base):
     reserva_servicios = relationship("ReservaServicio", back_populates="reserva", cascade="all, delete-orphan")
     pagos = relationship("Pago", back_populates="reserva")
     historial_reservas = relationship("HistorialReserva", back_populates="reserva", cascade="all, delete-orphan")
-    solicitudes_cancelacion = relationship("SolicitudCancelacion", back_populates="reserva", cascade="all, delete-orphan")
+    solicitudes_cancelacion = relationship(
+        "SolicitudCancelacion", back_populates="reserva", cascade="all, delete-orphan"
+    )
 
     @property
     def precio_total(self) -> float:
@@ -206,7 +202,7 @@ class Pago(Base):
     estado = Column(
         String(20),
         CheckConstraint("estado IN ('pendiente', 'procesando', 'pagado', 'rechazado', 'cancelado')"),
-        nullable=False
+        nullable=False,
     )
     # Decidido al iniciar el pago (con los valores de prueba de tarjeta,
     # celular o documento) y aplicado al confirmar. No se expone al cliente.
@@ -245,6 +241,7 @@ class SolicitudCancelacion(Base):
     'Solicitar cancelación'. Queda en estado 'pendiente' hasta que
     un asesor/admin la evalúa y la aprueba o rechaza.
     """
+
     __tablename__ = "solicitudes_cancelacion"
 
     id_solicitud = Column(Integer, primary_key=True, index=True)

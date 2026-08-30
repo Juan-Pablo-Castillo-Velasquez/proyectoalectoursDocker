@@ -1,14 +1,14 @@
 from datetime import date
 
-from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func
-from app.models.hotel_model import Hotel, Habitacion, Caracteristica, HotelCaracteristica, TipoHabitacion
-from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
+from sqlalchemy.orm import Session, selectinload
+
 from app.core.exceptions import HotelDependencyError, NotFoundError
+from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, TipoHabitacion
+from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
 
 
 class HotelRepository:
-
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10, fecha_checkin=None, fecha_checkout=None):
         # GET /hoteles/ responde con HotelDetailResponse (habitaciones +
@@ -19,13 +19,10 @@ class HotelRepository:
         # de colección evita el producto cartesiano de combinar varios
         # joinedload de "muchos" a la vez; tipo_habitacion/caracteristica son
         # relaciones "uno" así que sí pueden ir con joinedload anidado.
-        query = (
-            db.query(Hotel)
-            .options(
-                selectinload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
-                selectinload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
-                selectinload(Hotel.resenas),
-            )
+        query = db.query(Hotel).options(
+            selectinload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
+            selectinload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
+            selectinload(Hotel.resenas),
         )
 
         if fecha_checkin and fecha_checkout:
@@ -86,9 +83,7 @@ class HotelRepository:
         )
         resultado: dict = {}
         for id_habitacion, checkin, checkout in filas:
-            resultado.setdefault(id_habitacion, []).append(
-                {"fecha_checkin": checkin, "fecha_checkout": checkout}
-            )
+            resultado.setdefault(id_habitacion, []).append({"fecha_checkin": checkin, "fecha_checkout": checkout})
         return resultado
 
     @staticmethod
@@ -162,20 +157,21 @@ class HotelRepository:
             raise NotFoundError(f"Hotel con ID {hotel_id} no encontrado")
 
         # Verificar dependencias
-        habitaciones_count = db.query(func.count(Habitacion.id_habitacion)).filter(
-            Habitacion.id_hotel == hotel_id
-        ).scalar() or 0
+        habitaciones_count = (
+            db.query(func.count(Habitacion.id_habitacion)).filter(Habitacion.id_hotel == hotel_id).scalar() or 0
+        )
 
-        caracteristicas_count = db.query(func.count(HotelCaracteristica.id_hotel)).filter(
-            HotelCaracteristica.id_hotel == hotel_id
-        ).scalar() or 0
+        caracteristicas_count = (
+            db.query(func.count(HotelCaracteristica.id_hotel)).filter(HotelCaracteristica.id_hotel == hotel_id).scalar()
+            or 0
+        )
 
         # Antes no se validaba: PaqueteHotel.id_hotel es ondelete="CASCADE",
         # así que borrar un hotel vinculado a un paquete eliminaba ese
         # vínculo en silencio, dejando el paquete roto sin ningún aviso.
-        paquetes_count = db.query(func.count(PaqueteHotel.id_paquete)).filter(
-            PaqueteHotel.id_hotel == hotel_id
-        ).scalar() or 0
+        paquetes_count = (
+            db.query(func.count(PaqueteHotel.id_paquete)).filter(PaqueteHotel.id_hotel == hotel_id).scalar() or 0
+        )
 
         if habitaciones_count > 0 or caracteristicas_count > 0 or paquetes_count > 0:
             raise HotelDependencyError(hotel_id, habitaciones_count, caracteristicas_count, paquetes_count)
@@ -186,7 +182,6 @@ class HotelRepository:
 
 
 class HabitacionRepository:
-
     @staticmethod
     def get_all(db: Session, hotel_id: int = None, skip: int = 0, limit: int = 10):
         query = db.query(Habitacion)
@@ -200,10 +195,9 @@ class HabitacionRepository:
 
     @staticmethod
     def get_by_hotel_and_number(db: Session, hotel_id: int, numero: str):
-        return db.query(Habitacion).filter(
-            Habitacion.id_hotel == hotel_id,
-            Habitacion.numero_habitacion == numero
-        ).first()
+        return (
+            db.query(Habitacion).filter(Habitacion.id_hotel == hotel_id, Habitacion.numero_habitacion == numero).first()
+        )
 
     @staticmethod
     def create(db: Session, habitacion_data: dict):
@@ -234,10 +228,13 @@ class HabitacionRepository:
 
     @staticmethod
     def get_disponibles(db: Session, hotel_id: int, skip: int = 0, limit: int = 10):
-        return db.query(Habitacion).filter(
-            Habitacion.id_hotel == hotel_id,
-            Habitacion.estado == "disponible"
-        ).offset(skip).limit(limit).all()
+        return (
+            db.query(Habitacion)
+            .filter(Habitacion.id_hotel == hotel_id, Habitacion.estado == "disponible")
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
 
 class TipoHabitacionRepository:
@@ -265,16 +262,13 @@ class TipoHabitacionRepository:
 
 
 class CaracteristicaRepository:
-
     @staticmethod
     def get_all(db: Session):
         return db.query(Caracteristica).all()
 
     @staticmethod
     def get_by_id(db: Session, caracteristica_id: int):
-        return db.query(Caracteristica).filter(
-            Caracteristica.id_caracteristica == caracteristica_id
-        ).first()
+        return db.query(Caracteristica).filter(Caracteristica.id_caracteristica == caracteristica_id).first()
 
     @staticmethod
     def create(db: Session, caracteristica_data: dict):
@@ -286,9 +280,7 @@ class CaracteristicaRepository:
 
     @staticmethod
     def delete(db: Session, caracteristica_id: int):
-        caracteristica = db.query(Caracteristica).filter(
-            Caracteristica.id_caracteristica == caracteristica_id
-        ).first()
+        caracteristica = db.query(Caracteristica).filter(Caracteristica.id_caracteristica == caracteristica_id).first()
         if caracteristica:
             db.delete(caracteristica)
             db.commit()
@@ -296,20 +288,13 @@ class CaracteristicaRepository:
 
 
 class HotelCaracteristicaRepository:
-
     @staticmethod
     def get_by_hotel(db: Session, hotel_id: int):
-        return db.query(HotelCaracteristica).filter(
-            HotelCaracteristica.id_hotel == hotel_id
-        ).all()
+        return db.query(HotelCaracteristica).filter(HotelCaracteristica.id_hotel == hotel_id).all()
 
     @staticmethod
     def add_caracteristica(db: Session, hotel_id: int, caracteristica_id: int, disponible: bool = True):
-        hc = HotelCaracteristica(
-            id_hotel=hotel_id,
-            id_caracteristica=caracteristica_id,
-            disponible=disponible
-        )
+        hc = HotelCaracteristica(id_hotel=hotel_id, id_caracteristica=caracteristica_id, disponible=disponible)
         db.add(hc)
         db.commit()
         db.refresh(hc)
@@ -317,10 +302,13 @@ class HotelCaracteristicaRepository:
 
     @staticmethod
     def remove_caracteristica(db: Session, hotel_id: int, caracteristica_id: int):
-        hc = db.query(HotelCaracteristica).filter(
-            HotelCaracteristica.id_hotel == hotel_id,
-            HotelCaracteristica.id_caracteristica == caracteristica_id
-        ).first()
+        hc = (
+            db.query(HotelCaracteristica)
+            .filter(
+                HotelCaracteristica.id_hotel == hotel_id, HotelCaracteristica.id_caracteristica == caracteristica_id
+            )
+            .first()
+        )
         if hc:
             db.delete(hc)
             db.commit()

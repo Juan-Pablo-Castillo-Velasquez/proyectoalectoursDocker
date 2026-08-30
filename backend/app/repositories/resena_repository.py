@@ -1,13 +1,12 @@
-from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
-from app.models.resena_model import Resena
-from app.models.reserva_model import Reserva, PaqueteHotel, ReservaHabitacion
 from app.models.hotel_model import Habitacion
+from app.models.resena_model import Resena
+from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
 
 
 class ResenaRepository:
-
     @staticmethod
     def get_hotel_id_from_reserva(db: Session, id_reserva: int):
         """
@@ -39,8 +38,15 @@ class ResenaRepository:
         return db.query(Resena).filter(Resena.id_reserva == id_reserva).first()
 
     @staticmethod
-    def create(db: Session, id_reserva: int, id_cliente: int, id_hotel: int,
-                calificacion: int, comentario: str, foto_url: str = None):
+    def create(
+        db: Session,
+        id_reserva: int,
+        id_cliente: int,
+        id_hotel: int,
+        calificacion: int,
+        comentario: str,
+        foto_url: str = None,
+    ):
         resena = Resena(
             id_reserva=id_reserva,
             id_cliente=id_cliente,
@@ -95,13 +101,10 @@ class ResenaRepository:
 
     @staticmethod
     def get_promedio_global(db: Session):
-        return (
-            db.query(
-                func.avg(Resena.calificacion).label("promedio"),
-                func.count(Resena.id_resena).label("total"),
-            )
-            .first()
-        )
+        return db.query(
+            func.avg(Resena.calificacion).label("promedio"),
+            func.count(Resena.id_resena).label("total"),
+        ).first()
 
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 12):

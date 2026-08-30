@@ -23,41 +23,6 @@ interface Testimonio {
   trip: string;
 }
 
-// Fallback: se muestra mientras carga la data real, o si el backend
-// todavía no tiene reseñas (proyecto nuevo / base de datos vacía).
-const testimonialsFallback: Testimonio[] = [
-  {
-    name: "Laura Gómez",
-    location: "Cartagena, Colombia",
-    quote:
-      "Todo fue perfecto, desde la reserva hasta el regreso. La atención y los detalles hacen la diferencia.",
-    rating: 5,
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=85",
-    trip: "Viaje a Cartagena",
-  },
-  {
-    name: "Daniel Ortega",
-    location: "Bogotá, Colombia",
-    quote:
-      "Con AlekTours encontré el mejor precio y una asesoría increíble para mi viaje a Europa.",
-    rating: 5,
-    avatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=85",
-    trip: "Europa",
-  },
-  {
-    name: "María Camila Ruiz",
-    location: "Medellín, Colombia",
-    quote:
-      "Viaje en familia a Cancún y todo estuvo organizado al detalle. ¡Repetiremos seguro!",
-    rating: 5,
-    avatar:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=85",
-    trip: "Cancún",
-  },
-];
-
 function mapResena(r: ResenaDestacada): Testimonio {
   return {
     name: r.name,
@@ -70,9 +35,8 @@ function mapResena(r: ResenaDestacada): Testimonio {
 }
 
 export default function Testimonials() {
-  const [testimonials, setTestimonials] =
-    useState<Testimonio[]>(testimonialsFallback);
-  const [ratingPromedio, setRatingPromedio] = useState<number>(4.9);
+  const [testimonials, setTestimonials] = useState<Testimonio[]>([]);
+  const [ratingPromedio, setRatingPromedio] = useState<number | null>(null);
   const [totalResenas, setTotalResenas] = useState<number | null>(null);
 
   useEffect(() => {
@@ -82,16 +46,18 @@ export default function Testimonials() {
       .then((data) => {
         if (!activo) return;
 
-        // Solo reemplazamos el fallback si el backend realmente trajo reseñas.
         if (data.resenas && data.resenas.length > 0) {
           setTestimonials(data.resenas.slice(0, 3).map(mapResena));
         }
-        if (data.promedio) setRatingPromedio(data.promedio);
+        // != null (no solo truthy): un promedio real de 0 también es un
+        // dato real y debe reemplazar el estado "todavía no sabemos".
+        if (data.promedio != null) setRatingPromedio(data.promedio);
         if (typeof data.total === "number") setTotalResenas(data.total);
       })
       .catch((err) => {
-        // Si falla (backend caído, sin conexión, etc.) simplemente nos
-        // quedamos con el fallback — la sección nunca se ve rota o vacía.
+        // Si falla (backend caído, sin conexión, etc.) nos quedamos sin
+        // datos reales — la sección muestra su estado vacío neutro, nunca
+        // gente ni cifras inventadas.
         console.error("No se pudieron cargar las reseñas destacadas:", err);
       });
 
@@ -147,24 +113,32 @@ export default function Testimonials() {
             </div>
 
             <div>
-              <div className="flex items-center gap-1 mb-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className="w-3.5 h-3.5 fill-[#C9A227] text-[#C9A227]"
-                  />
-                ))}
-              </div>
+              {ratingPromedio !== null ? (
+                <>
+                  <div className="flex items-center gap-1 mb-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className="w-3.5 h-3.5 fill-[#C9A227] text-[#C9A227]"
+                      />
+                    ))}
+                  </div>
 
-              <p className="text-foreground font-bold text-sm">
-                {ratingPromedio.toFixed(1)} / 5.0
-              </p>
+                  <p className="text-foreground font-bold text-sm">
+                    {ratingPromedio.toFixed(1)} / 5.0
+                  </p>
 
-              <p className="text-muted-foreground text-[11px]">
-                {totalResenas !== null
-                  ? `${totalResenas} opiniones verificadas`
-                  : "Opiniones verificadas"}
-              </p>
+                  <p className="text-muted-foreground text-[11px]">
+                    {totalResenas !== null
+                      ? `${totalResenas} opiniones verificadas`
+                      : "Opiniones verificadas"}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground text-xs font-medium">
+                  Aún sin calificación
+                </p>
+              )}
             </div>
           </div>
         </motion.div>
@@ -173,6 +147,17 @@ export default function Testimonials() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
           {/* TESTIMONIOS */}
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-5">
+            {testimonials.length === 0 && (
+              <div className="md:col-span-3 flex flex-col items-center justify-center text-center gap-2 bg-card rounded-3xl p-10 border border-dashed border-border">
+                <Quote className="w-8 h-8 text-muted-foreground/50" />
+                <p className="text-foreground font-semibold text-sm">
+                  Todavía no hay reseñas destacadas
+                </p>
+                <p className="text-muted-foreground text-xs max-w-xs">
+                  Sé de los primeros en compartir tu experiencia de viaje con AlekTours.
+                </p>
+              </div>
+            )}
             {testimonials.map((t, i) => (
               <motion.article
                 key={`${t.name}-${i}`}
@@ -309,7 +294,7 @@ export default function Testimonials() {
                 <span className="text-white/80 text-[10px] font-medium">
                   {totalResenas !== null && totalResenas > 0
                     ? `+${totalResenas} viajeros felices`
-                    : "+2.500 viajeros felices"}
+                    : "Viajeros que confían en nosotros"}
                 </span>
               </div>
 

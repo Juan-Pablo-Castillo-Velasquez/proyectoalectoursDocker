@@ -24,7 +24,10 @@
   --secondary-foreground: #6e1832;
 
   --muted: #f5f1ee;
-  --muted-foreground: #7a6e70;
+  --muted-foreground: #73686a;
+  /* Oscurecido ligeramente frente al valor original (#7a6e70) para pasar
+     WCAG AA (4.5:1) también sobre fondos --muted, no solo sobre
+     --background/--card (verificado con fórmula de luminancia relativa). */
 
   --accent: #f6ecd9;
   --accent-foreground: #6e1832;

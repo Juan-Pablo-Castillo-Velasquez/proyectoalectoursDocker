@@ -1,28 +1,10 @@
 """
 Ejemplos de uso de los módulos security.py y mail.py en FastAPI routes.
 
-Este archivo sirve como referencia para implementar autenticación y 
+Este archivo sirve como referencia para implementar autenticación y
 envío de emails en las rutas de la aplicación.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-
-from app.core.database import get_db
-from app.core.security import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    get_user_from_token,
-    generate_token_pair
-)
-from app.core.mail import (
-    send_welcome_email,
-    send_verification_email,
-    send_password_reset_email,
-    send_reservation_confirmation,
-    send_cancellation_email
-)
 
 # Este es un archivo de referencia, no es una ruta activa
 

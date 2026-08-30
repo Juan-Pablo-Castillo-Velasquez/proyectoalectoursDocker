@@ -1,10 +1,8 @@
-
-from pydantic_settings import BaseSettings
 from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-
     DATABASE_URL: str
 
     SECRET_KEY: str
@@ -13,8 +11,10 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int
 
-    MAIL_USERNAME: str
-    MAIL_PASSWORD: str
+    REDIS_URL: str = "redis://redis:6379/0"
+
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
     MAIL_FROM: str
     MAIL_PORT: int
     MAIL_SERVER: str
@@ -37,11 +37,10 @@ class Settings(BaseSettings):
         if not v or len(v) < 32:
             raise ValueError(
                 "SECRET_KEY es demasiado corta o está vacía (mínimo 32 caracteres). "
-                "Genera una real con: python -c \"import secrets; print(secrets.token_urlsafe(48))\" "
+                'Genera una real con: python -c "import secrets; print(secrets.token_urlsafe(48))" '
                 "y ponla en backend/.env (o en la variable de entorno del hosting real)."
             )
         return v
 
 
 settings = Settings()
-

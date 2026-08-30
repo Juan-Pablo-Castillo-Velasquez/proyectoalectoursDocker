@@ -60,6 +60,10 @@ interface Props {
    * ver `reservaIdInicial` en ModuleReservas.tsx) — antes no había forma de
    * pasar de un pago a su reserva sin buscarla manualmente. */
   onVerReserva?: (id: number) => void;
+  /** Mismo criterio que `reservaIdInicial` en ModuleReservas.tsx: cuando el
+   * Dashboard navega acá desde una tarjeta de KPI (ej. "Pagos pendientes"),
+   * deja el filtro de estado pre-aplicado. */
+  estadoInicial?: string | null;
 }
 
 // Centro de pagos del admin: KPIs reales (recaudado, pendientes, rechazados
@@ -73,10 +77,17 @@ interface Props {
 // exista como endpoint técnico.
 export default function ModulePagos({
   pagos, reservas = [], clientes = [], metodos = [], onUpdateEstado, onDelete,
-  onUploadComprobante, onDeleteComprobante, onVerReserva,
+  onUploadComprobante, onDeleteComprobante, onVerReserva, estadoInicial = null,
 }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
+
+  // Ver comentario de `estadoInicial` en Props.
+  useEffect(() => {
+    if (estadoInicial && (PAGO_ESTADOS as readonly string[]).includes(estadoInicial)) {
+      setEstadoFilter(estadoInicial as EstadoFilter);
+    }
+  }, [estadoInicial]);
   const [metodoFilter, setMetodoFilter] = useState("todos");
   const [editing, setEditing] = useState<Pago | null>(null);
   const [nuevoEstado, setNuevoEstado] = useState<PagoEstado>("pendiente");

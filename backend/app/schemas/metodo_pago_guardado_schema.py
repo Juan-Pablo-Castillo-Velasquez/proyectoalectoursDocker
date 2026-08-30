@@ -1,12 +1,12 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class MetodoPagoGuardadoCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=50)
     tipo: str = Field(..., min_length=1, max_length=30)
-    ultimos4: Optional[str] = Field(None, min_length=4, max_length=4)
+    ultimos4: str | None = Field(None, min_length=4, max_length=4)
     # PIN de confirmación: nunca se guarda en texto plano, ver
     # MetodoPagoGuardado.clave_hash y metodo_pago_guardado_route.py
     clave: str = Field(..., min_length=4, max_length=6)
@@ -31,9 +31,9 @@ class MetodoPagoGuardadoResponse(BaseModel):
     id_metodo_guardado: int
     alias: str
     tipo: str
-    ultimos4: Optional[str] = None
+    ultimos4: str | None = None
     predeterminado: bool
-    fecha_creacion: Optional[datetime] = None
+    fecha_creacion: datetime | None = None
 
     class Config:
         from_attributes = True

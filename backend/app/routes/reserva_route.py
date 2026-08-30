@@ -1,43 +1,66 @@
 import asyncio
+import contextlib
 import logging
 import os
 import threading
 import uuid
-from typing import Optional
-from app.services.reserva_detail_service import ReservaDetailService
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, UploadFile, File
-from sqlalchemy.orm import Session, joinedload
+
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from sqlalchemy import text
+from sqlalchemy.orm import Session, joinedload
+
+from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
-from app.core.cache import get_cached, set_cached, delete_pattern
+from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_admin
 from app.core.exceptions import (
-    ReservaDependencyError, PaqueteDependencyError, NotFoundError,
-    HabitacionNoDisponibleError, HabitacionNoEncontradaError, PaqueteNoEncontradoError,
+    HabitacionNoDisponibleError,
+    HabitacionNoEncontradaError,
+    NotFoundError,
+    PaqueteDependencyError,
+    PaqueteNoEncontradoError,
+    ReservaDependencyError,
 )
-from app.schemas.reserva_schema import (
-    PaqueteCreate, PaqueteUpdate, PaqueteResponse,
-    PaqueteDetalleResponse, PaqueteHotelDetalle, PaqueteServicioDetalle,
-    ReservaCreate, ReservaUpdate, ReservaResponse, ReservaDetailResponse,
-    PagoCreate, PagoUpdate, PagoResponse,
-    MetodoPagoCreate, MetodoPagoResponse,
-    PagarRequest, PagarResponse,
+from app.core.mail import send_reservation_confirmation
+from app.core.security import require_admin
+from app.models.hotel_model import Hotel, HotelCaracteristica
+from app.models.reserva_model import HistorialReserva, MetodoPago, Pago, Paquete, PaqueteHotel, PaqueteServicio
+from app.models.servicio_model import Servicio
+from app.models.user_model import Usuario
+from app.repositories.reserva_repository import (
+    MetodoPagoRepository,
+    PagoRepository,
+    PaqueteRepository,
+    ReservaRepository,
 )
 from app.schemas.reserva_detail import (
-    ReservaHabitacionDetail, ReservaServicioDetail, ReservaHistorialDetail,
-    ActividadRecienteItem, NotaInternaCreate,
+    ActividadRecienteItem,
+    NotaInternaCreate,
+    ReservaHabitacionDetail,
+    ReservaHistorialDetail,
+    ReservaServicioDetail,
 )
-from app.repositories.reserva_repository import (
-    PaqueteRepository, ReservaRepository, PagoRepository, MetodoPagoRepository
+from app.schemas.reserva_schema import (
+    MetodoPagoCreate,
+    MetodoPagoResponse,
+    PagarRequest,
+    PagarResponse,
+    PagoCreate,
+    PagoResponse,
+    PagoUpdate,
+    PaqueteCreate,
+    PaqueteDetalleResponse,
+    PaqueteHotelDetalle,
+    PaqueteResponse,
+    PaqueteServicioDetalle,
+    PaqueteUpdate,
+    ReservaCreate,
+    ReservaDetailResponse,
+    ReservaResponse,
+    ReservaUpdate,
 )
-from app.models.reserva_model import Pago, MetodoPago, HistorialReserva, Paquete, PaqueteServicio, PaqueteHotel
-from app.models.servicio_model import Servicio
-from app.models.hotel_model import Hotel, HotelCaracteristica
-from app.core.mail import send_reservation_confirmation
 from app.services import payment_service
 from app.services.notificacion_service import crear_notificacion
-from app.core.security import require_admin
-from app.core.deps import get_current_usuario, exigir_propietario_o_admin, usuario_es_admin
-from app.models.user_model import Usuario
+from app.services.reserva_detail_service import ReservaDetailService
 
 router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 
@@ -57,8 +80,11 @@ METODOS_PAGO_CACHE_KEY = "metodos_pago:list"
 COMPROBANTES_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "comprobantes")
 COMPROBANTES_PUBLIC_PREFIX = "/uploads/comprobantes"
 COMPROBANTES_TIPOS_PERMITIDOS = {
-    "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png",
-    "image/webp": "webp", "application/pdf": "pdf",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "application/pdf": "pdf",
 }
 COMPROBANTES_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 
@@ -69,10 +95,8 @@ def _borrar_comprobante_si_existe(comprobante_url: str | None) -> None:
     filename = os.path.basename(comprobante_url)
     ruta = os.path.join(COMPROBANTES_UPLOAD_DIR, filename)
     if os.path.isfile(ruta):
-        try:
+        with contextlib.suppress(OSError):
             os.remove(ruta)
-        except OSError:
-            pass
 
 
 def _asignar_numero_factura(db: Session, pago: Pago) -> None:
@@ -122,31 +146,32 @@ def _enviar_confirmacion_reserva_en_hilo(
 
     def _run() -> None:
         try:
-            asyncio.run(send_reservation_confirmation(
-                email=email,
-                reservation_id=reserva_id,
-                hotel_name=hotel_name or "AlecTours",
-                check_in=check_in,
-                check_out=check_out,
-                total_price=total_price,
-                guest_name=guest_name,
-            ))
-        except Exception as e:
-            logger.error(
-                f"No se pudo enviar el correo de confirmacion de la reserva #{reserva_id}: {e}"
+            asyncio.run(
+                send_reservation_confirmation(
+                    email=email,
+                    reservation_id=reserva_id,
+                    hotel_name=hotel_name or "AlecTours",
+                    check_in=check_in,
+                    check_out=check_out,
+                    total_price=total_price,
+                    guest_name=guest_name,
+                )
             )
+        except Exception as e:
+            logger.error(f"No se pudo enviar el correo de confirmacion de la reserva #{reserva_id}: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
 
 
 # ===================== PAQUETES CRUD =====================
 
+
 @router.get("/paquetes", response_model=list[PaqueteResponse])
 def get_paquetes(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=300),
     incluir_inactivos: bool = Query(False, description="Solo para el panel de admin: incluye paquetes desactivados"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Obtiene lista de paquetes activos (o todos, si incluir_inactivos=true).
     Cacheada 2 min — invalidada en cualquier alta/edición/baja de paquete."""
@@ -160,13 +185,12 @@ def get_paquetes(
     set_cached(cache_key, data, ttl_seconds=120)
     return data
 
+
 @router.get("/paquetes/populares")
 def get_paquetes_populares(limit: int = 6, db: Session = Depends(get_db)):
-    result = db.execute(
-        text("SELECT * FROM vista_paquetes_populares LIMIT :limit"),
-        {"limit": limit}
-    ).fetchall()
+    result = db.execute(text("SELECT * FROM vista_paquetes_populares LIMIT :limit"), {"limit": limit}).fetchall()
     return [dict(r._mapping) for r in result]
+
 
 @router.get("/paquetes/{paquete_id}", response_model=PaqueteResponse)
 def get_paquete(paquete_id: int, db: Session = Depends(get_db)):
@@ -191,7 +215,10 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
         .options(
             joinedload(Paquete.paquete_servicios).joinedload(PaqueteServicio.servicio).joinedload(Servicio.categoria),
             joinedload(Paquete.paquete_servicios).joinedload(PaqueteServicio.servicio).joinedload(Servicio.destino),
-            joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel).joinedload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
+            joinedload(Paquete.paquete_hotel)
+            .joinedload(PaqueteHotel.hotel)
+            .joinedload(Hotel.hotel_caracteristicas)
+            .joinedload(HotelCaracteristica.caracteristica),
         )
         .filter(Paquete.id_paquete == paquete_id)
         .first()
@@ -199,11 +226,9 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
     if not paquete:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
 
-    destinos = sorted({
-        ps.servicio.destino.nombre_destino
-        for ps in paquete.paquete_servicios
-        if ps.servicio and ps.servicio.destino
-    })
+    destinos = sorted(
+        {ps.servicio.destino.nombre_destino for ps in paquete.paquete_servicios if ps.servicio and ps.servicio.destino}
+    )
 
     hoteles = [
         PaqueteHotelDetalle(
@@ -213,11 +238,13 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
             pais=ph.hotel.pais,
             calificacion=ph.hotel.calificacion,
             noches_incluidas=ph.noches_incluidas,
-            caracteristicas=sorted({
-                hc.caracteristica.nombre_caracteristica
-                for hc in ph.hotel.hotel_caracteristicas
-                if hc.disponible and hc.caracteristica
-            }),
+            caracteristicas=sorted(
+                {
+                    hc.caracteristica.nombre_caracteristica
+                    for hc in ph.hotel.hotel_caracteristicas
+                    if hc.disponible and hc.caracteristica
+                }
+            ),
         )
         for ph in paquete.paquete_hotel
         if ph.hotel
@@ -258,13 +285,15 @@ def create_paquete(paquete: PaqueteCreate, db: Session = Depends(get_db), admin_
     try:
         nuevo = PaqueteRepository.create(db, paquete.dict())
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     delete_pattern(PAQUETES_CACHE_PATTERN)
     return nuevo
 
 
 @router.put("/paquetes/{paquete_id}", response_model=PaqueteResponse)
-def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def update_paquete(
+    paquete_id: int, paquete: PaqueteUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     """Actualiza un paquete existente"""
     db_paquete = PaqueteRepository.get_by_id(db, paquete_id)
     if not db_paquete:
@@ -272,7 +301,7 @@ def update_paquete(paquete_id: int, paquete: PaqueteUpdate, db: Session = Depend
     try:
         actualizado = PaqueteRepository.update(db, paquete_id, paquete.dict(exclude_unset=True))
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     delete_pattern(PAQUETES_CACHE_PATTERN)
     return actualizado
 
@@ -285,15 +314,16 @@ def delete_paquete(paquete_id: int, db: Session = Depends(get_db), admin_id: int
         delete_pattern(PAQUETES_CACHE_PATTERN)
         return {"message": "Paquete desactivado exitosamente"}
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except PaqueteDependencyError as e:
-        raise HTTPException(status_code=409, detail=e.detail)
+        raise HTTPException(status_code=409, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 # ===================== RESERVAS CRUD =====================
+
 
 @router.get("/reservas", response_model=list[ReservaResponse])
 def get_reservas(
@@ -326,7 +356,7 @@ def get_reservas_cliente(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene reservas de un cliente"""
     exigir_propietario_o_admin(current_user, cliente_id, authorization)
@@ -350,12 +380,13 @@ def get_reservas_estado(
 # ⚠️ IMPORTANTE: estos tres endpoints específicos van ANTES de /reservas/{reserva_id}
 # para que FastAPI no los confunda con el parámetro dinámico
 
+
 @router.get("/reservas/{reserva_id}/habitaciones", response_model=list[ReservaHabitacionDetail])
 def get_habitaciones_reserva(
     reserva_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene habitaciones asociadas a una reserva"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
@@ -370,7 +401,7 @@ def get_servicios_reserva(
     reserva_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene servicios asociados a una reserva"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
@@ -385,7 +416,7 @@ def get_historial_reserva(
     reserva_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene historial de cambios de una reserva"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
@@ -443,7 +474,7 @@ def get_reserva(
     reserva_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene detalles completos de una reserva con paquete, pagos y habitaciones"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
@@ -458,7 +489,7 @@ def create_reserva(
     reserva: ReservaCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """
     Crea una nueva reserva.
@@ -479,17 +510,20 @@ def create_reserva(
     try:
         nueva = ReservaRepository.create(db, reserva.dict())
         delete_pattern(RESERVAS_CACHE_PATTERN)
+        # KPIs del dashboard dependen de reservas/pagos — invalida también su
+        # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+        delete_pattern("kpi:dashboard:resumen")
         return nueva
     except HabitacionNoDisponibleError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     except HabitacionNoEncontradaError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     except PaqueteNoEncontradoError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     except Exception as e:
         db.rollback()
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 @router.post("/reservas/{reserva_id}/pagar", response_model=PagarResponse)
@@ -498,7 +532,7 @@ def pagar_reserva(
     data: PagarRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """
     Inicia el pago de una reserva (100% simulado, sin pasarela real). El
@@ -574,12 +608,14 @@ def pagar_reserva(
             comentario = f"Pago {data.tipo_pago} aprobado (simulado) por ${monto:,.0f}"
         else:
             comentario = f"Pago {data.tipo_pago} rechazado (simulado) por ${monto:,.0f}"
-        db.add(HistorialReserva(
-            id_reserva=reserva_id,
-            estado_anterior=estado_anterior,
-            estado_nuevo=reserva.estado,
-            comentarios=comentario,
-        ))
+        db.add(
+            HistorialReserva(
+                id_reserva=reserva_id,
+                estado_anterior=estado_anterior,
+                estado_nuevo=reserva.estado,
+                comentarios=comentario,
+            )
+        )
 
     db.commit()
     db.refresh(pago)
@@ -587,6 +623,9 @@ def pagar_reserva(
     _asignar_numero_factura(db, pago)
     delete_pattern(RESERVAS_CACHE_PATTERN)
     delete_pattern(PAGOS_CACHE_PATTERN)
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
 
     if reserva.estado == "confirmada":
         cliente = reserva.cliente
@@ -608,7 +647,7 @@ def confirmar_pago(
     pago_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """
     Confirma un pago que quedo 'procesando' (PSE/Nequi) — simula que el
@@ -640,12 +679,14 @@ def confirmar_pago(
         reserva.estado = "confirmada"
         comentario = f"Pago confirmado y aprobado (simulado) por ${pago.monto:,.0f}"
 
-    db.add(HistorialReserva(
-        id_reserva=reserva.id_reserva,
-        estado_anterior=estado_anterior,
-        estado_nuevo=reserva.estado,
-        comentarios=comentario,
-    ))
+    db.add(
+        HistorialReserva(
+            id_reserva=reserva.id_reserva,
+            estado_anterior=estado_anterior,
+            estado_nuevo=reserva.estado,
+            comentarios=comentario,
+        )
+    )
 
     db.commit()
     db.refresh(pago)
@@ -653,6 +694,9 @@ def confirmar_pago(
     _asignar_numero_factura(db, pago)
     delete_pattern(RESERVAS_CACHE_PATTERN)
     delete_pattern(PAGOS_CACHE_PATTERN)
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
 
     if reserva.estado == "confirmada":
         cliente = reserva.cliente
@@ -670,13 +714,18 @@ def confirmar_pago(
 
 
 @router.put("/reservas/{reserva_id}", response_model=ReservaResponse)
-def update_reserva(reserva_id: int, reserva: ReservaUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def update_reserva(
+    reserva_id: int, reserva: ReservaUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     """Actualiza una reserva existente"""
     db_reserva = ReservaRepository.get_by_id(db, reserva_id)
     if not db_reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
     actualizada = ReservaRepository.update(db, reserva_id, reserva.dict(exclude_unset=True))
     delete_pattern(RESERVAS_CACHE_PATTERN)
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
     return actualizada
 
 
@@ -686,17 +735,21 @@ def delete_reserva(reserva_id: int, db: Session = Depends(get_db), admin_id: int
     try:
         ReservaRepository.delete(db, reserva_id)
         delete_pattern(RESERVAS_CACHE_PATTERN)
+        # KPIs del dashboard dependen de reservas/pagos — invalida también su
+        # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+        delete_pattern("kpi:dashboard:resumen")
         return {"message": "Reserva eliminada exitosamente"}
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except ReservaDependencyError as e:
-        raise HTTPException(status_code=409, detail=e.detail)
+        raise HTTPException(status_code=409, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 # ===================== MÉTODOS DE PAGO CRUD =====================
+
 
 @router.get("/metodos-pago", response_model=list[MetodoPagoResponse])
 def get_metodos_pago(db: Session = Depends(get_db)):
@@ -721,6 +774,7 @@ def create_metodo_pago(metodo: MetodoPagoCreate, db: Session = Depends(get_db), 
 
 
 # ===================== PAGOS CRUD =====================
+
 
 @router.get("/pagos", response_model=list[PagoResponse])
 def get_pagos(
@@ -747,7 +801,7 @@ def get_pagos_reserva(
     reserva_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene pagos de una reserva"""
     reserva = ReservaRepository.get_by_id(db, reserva_id)
@@ -776,7 +830,7 @@ def get_pago(
     pago_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     """Obtiene detalles de un pago"""
     pago = PagoRepository.get_by_id(db, pago_id)
@@ -795,6 +849,9 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db), admin_id: int =
     """Crea un nuevo pago"""
     nuevo = PagoRepository.create(db, pago.dict())
     delete_pattern(PAGOS_CACHE_PATTERN)
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
     return nuevo
 
 
@@ -808,6 +865,9 @@ def update_pago(pago_id: int, pago: PagoUpdate, db: Session = Depends(get_db), a
     _asignar_numero_factura(db, actualizado)
     delete_pattern(PAGOS_CACHE_PATTERN)
     delete_pattern(RESERVAS_CACHE_PATTERN)  # el estado de pago se ve en la tabla de Reservas
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
     return actualizado
 
 
@@ -818,12 +878,15 @@ def delete_pago(pago_id: int, db: Session = Depends(get_db), admin_id: int = Dep
         PagoRepository.delete(db, pago_id)
         delete_pattern(PAGOS_CACHE_PATTERN)
         delete_pattern(RESERVAS_CACHE_PATTERN)
+        # KPIs del dashboard dependen de reservas/pagos — invalida también su
+        # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+        delete_pattern("kpi:dashboard:resumen")
         return {"message": "Pago eliminado exitosamente"}
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 @router.post("/pagos/{pago_id}/comprobante", response_model=PagoResponse)
@@ -864,6 +927,9 @@ async def subir_comprobante_pago(
     db.commit()
     db.refresh(pago)
     delete_pattern(PAGOS_CACHE_PATTERN)
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
     return pago
 
 
@@ -879,4 +945,7 @@ def eliminar_comprobante_pago(pago_id: int, db: Session = Depends(get_db), admin
     db.commit()
     db.refresh(pago)
     delete_pattern(PAGOS_CACHE_PATTERN)
+    # KPIs del dashboard dependen de reservas/pagos — invalida también su
+    # caché corto (60s) para no mostrar cifras desactualizadas tras escribir.
+    delete_pattern("kpi:dashboard:resumen")
     return pago

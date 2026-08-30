@@ -186,10 +186,8 @@ export default function WhyChooseUs() {
 
                             <div className="flex items-center gap-3">
 
-                                <div className="flex -space-x-2">
-                                    <div className="w-8 h-8 rounded-full bg-muted border-2 border-background" />
-                                    <div className="w-8 h-8 rounded-full bg-muted border-2 border-background" />
-                                    <div className="w-8 h-8 rounded-full bg-muted border-2 border-background" />
+                                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                    <Headset className="w-4 h-4 text-primary" />
                                 </div>
 
                                 <div>

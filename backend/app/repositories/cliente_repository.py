@@ -1,12 +1,12 @@
-from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from app.models.cliente_model import Cliente, Empleado
-from app.models.reserva_model import Reserva, HistorialReserva
+from sqlalchemy.orm import Session, joinedload
+
 from app.core.exceptions import ClienteDependencyError, EmpleadoDependencyError, NotFoundError
+from app.models.cliente_model import Cliente, Empleado
+from app.models.reserva_model import HistorialReserva, Reserva
 
 
 class ClienteRepository:
-
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
         # joinedload(Cliente.usuario) evita N+1 al resolver Cliente.foto_perfil
@@ -27,15 +27,15 @@ class ClienteRepository:
     @staticmethod
     def get_by_id(db: Session, cliente_id: int):
         return db.query(Cliente).options(joinedload(Cliente.usuario)).filter(Cliente.id_cliente == cliente_id).first()
-    
+
     @staticmethod
     def get_by_cedula(db: Session, cedula: str):
         return db.query(Cliente).filter(Cliente.cedula == cedula).first()
-    
+
     @staticmethod
     def get_by_email(db: Session, correo: str):
         return db.query(Cliente).filter(Cliente.correo == correo).first()
-    
+
     @staticmethod
     def create(db: Session, cliente_data: dict):
         cliente = Cliente(**cliente_data)
@@ -43,7 +43,7 @@ class ClienteRepository:
         db.commit()
         db.refresh(cliente)
         return cliente
-    
+
     @staticmethod
     def update(db: Session, cliente_id: int, cliente_data: dict):
         cliente = db.query(Cliente).filter(Cliente.id_cliente == cliente_id).first()
@@ -60,34 +60,26 @@ class ClienteRepository:
         """Antes update_cliente no validaba esto y una edición a un correo ya
         usado por OTRO cliente reventaba con un IntegrityError sin capturar
         (500 crudo) en vez del mensaje claro que create_cliente ya da."""
-        return (
-            db.query(Cliente)
-            .filter(Cliente.correo == correo, Cliente.id_cliente != cliente_id)
-            .first()
-            is not None
-        )
-    
+        return db.query(Cliente).filter(Cliente.correo == correo, Cliente.id_cliente != cliente_id).first() is not None
+
     @staticmethod
     def delete(db: Session, cliente_id: int):
         cliente = db.query(Cliente).filter(Cliente.id_cliente == cliente_id).first()
         if not cliente:
             raise NotFoundError(f"Cliente con ID {cliente_id} no encontrado")
-        
+
         # Verificar si tiene reservas
-        reservas_count = db.query(func.count(Reserva.id_reserva)).filter(
-            Reserva.id_cliente == cliente_id
-        ).scalar() or 0
-        
+        reservas_count = db.query(func.count(Reserva.id_reserva)).filter(Reserva.id_cliente == cliente_id).scalar() or 0
+
         if reservas_count > 0:
             raise ClienteDependencyError(cliente_id, reservas_count)
-        
+
         db.delete(cliente)
         db.commit()
         return cliente
 
 
 class EmpleadoRepository:
-    
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
         # Mismo criterio que ClienteRepository.get_all — evita N+1 en Empleado.foto_perfil.
@@ -95,7 +87,9 @@ class EmpleadoRepository:
 
     @staticmethod
     def get_by_id(db: Session, empleado_id: int):
-        return db.query(Empleado).options(joinedload(Empleado.usuario)).filter(Empleado.id_empleado == empleado_id).first()
+        return (
+            db.query(Empleado).options(joinedload(Empleado.usuario)).filter(Empleado.id_empleado == empleado_id).first()
+        )
 
     @staticmethod
     def get_by_cedula(db: Session, cedula: str):
@@ -107,8 +101,15 @@ class EmpleadoRepository:
 
     @staticmethod
     def get_activos(db: Session, skip: int = 0, limit: int = 10):
-        return db.query(Empleado).options(joinedload(Empleado.usuario)).filter(Empleado.activo == True).offset(skip).limit(limit).all()
-    
+        return (
+            db.query(Empleado)
+            .options(joinedload(Empleado.usuario))
+            .filter(Empleado.activo)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
     @staticmethod
     def create(db: Session, empleado_data: dict):
         empleado = Empleado(**empleado_data)
@@ -116,7 +117,7 @@ class EmpleadoRepository:
         db.commit()
         db.refresh(empleado)
         return empleado
-    
+
     @staticmethod
     def update(db: Session, empleado_id: int, empleado_data: dict):
         empleado = db.query(Empleado).filter(Empleado.id_empleado == empleado_id).first()
@@ -127,26 +128,29 @@ class EmpleadoRepository:
             db.commit()
             db.refresh(empleado)
         return empleado
-    
+
     @staticmethod
     def delete(db: Session, empleado_id: int):
         empleado = db.query(Empleado).filter(Empleado.id_empleado == empleado_id).first()
         if not empleado:
             raise NotFoundError(f"Empleado con ID {empleado_id} no encontrado")
-        
+
         # Verificar si tiene reservas asignadas
-        reservas_count = db.query(func.count(Reserva.id_empleado)).filter(
-            Reserva.id_empleado == empleado_id
-        ).scalar() or 0
-        
+        reservas_count = (
+            db.query(func.count(Reserva.id_empleado)).filter(Reserva.id_empleado == empleado_id).scalar() or 0
+        )
+
         # Verificar si tiene historial de reservas
-        historial_count = db.query(func.count(HistorialReserva.id_empleado)).filter(
-            HistorialReserva.id_empleado == empleado_id
-        ).scalar() or 0
-        
+        historial_count = (
+            db.query(func.count(HistorialReserva.id_empleado))
+            .filter(HistorialReserva.id_empleado == empleado_id)
+            .scalar()
+            or 0
+        )
+
         if reservas_count > 0 or historial_count > 0:
             raise EmpleadoDependencyError(empleado_id, reservas_count, historial_count)
-        
+
         db.delete(empleado)
         db.commit()
         return empleado

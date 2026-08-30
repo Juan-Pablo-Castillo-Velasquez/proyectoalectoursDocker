@@ -1,0 +1,70 @@
+# Configuración de Ruff (linter + formateador) para el backend.
+#
+# Por qué Ruff y no flake8/black/isort/pylint por separado: Ruff reemplaza
+# los cuatro con un solo binario (Rust, sin dependencias de Python que
+# instalar en el entorno de desarrollo), es 10-100x más rápido que esa
+# combinación, y es el estándar de facto en proyectos FastAPI nuevos desde
+# 2023-2024. No se agrega a requirements.txt (esa lista es lo que se
+# instala en la imagen Docker de producción) sino a requirements-dev.txt,
+# ver ese archivo.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+# Las migraciones de Alembic son generadas/editadas siguiendo el propio
+# estilo de Alembic (variables `revision`/`down_revision` en mayúsculas
+# fijas, imports que a veces quedan sin usar en el template) y las
+# carpetas de cache de Python nunca deberían lintearse.
+exclude = [
+    "alembic/versions",
+    "__pycache__",
+    ".venv",
+    # Archivo de referencia (no es una ruta activa, nunca se importa) que
+    # es en su mayoría un docstring gigante con snippets de ejemplo — su
+    # contenido está fuera del alcance de un linter de código real.
+    "app/core/examples.py",
+]
+
+[tool.ruff.lint]
+# Selección deliberadamente enfocada en errores reales y buenas prácticas
+# concretas, no en estilo cosmético agresivo (por eso no se activan D
+# /docstrings ni ANN/anotaciones obligatorias: este código ya existe y
+# activar esas reglas generaría miles de hallazgos que no son bugs).
+select = [
+    "E",   # pycodestyle (errores)
+    "W",   # pycodestyle (warnings)
+    "F",   # Pyflakes (imports/variables sin usar, errores reales)
+    "I",   # isort (orden de imports)
+    "UP",  # pyupgrade (sintaxis moderna para Python 3.12)
+    "B",   # flake8-bugbear (errores comunes y trampas de Python)
+    "C4",  # flake8-comprehensions (comprehensions más claras/eficientes)
+    "SIM", # flake8-simplify (simplificaciones de lógica)
+]
+ignore = [
+    # Los routers de FastAPI usan muchas dependencias vía Depends(...) en
+    # la firma de la función sin usarlas directamente en el cuerpo (el uso
+    # real lo hace FastAPI al inyectar) — B008 marcaría esto como problema
+    # cuando es el patrón estándar y documentado del framework.
+    "B008",
+    # Recomendación oficial de Ruff al usar su formateador: E501 (línea muy
+    # larga) queda redundante y genera falsos positivos en comentarios/
+    # strings largos que el formateador no puede ni debe partir por su
+    # cuenta (partir un comentario en español a la mitad lo haría menos
+    # legible, no más). El formateador ya limita el código en sí a
+    # line-length.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py suelen re-exportar símbolos que Ruff vería como "importados
+# pero no usados" (F401) — es intencional en los paquetes de este proyecto.
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+# Mismo estilo que el resto del proyecto ya usa (comillas dobles en el
+# código existente) — quote-style="double" es además el default de Ruff.
+quote-style = "double"

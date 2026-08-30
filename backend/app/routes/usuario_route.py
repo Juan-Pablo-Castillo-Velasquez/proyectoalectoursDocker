@@ -1,20 +1,22 @@
+import contextlib
 import os
 import uuid
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
-from app.core.database import get_db
-from app.core.security import get_user_from_token, hash_password, verify_password, require_admin
 from app.core.cache import delete_pattern
-from app.models.user_model import Usuario
+from app.core.database import get_db
+from app.core.security import get_user_from_token, hash_password, require_admin, verify_password
 from app.models.auth_model import Rol, UsuarioRol
+from app.models.user_model import Usuario
 from app.schemas.user_schema import UsuarioResponse
 from app.schemas.usuario_admin_schema import (
-    UsuarioAdminResponse, UsuarioAdminCreate, UsuarioAdminUpdate, RolResponse,
+    RolResponse,
+    UsuarioAdminCreate,
+    UsuarioAdminResponse,
+    UsuarioAdminUpdate,
 )
 
 router = APIRouter(prefix="/api/usuarios", tags=["Usuarios"])
@@ -26,7 +28,7 @@ EXTENSIONES_PERMITIDAS = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": 
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 
 
-def get_current_usuario(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Usuario:
+def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
     """Mismo patrón de auth usado en preferencias_route.py / resena_route.py"""
     if not authorization:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -49,8 +51,10 @@ def get_current_usuario(authorization: Optional[str] = Header(None), db: Session
 def _shape_usuario_admin(db: Session, usuario: Usuario) -> UsuarioAdminResponse:
     roles = [
         r.nombre_rol
-        for r in db.query(Rol).join(UsuarioRol, UsuarioRol.id_rol == Rol.id_rol)
-        .filter(UsuarioRol.id_usuario == usuario.id_usuario).all()
+        for r in db.query(Rol)
+        .join(UsuarioRol, UsuarioRol.id_rol == Rol.id_rol)
+        .filter(UsuarioRol.id_usuario == usuario.id_usuario)
+        .all()
     ]
     nombre_completo = None
     if usuario.cliente:
@@ -80,18 +84,17 @@ def admin_get_usuarios(db: Session = Depends(get_db), _admin: int = Depends(requ
 
 
 @router.post("", response_model=UsuarioAdminResponse, status_code=201)
-def admin_create_usuario(
-    data: UsuarioAdminCreate, db: Session = Depends(get_db), _admin: int = Depends(require_admin)
-):
+def admin_create_usuario(data: UsuarioAdminCreate, db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
     if db.query(Usuario).filter(Usuario.username == data.username).first():
         raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
     if db.query(Usuario).filter(Usuario.correo_electronico == data.correo_electronico).first():
         raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
 
-    roles_validos = {
-        r.nombre_rol: r.id_rol
-        for r in db.query(Rol).filter(Rol.nombre_rol.in_(data.roles)).all()
-    } if data.roles else {}
+    roles_validos = (
+        {r.nombre_rol: r.id_rol for r in db.query(Rol).filter(Rol.nombre_rol.in_(data.roles)).all()}
+        if data.roles
+        else {}
+    )
     faltantes = set(data.roles) - set(roles_validos.keys())
     if faltantes:
         raise HTTPException(status_code=400, detail=f"Rol(es) inexistente(s): {', '.join(faltantes)}")
@@ -131,10 +134,11 @@ def admin_update_usuario(
         usuario.verificado = data.verificado
 
     if data.roles is not None:
-        roles_validos = {
-            r.nombre_rol: r.id_rol
-            for r in db.query(Rol).filter(Rol.nombre_rol.in_(data.roles)).all()
-        } if data.roles else {}
+        roles_validos = (
+            {r.nombre_rol: r.id_rol for r in db.query(Rol).filter(Rol.nombre_rol.in_(data.roles)).all()}
+            if data.roles
+            else {}
+        )
         faltantes = set(data.roles) - set(roles_validos.keys())
         if faltantes:
             raise HTTPException(status_code=400, detail=f"Rol(es) inexistente(s): {', '.join(faltantes)}")
@@ -149,9 +153,7 @@ def admin_update_usuario(
 
 
 @router.delete("/{usuario_id}")
-def admin_delete_usuario(
-    usuario_id: int, db: Session = Depends(get_db), _admin: int = Depends(require_admin)
-):
+def admin_delete_usuario(usuario_id: int, db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -165,16 +167,14 @@ def get_roles(db: Session = Depends(get_db)):
     return db.query(Rol).order_by(Rol.nombre_rol.asc()).all()
 
 
-def _borrar_archivo_si_existe(foto_perfil: Optional[str]) -> None:
+def _borrar_archivo_si_existe(foto_perfil: str | None) -> None:
     if not foto_perfil:
         return
     filename = os.path.basename(foto_perfil)
     ruta = os.path.join(UPLOAD_DIR, filename)
     if os.path.isfile(ruta):
-        try:
+        with contextlib.suppress(OSError):
             os.remove(ruta)
-        except OSError:
-            pass
 
 
 @router.get("/me", response_model=UsuarioResponse)

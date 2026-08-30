@@ -1,4 +1,5 @@
 import Benefits from "../components/Benefits";
+import BannersPromocionales from "../components/BannersPromocionales";
 import BlogGuides from "../components/BlogGuides";
 import DestinationsGrid from "../components/DestinationsGrid";
 import Footer from "../components/Footer";
@@ -24,6 +25,7 @@ export default function Home() {
       <PromoBar />
       <Navbar />
       <Hero />
+      <BannersPromocionales />
       <Benefits />
       <DestinationsGrid />
       <OffersHighlight />

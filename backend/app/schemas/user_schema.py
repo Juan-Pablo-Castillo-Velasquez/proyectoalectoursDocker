@@ -1,7 +1,7 @@
 # schemas/user_schema.py
 
+
 from pydantic import BaseModel, EmailStr
-from typing import Optional
 
 
 class UsuarioCreate(BaseModel):
@@ -22,14 +22,17 @@ class UsuarioResponse(BaseModel):
     id_usuario: int
     username: str
     correo_electronico: str
-    foto_perfil: Optional[str] = None
-    id_cliente: Optional[int] = None
-    id_empleado: Optional[int] = None
+    foto_perfil: str | None = None
+    id_cliente: int | None = None
+    id_empleado: int | None = None
 
     class Config:
         from_attributes = True
+
+
 class PasswordResetRequest(BaseModel):
     correo_electronico: str
+
 
 class PasswordResetConfirm(BaseModel):
     token: str

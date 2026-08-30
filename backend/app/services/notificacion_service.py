@@ -1,5 +1,5 @@
-from typing import Optional
 from sqlalchemy.orm import Session
+
 from app.models.notificacion_model import Notificacion
 
 
@@ -7,8 +7,8 @@ def crear_notificacion(
     db: Session,
     tipo: str,
     titulo: str,
-    mensaje: Optional[str] = None,
-    id_referencia: Optional[int] = None,
+    mensaje: str | None = None,
+    id_referencia: int | None = None,
 ) -> None:
     """Crea una notificación real para el admin, llamada desde el punto
     exacto donde ocurre el evento (nueva solicitud de cancelación, mensaje
@@ -51,26 +51,30 @@ def get_actividad_cliente(db: Session, id_cliente: int, limit: int = 30) -> list
     for h in ReservaDetailRepository.get_historial_cliente(db, id_cliente, limit):
         estado_nuevo = h["estado_nuevo"]
         veredicto = ESTADO_LABEL.get(estado_nuevo, f"cambió a '{estado_nuevo}'")
-        items.append({
-            "tipo": "reserva",
-            "titulo": f"Tu reserva #{h['id_reserva']} {veredicto}",
-            "mensaje": h["comentarios"],
-            "fecha": h["fecha_cambio"],
-            "id_referencia": h["id_reserva"],
-        })
+        items.append(
+            {
+                "tipo": "reserva",
+                "titulo": f"Tu reserva #{h['id_reserva']} {veredicto}",
+                "mensaje": h["comentarios"],
+                "fecha": h["fecha_cambio"],
+                "id_referencia": h["id_reserva"],
+            }
+        )
 
     solicitudes = SolicitudCancelacionRepository.get_by_cliente(db, id_cliente, skip=0, limit=limit)
     for sol in solicitudes:
         if sol.estado == "pendiente" or not sol.fecha_resolucion:
             continue
         veredicto = "fue aprobada" if sol.estado == "aprobada" else "fue rechazada"
-        items.append({
-            "tipo": "cancelacion",
-            "titulo": f"Tu solicitud de cancelación de la reserva #{sol.id_reserva} {veredicto}",
-            "mensaje": sol.comentario_resolucion,
-            "fecha": sol.fecha_resolucion,
-            "id_referencia": sol.id_reserva,
-        })
+        items.append(
+            {
+                "tipo": "cancelacion",
+                "titulo": f"Tu solicitud de cancelación de la reserva #{sol.id_reserva} {veredicto}",
+                "mensaje": sol.comentario_resolucion,
+                "fecha": sol.fecha_resolucion,
+                "id_referencia": sol.id_reserva,
+            }
+        )
 
     items.sort(key=lambda x: x["fecha"], reverse=True)
     return items[:limit]

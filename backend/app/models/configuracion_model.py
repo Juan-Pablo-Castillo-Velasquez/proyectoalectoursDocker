@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, func
+from sqlalchemy import TIMESTAMP, Column, Integer, String, Text, func
+
 from app.core.database import Base
 
 
@@ -8,6 +9,7 @@ class ConfiguracionSistema(Base):
     cada uno se conecta a comportamiento real a medida que esa parte del
     sitio se construye; el módulo de Configuración solo es el lugar donde
     se guardan de forma centralizada en vez de quedar hardcodeados."""
+
     __tablename__ = "configuracion_sistema"
 
     id_config = Column(Integer, primary_key=True, index=True)

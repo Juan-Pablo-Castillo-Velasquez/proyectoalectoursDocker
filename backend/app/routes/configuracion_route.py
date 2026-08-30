@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
-from app.core.cache import get_cached, set_cached, delete_pattern
-from app.models.configuracion_model import ConfiguracionSistema
-from app.schemas.configuracion_schema import ConfiguracionCreate, ConfiguracionUpdate, ConfiguracionResponse
 from app.core.security import require_admin
+from app.models.configuracion_model import ConfiguracionSistema
+from app.schemas.configuracion_schema import ConfiguracionCreate, ConfiguracionResponse, ConfiguracionUpdate
 
 router = APIRouter(prefix="/api/configuracion", tags=["Configuración"])
 
@@ -25,7 +26,9 @@ def listar_configuracion(db: Session = Depends(get_db), admin_id: int = Depends(
 
 
 @router.post("", response_model=ConfiguracionResponse, status_code=201)
-def crear_configuracion(data: ConfiguracionCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def crear_configuracion(
+    data: ConfiguracionCreate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     if db.query(ConfiguracionSistema).filter(ConfiguracionSistema.clave == data.clave).first():
         raise HTTPException(status_code=409, detail=f"Ya existe un parámetro con la clave '{data.clave}'")
     nuevo = ConfiguracionSistema(**data.dict())
@@ -37,7 +40,9 @@ def crear_configuracion(data: ConfiguracionCreate, db: Session = Depends(get_db)
 
 
 @router.put("/{id_config}", response_model=ConfiguracionResponse)
-def actualizar_configuracion(id_config: int, data: ConfiguracionUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def actualizar_configuracion(
+    id_config: int, data: ConfiguracionUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     item = db.query(ConfiguracionSistema).filter(ConfiguracionSistema.id_config == id_config).first()
     if not item:
         raise HTTPException(status_code=404, detail="Parámetro no encontrado")

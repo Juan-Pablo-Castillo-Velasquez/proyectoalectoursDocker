@@ -1,19 +1,17 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.exceptions import DestinoDependencyError
+from app.core.security import require_admin
 from app.models.servicio_model import Destino, Servicio
 from app.schemas.destino_schema import (
     DestinoCreate,
-    DestinoUpdate,
     DestinoResponse,
     DestinoSugerenciaResponse,
+    DestinoUpdate,
 )
-from app.core.security import require_admin
-from app.core.exceptions import DestinoDependencyError
 
 router = APIRouter(prefix="/api/destinos", tags=["Destinos"])
 
@@ -31,7 +29,7 @@ def _filtro_busqueda(query, q: str):
 
 @router.get("/sugerencias", response_model=list[DestinoSugerenciaResponse])
 def get_sugerencias_destinos(
-    q: Optional[str] = Query(None, min_length=0),
+    q: str | None = Query(None, min_length=0),
     limit: int = Query(8, ge=1, le=20),
     db: Session = Depends(get_db),
 ):
@@ -44,7 +42,7 @@ def get_sugerencias_destinos(
 
 @router.get("/", response_model=list[DestinoResponse])
 def get_destinos(
-    q: Optional[str] = Query(None),
+    q: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -73,7 +71,9 @@ def create_destino(data: DestinoCreate, db: Session = Depends(get_db), admin_id:
 
 
 @router.put("/{destino_id}", response_model=DestinoResponse)
-def update_destino(destino_id: int, data: DestinoUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def update_destino(
+    destino_id: int, data: DestinoUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     destino = db.query(Destino).filter(Destino.id_destino == destino_id).first()
     if not destino:
         raise HTTPException(status_code=404, detail="Destino no encontrado")
@@ -95,9 +95,7 @@ def delete_destino(destino_id: int, db: Session = Depends(get_db), admin_id: int
     # lanzaba un IntegrityError sin manejar (500 genérico, sin explicar
     # la causa real) en vez de un error claro — Fase 1 del plan de mejora
     # ("manejo de errores consistente").
-    servicios_count = db.query(func.count(Servicio.id_servicio)).filter(
-        Servicio.id_destino == destino_id
-    ).scalar() or 0
+    servicios_count = db.query(func.count(Servicio.id_servicio)).filter(Servicio.id_destino == destino_id).scalar() or 0
     if servicios_count > 0:
         error = DestinoDependencyError(destino_id, servicios_count)
         raise HTTPException(status_code=error.status_code, detail=error.detail)

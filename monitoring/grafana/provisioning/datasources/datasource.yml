@@ -1,0 +1,13 @@
+# Provisioning automático del datasource de Prometheus en Grafana --
+# evita el paso manual de "Add data source" en la UI cada vez que se
+# levanta el stack desde cero (ej. en un servidor nuevo).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus-ds
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

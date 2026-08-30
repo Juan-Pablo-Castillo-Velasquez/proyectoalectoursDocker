@@ -1,9 +1,8 @@
 # Guardar como: backend/app/schemas/solicitud_cancelacion_schema.py
 
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
 from datetime import datetime
 
+from pydantic import BaseModel, Field, field_validator
 
 # Debe coincidir con el array MOTIVOS del modal en TabReservas.tsx
 MOTIVOS_VALIDOS = [
@@ -19,7 +18,7 @@ MOTIVOS_VALIDOS = [
 class SolicitudCancelacionCreate(BaseModel):
     motivo: str = Field(..., min_length=1, max_length=100)
     # Solo obligatorio cuando motivo == "Otro motivo" (se valida en el service)
-    motivo_detalle: Optional[str] = Field(None, max_length=1000)
+    motivo_detalle: str | None = Field(None, max_length=1000)
 
     @field_validator("motivo")
     @classmethod
@@ -34,15 +33,15 @@ class SolicitudCancelacionResponse(BaseModel):
     id_reserva: int
     id_cliente: int
     motivo: str
-    motivo_detalle: Optional[str] = None
+    motivo_detalle: str | None = None
     estado: str
     fecha_solicitud: datetime
-    fecha_resolucion: Optional[datetime] = None
-    comentario_resolucion: Optional[str] = None
+    fecha_resolucion: datetime | None = None
+    comentario_resolucion: str | None = None
     # Ya existía como columna en el modelo (SolicitudCancelacion.id_empleado_resolutor)
     # pero no se exponía en la respuesta — el panel de admin lo necesita para
     # mostrar qué asesor tomó la decisión (trazabilidad).
-    id_empleado_resolutor: Optional[int] = None
+    id_empleado_resolutor: int | None = None
 
     class Config:
         from_attributes = True

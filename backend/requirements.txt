@@ -20,3 +20,7 @@ fastapi-mail==1.4.1
 email-validator==2.2.0
 
 redis==5.0.8
+
+# Observabilidad: expone /metrics (histogramas de duracion, contadores de
+# requests) para que Prometheus haga scrape y Grafana lo grafique.
+prometheus-fastapi-instrumentator==7.1.0

@@ -4,7 +4,6 @@ from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 
 
 class MetodoPagoGuardadoRepository:
-
     @staticmethod
     def get_by_cliente(db: Session, id_cliente: int):
         return (
@@ -26,11 +25,13 @@ class MetodoPagoGuardadoRepository:
         )
 
     @staticmethod
-    def create(db: Session, id_cliente: int, alias: str, tipo: str, ultimos4, clave_hash: str, predeterminado: bool) -> MetodoPagoGuardado:
+    def create(
+        db: Session, id_cliente: int, alias: str, tipo: str, ultimos4, clave_hash: str, predeterminado: bool
+    ) -> MetodoPagoGuardado:
         if predeterminado:
-            db.query(MetodoPagoGuardado).filter(
-                MetodoPagoGuardado.id_cliente == id_cliente
-            ).update({MetodoPagoGuardado.predeterminado: False})
+            db.query(MetodoPagoGuardado).filter(MetodoPagoGuardado.id_cliente == id_cliente).update(
+                {MetodoPagoGuardado.predeterminado: False}
+            )
         metodo = MetodoPagoGuardado(
             id_cliente=id_cliente,
             alias=alias,

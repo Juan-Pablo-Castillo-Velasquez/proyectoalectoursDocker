@@ -1,14 +1,15 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
 from datetime import date, datetime
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class PaqueteHotelInput(BaseModel):
     """Un hotel real vinculado al paquete (tabla paquete_hotel, ya existía
     en el modelo pero nunca se podía escribir desde el admin — ver
     PaqueteRepository._sync_hoteles en reserva_repository.py)."""
+
     id_hotel: int
-    noches_incluidas: Optional[int] = Field(None, gt=0)
+    noches_incluidas: int | None = Field(None, gt=0)
 
 
 class PaqueteServicioInput(BaseModel):
@@ -16,51 +17,52 @@ class PaqueteServicioInput(BaseModel):
     ya existía en el modelo y ya se leía en GET /paquetes/{id}/detalle,
     pero tampoco tenía ningún punto de escritura desde el admin — mismo
     hueco que tenían los hoteles antes de PaqueteRepository._sync_hoteles."""
+
     id_servicio: int
-    dia_actividad: Optional[int] = Field(None, gt=0)
+    dia_actividad: int | None = Field(None, gt=0)
     incluido: bool = True
 
 
 class PaqueteCreate(BaseModel):
     nombre_paquete: str = Field(..., min_length=1, max_length=100)
-    descripcion: Optional[str] = None
-    duracion_dias: Optional[int] = Field(None, gt=0)
+    descripcion: str | None = None
+    duracion_dias: int | None = Field(None, gt=0)
     precio_base: float = Field(..., ge=0)
     activo: bool = True
     # Ciudad de salida del viaje (vuelo/transporte) — distinta de la ciudad
     # de destino, que se deriva de los hoteles reales vinculados.
-    ciudad_salida: Optional[str] = Field(None, max_length=100)
-    hoteles: Optional[List[PaqueteHotelInput]] = None
-    servicios: Optional[List[PaqueteServicioInput]] = None
+    ciudad_salida: str | None = Field(None, max_length=100)
+    hoteles: list[PaqueteHotelInput] | None = None
+    servicios: list[PaqueteServicioInput] | None = None
 
 
 class PaqueteUpdate(BaseModel):
-    nombre_paquete: Optional[str] = None
-    descripcion: Optional[str] = None
-    duracion_dias: Optional[int] = Field(None, gt=0)
-    precio_base: Optional[float] = Field(None, ge=0)
-    activo: Optional[bool] = None
-    ciudad_salida: Optional[str] = Field(None, max_length=100)
+    nombre_paquete: str | None = None
+    descripcion: str | None = None
+    duracion_dias: int | None = Field(None, gt=0)
+    precio_base: float | None = Field(None, ge=0)
+    activo: bool | None = None
+    ciudad_salida: str | None = Field(None, max_length=100)
     # None = no tocar servicios ya vinculados; [] = quitar todos — mismo
     # patrón exclude_unset ya usado para "hoteles".
-    servicios: Optional[List[PaqueteServicioInput]] = None
+    servicios: list[PaqueteServicioInput] | None = None
     # None = no se mandó, no tocar los hoteles ya vinculados (mismo patrón
     # de exclude_unset ya usado para reactivar solo con {activo: true});
     # [] = sí se mandó, y significa "quitar todos los hoteles".
-    hoteles: Optional[List[PaqueteHotelInput]] = None
+    hoteles: list[PaqueteHotelInput] | None = None
 
 
 class PaqueteResponse(BaseModel):
     id_paquete: int
     nombre_paquete: str
-    descripcion: Optional[str]
-    duracion_dias: Optional[int]
+    descripcion: str | None
+    duracion_dias: int | None
     precio_base: float
     activo: bool
-    ciudad_salida: Optional[str] = None
+    ciudad_salida: str | None = None
     # Calculada (Paquete.ciudad_destino), no una columna — ver el property
     # en el modelo. None si el paquete no tiene ningún hotel vinculado.
-    ciudad_destino: Optional[str] = None
+    ciudad_destino: str | None = None
 
     class Config:
         from_attributes = True
@@ -69,23 +71,23 @@ class PaqueteResponse(BaseModel):
 class PaqueteHotelDetalle(BaseModel):
     id_hotel: int
     nombre_hotel: str
-    ciudad: Optional[str] = None
-    pais: Optional[str] = None
-    calificacion: Optional[int] = None
-    noches_incluidas: Optional[int] = None
-    caracteristicas: List[str] = []
+    ciudad: str | None = None
+    pais: str | None = None
+    calificacion: int | None = None
+    noches_incluidas: int | None = None
+    caracteristicas: list[str] = []
 
 
 class PaqueteServicioDetalle(BaseModel):
     id_servicio: int
     nombre_servicio: str
-    categoria: Optional[str] = None
-    descripcion: Optional[str] = None
-    dia_actividad: Optional[int] = None
+    categoria: str | None = None
+    descripcion: str | None = None
+    dia_actividad: int | None = None
     incluido: bool = True
     # Para cuántas personas alcanza este servicio — info comercial real que
     # ya vive en Servicio.capacidad_maxima, antes nunca viajaba hasta acá.
-    capacidad_maxima: Optional[int] = None
+    capacidad_maxima: int | None = None
 
 
 class PaqueteDetalleResponse(PaqueteResponse):
@@ -93,9 +95,10 @@ class PaqueteDetalleResponse(PaqueteResponse):
     — usado por GET /paquetes/{id}/detalle para la página de detalle del
     frontend, que antes mostraba datos de ejemplo hardcodeados en
     data/packages.ts (nombres de hoteles, vuelos y horarios inventados)."""
-    destinos: List[str] = []
-    hoteles: List[PaqueteHotelDetalle] = []
-    servicios: List[PaqueteServicioDetalle] = []
+
+    destinos: list[str] = []
+    hoteles: list[PaqueteHotelDetalle] = []
+    servicios: list[PaqueteServicioDetalle] = []
 
 
 class MetodoPagoCreate(BaseModel):
@@ -113,8 +116,10 @@ class MetodoPagoResponse(BaseModel):
 
 # ===================== NUEVO: Habitación dentro de una reserva =====================
 
+
 class HabitacionReservaCreate(BaseModel):
     """Una habitación específica que el cliente quiere reservar dentro de la reserva."""
+
     id_habitacion: int
     fecha_checkin: date
     fecha_checkout: date
@@ -131,7 +136,7 @@ class HabitacionReservaResponse(BaseModel):
     id_habitacion: int
     fecha_checkin: date
     fecha_checkout: date
-    precio_acordado: Optional[float] = None
+    precio_acordado: float | None = None
 
     class Config:
         from_attributes = True
@@ -139,13 +144,13 @@ class HabitacionReservaResponse(BaseModel):
 
 class ReservaCreate(BaseModel):
     id_cliente: int
-    id_empleado: Optional[int] = None
-    id_paquete: Optional[int] = None
+    id_empleado: int | None = None
+    id_paquete: int | None = None
     fecha_inicio: date
     fecha_fin: date
     numero_personas: int = Field(..., gt=0)
     # NUEVO: habitaciones reales que se están reservando (precio se calcula en backend, no se confía en el frontend)
-    habitaciones: Optional[List[HabitacionReservaCreate]] = None
+    habitaciones: list[HabitacionReservaCreate] | None = None
 
     @field_validator("fecha_fin")
     @classmethod
@@ -156,11 +161,11 @@ class ReservaCreate(BaseModel):
 
 
 class ReservaUpdate(BaseModel):
-    id_paquete: Optional[int] = None
-    fecha_inicio: Optional[date] = None
-    fecha_fin: Optional[date] = None
-    numero_personas: Optional[int] = Field(None, gt=0)
-    estado: Optional[str] = None
+    id_paquete: int | None = None
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+    numero_personas: int | None = Field(None, gt=0)
+    estado: str | None = None
 
     @field_validator("estado")
     @classmethod
@@ -173,8 +178,8 @@ class ReservaUpdate(BaseModel):
 class ReservaResponse(BaseModel):
     id_reserva: int
     id_cliente: int
-    id_empleado: Optional[int]
-    id_paquete: Optional[int]
+    id_empleado: int | None
+    id_paquete: int | None
     fecha_reserva: datetime
     fecha_inicio: date
     fecha_fin: date
@@ -184,21 +189,21 @@ class ReservaResponse(BaseModel):
     # Nombre del paquete y destino (ciudad/país del hotel), calculados en
     # Reserva.nombre_paquete / Reserva.destino — para que el historial de
     # reservas del frontend no tenga que mostrar solo el id_paquete crudo.
-    nombre_paquete: Optional[str] = None
-    destino: Optional[str] = None
+    nombre_paquete: str | None = None
+    destino: str | None = None
     # Nombre del hotel — respaldo para cuando la reserva no tiene paquete
     # (reserva directa de habitación, id_paquete nulo): ver Reserva.hotel_nombre.
-    hotel_nombre: Optional[str] = None
+    hotel_nombre: str | None = None
     # Fecha del último cambio de estado registrado en historial_reservas (o
     # fecha_reserva si aún no hay historial) — ver Reserva.fecha_ultima_actualizacion.
     # Usado por la columna "Última actualización" del panel de admin.
-    fecha_ultima_actualizacion: Optional[datetime] = None
+    fecha_ultima_actualizacion: datetime | None = None
     # BUG real corregido: esta columna ya existía en el modelo (Reserva.canal_origen)
     # pero solo se exponía en ReservaDetailResponse, nunca en la lista base — el
     # resultado era que GET /reservas (el que usa la tabla del panel de admin)
     # siempre mandaba canal_origen=None, y el frontend lo interpretaba como "web"
     # para TODAS las filas sin importar el valor real en la base de datos.
-    canal_origen: Optional[str] = None
+    canal_origen: str | None = None
 
     class Config:
         from_attributes = True
@@ -208,13 +213,13 @@ class PagoCreate(BaseModel):
     id_reserva: int
     id_metodo_pago: int
     monto: float = Field(..., ge=0)
-    referencia: Optional[str] = Field(None, max_length=100)
+    referencia: str | None = Field(None, max_length=100)
 
 
 class PagoUpdate(BaseModel):
-    monto: Optional[float] = Field(None, ge=0)
-    referencia: Optional[str] = None
-    estado: Optional[str] = None
+    monto: float | None = Field(None, ge=0)
+    referencia: str | None = None
+    estado: str | None = None
 
     @field_validator("estado")
     @classmethod
@@ -230,11 +235,11 @@ class PagoResponse(BaseModel):
     id_metodo_pago: int
     monto: float
     fecha_pago: datetime
-    referencia: Optional[str]
+    referencia: str | None
     estado: str
-    numero_factura: Optional[str] = None
-    comprobante_url: Optional[str] = None
-    metodo_pago: Optional[MetodoPagoResponse] = None
+    numero_factura: str | None = None
+    comprobante_url: str | None = None
+    metodo_pago: MetodoPagoResponse | None = None
 
     class Config:
         from_attributes = True
@@ -243,11 +248,12 @@ class PagoResponse(BaseModel):
 class AsesorResponse(BaseModel):
     """Datos mínimos del empleado asignado a la reserva (sin cédula ni
     fecha de contratación — esto lo ve el cliente en el popup de su reserva)."""
+
     id_empleado: int
     nombre: str
     apellido: str
-    correo_electronico: Optional[str] = None
-    celular: Optional[str] = None
+    correo_electronico: str | None = None
+    celular: str | None = None
 
     class Config:
         from_attributes = True
@@ -259,10 +265,10 @@ class PagarRequest(BaseModel):
 
     # Campos especificos por metodo — nunca se envia el numero completo de
     # tarjeta ni datos sensibles reales, todo esto es simulado:
-    ultimos4: Optional[str] = Field(None, max_length=4, min_length=4)   # tarjeta
-    celular: Optional[str] = Field(None, max_length=15)                 # nequi
-    banco: Optional[str] = Field(None, max_length=100)                  # pse
-    documento: Optional[str] = Field(None, max_length=20)               # pse
+    ultimos4: str | None = Field(None, max_length=4, min_length=4)  # tarjeta
+    celular: str | None = Field(None, max_length=15)  # nequi
+    banco: str | None = Field(None, max_length=100)  # pse
+    documento: str | None = Field(None, max_length=20)  # pse
 
     @field_validator("tipo_pago")
     @classmethod
@@ -278,11 +284,11 @@ class PagarResponse(BaseModel):
 
 
 class ReservaDetailResponse(ReservaResponse):
-    paquete: Optional[PaqueteResponse] = None
-    pagos: List[PagoResponse] = []
+    paquete: PaqueteResponse | None = None
+    pagos: list[PagoResponse] = []
     # OJO: el modelo SQLAlchemy llama a esta relación "reserva_habitaciones", por eso el alias.
-    habitaciones: List[HabitacionReservaResponse] = Field(default=[], validation_alias="reserva_habitaciones")
-    empleado: Optional[AsesorResponse] = None
+    habitaciones: list[HabitacionReservaResponse] = Field(default=[], validation_alias="reserva_habitaciones")
+    empleado: AsesorResponse | None = None
     # canal_origen ya viene heredado de ReservaResponse (ver arriba) — se
     # quitó la redeclaración duplicada que había acá.
 

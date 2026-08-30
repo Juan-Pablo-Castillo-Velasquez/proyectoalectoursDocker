@@ -1,46 +1,46 @@
 import logging
 import os
-from fastapi import FastAPI, Request, Depends
+
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+
 from app.core.cache import redis_client
+from app.core.database import get_db
 
-
-# IMPORTANTE: Importar TODOS los modelos para que SQLAlchemy conozca las relaciones
-from app.models.user_model import Usuario
-from app.models.cliente_model import Cliente
-from app.models.hotel_model import Hotel
-from app.models.reserva_model import Reserva
-from app.models.resena_model import Resena
-from app.models.favorito_model import Favorito
-from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
-from app.models.configuracion_model import ConfiguracionSistema
-from app.models.notificacion_model import Notificacion
-from app.models.empresa_model import SolicitudCorporativa
-
+# NOTA: este archivo ya no importa los modelos uno por uno a mano -- ese
+# import (Usuario, Cliente, Hotel, Reserva, etc.) era en realidad
+# redundante: la linea de arriba (from app.core.database import get_db)
+# ya ejecuta app/core/database.py, que a su vez hace
+# "from app.models import *" (con su propio noqa documentado ahi) y eso
+# ya registra TODAS las tablas/relaciones en SQLAlchemy antes de que este
+# modulo siga ejecutandose. Verificado con configure_mappers() tras la
+# limpieza de Ruff: los 27 endpoints siguen registrandose sin error.
 # Routers
 from app.routes.auth_route import router as auth_router
+from app.routes.banner_route import router as banner_router
 from app.routes.cliente_route import router as cliente_router
+from app.routes.configuracion_route import router as configuracion_router
 from app.routes.contacto_route import router as contacto_router
+from app.routes.dashboard_route import router as dashboard_router
+from app.routes.destino_route import router as destino_router
+from app.routes.empresa_route import router as empresa_router
+from app.routes.favorito_route import router as favorito_router
 from app.routes.hotel_route import router as hotel_router
+from app.routes.metodo_pago_guardado_route import router as metodo_pago_guardado_router
+from app.routes.notificacion_route import router as notificacion_router
 from app.routes.preferencias_route import router as preferencias_router
 from app.routes.promociones_route import router as promociones_router
 from app.routes.resena_route import router as resena_route
 from app.routes.reserva_route import router as reserva_router
-from app.routes.usuario_route import router as usuario_router, roles_router
-from app.routes.destino_route import router as destino_router
 from app.routes.servicio_route import router as servicio_router
 from app.routes.solicitud_cancelacion_route import router as solicitud_cancelacion_router
-from app.routes.favorito_route import router as favorito_router
-from app.routes.metodo_pago_guardado_route import router as metodo_pago_guardado_router
-from app.routes.configuracion_route import router as configuracion_router
-from app.routes.notificacion_route import router as notificacion_router
-from app.routes.empresa_route import router as empresa_router
-from app.routes.dashboard_route import router as dashboard_router
+from app.routes.usuario_route import roles_router
+from app.routes.usuario_route import router as usuario_router
 
 # ============================================================================
 # CONFIGURACIÓN LOGGING
@@ -86,6 +86,7 @@ app = FastAPI(
 # CORS
 # ============================================================================
 
+
 @app.get("/health", tags=["Salud"])
 def health_check(db: Session = Depends(get_db)):
     """Liveness/readiness check real (consulta la base de datos, no un valor
@@ -110,11 +111,7 @@ _CORS_ORIGINS_DEV = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
 ]
-_cors_origins_env = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "").split(",")
-    if origin.strip()
-]
+_cors_origins_env = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -190,9 +187,11 @@ async def seguridad_middleware(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     return response
 
+
 # ============================================================================
 # MANEJADOR DE ERRORES GLOBAL
 # ============================================================================
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -222,9 +221,11 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
+
 # ============================================================================
 # MIDDLEWARE LOGS
 # ============================================================================
+
 
 @app.middleware("http")
 async def log_requests(request, call_next):
@@ -232,6 +233,7 @@ async def log_requests(request, call_next):
     response = await call_next(request)
     logger.info(f"Response: {response.status_code}")
     return response
+
 
 # ============================================================================
 # ROUTERS
@@ -256,9 +258,33 @@ app.include_router(configuracion_router)
 app.include_router(notificacion_router)
 app.include_router(empresa_router)
 app.include_router(dashboard_router)
+app.include_router(banner_router)
 
 # ============================================================================
-# ARCHIVOS ESTÁTICOS (fotos de perfil, etc.)
+# OBSERVABILIDAD: METRICAS PROMETHEUS
+# ============================================================================
+# Expone GET /metrics con histogramas de duracion y contadores de requests
+# por metodo/ruta/codigo de estado -- Prometheus (ver docker-compose.yml)
+# hace scrape de este endpoint cada 15s y Grafana lo consume como
+# datasource para medir tiempos de respuesta de la API y demas metricas.
+#
+# should_group_status_codes=False conserva el codigo exacto (200, 404, 500)
+# en vez de agruparlo en 2xx/4xx -- mas util para depurar un endpoint
+# especifico en Grafana. excluded_handlers evita que el propio healthcheck
+# (poleado cada 30s por Docker) y el endpoint de metricas se cuenten a si
+# mismos, lo que solo agregaria ruido constante al histograma.
+#
+# Se instrumenta despues de registrar todos los routers para que
+# Instrumentator ya vea las rutas reales con sus templates (ej.
+# /api/hoteles/{hotel_id}) en vez de tener que inferirlas mas tarde --
+# evita cardinalidad alta en las metricas si algo sale mal.
+Instrumentator(
+    should_group_status_codes=False,
+    excluded_handlers=["/health", "/metrics"],
+).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
+# ============================================================================
+# ARCHIVOS ESTATICOS (fotos de perfil, etc.)
 # ============================================================================
 
 _UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
@@ -269,6 +295,7 @@ app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
+
 
 @app.get("/")
 def root():

@@ -17,30 +17,21 @@ Mismo patrón que test_delete_exceptions.py: SQLite en memoria, llamando
 directo a la función de la ruta (no hay capa de repositorio para
 Destino/Servicio) con un admin_id ficticio, sin pasar por FastAPI ni HTTP.
 """
+
 import pytest
 import sqlalchemy as sa
-from sqlalchemy import create_engine, ARRAY
-from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
+from sqlalchemy import ARRAY, create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
-from app.models.servicio_model import Destino, Servicio, Proveedor, ServicioProveedor
-from app.models.reserva_model import Paquete, PaqueteServicio
+
 # Mismo motivo que test_delete_exceptions.py: registrar todos los modelos
 # con relationship() antes de la primera query / create_all.
-from app.models.cliente_model import Cliente
-from app.models.hotel_model import Hotel
-from app.models.user_model import Usuario
-from app.models.resena_model import Resena
-from app.models.favorito_model import Favorito
-from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
-from app.models.configuracion_model import ConfiguracionSistema
-from app.models.notificacion_model import Notificacion
-from app.models.empresa_model import SolicitudCorporativa
-
+from app.models.reserva_model import Paquete, PaqueteServicio
+from app.models.servicio_model import Destino, Proveedor, Servicio, ServicioProveedor
 from app.routes.destino_route import delete_destino
 from app.routes.servicio_route import delete_servicio
-
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -83,7 +74,6 @@ def _crear_servicio(db, id_destino=None, nombre="Servicio Test"):
 
 
 class TestDestinoDeletionExceptions:
-
     def test_delete_destino_sin_dependencias(self, db):
         destino = _crear_destino(db)
         result = delete_destino(destino.id_destino, db=db, admin_id=1)
@@ -109,7 +99,6 @@ class TestDestinoDeletionExceptions:
 
 
 class TestServicioDeletionExceptions:
-
     def test_delete_servicio_sin_dependencias(self, db):
         servicio = _crear_servicio(db)
         result = delete_servicio(servicio.id_servicio, db=db, admin_id=1)
@@ -137,9 +126,7 @@ class TestServicioDeletionExceptions:
         assert exc_info.value.status_code == 409
         assert db.query(Servicio).filter(Servicio.id_servicio == servicio.id_servicio).first() is not None
         # El vínculo con el paquete tampoco debe haberse tocado.
-        assert db.query(PaqueteServicio).filter(
-            PaqueteServicio.id_servicio == servicio.id_servicio
-        ).first() is not None
+        assert db.query(PaqueteServicio).filter(PaqueteServicio.id_servicio == servicio.id_servicio).first() is not None
 
     def test_delete_servicio_con_proveedor_rechazado(self, db):
         servicio = _crear_servicio(db)

@@ -1,13 +1,15 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
+from app.core.security import require_admin
 from app.models.empresa_model import SolicitudCorporativa
 from app.schemas.empresa_schema import (
-    SolicitudCorporativaCreate, SolicitudCorporativaUpdate, SolicitudCorporativaResponse,
+    SolicitudCorporativaCreate,
+    SolicitudCorporativaResponse,
+    SolicitudCorporativaUpdate,
 )
 from app.services.notificacion_service import crear_notificacion
-from app.core.security import require_admin
 
 router = APIRouter(prefix="/api/solicitudes-corporativas", tags=["Empresas y Contactos"])
 
@@ -32,7 +34,7 @@ def crear_solicitud_corporativa(data: SolicitudCorporativaCreate, db: Session = 
 
 @router.get("", response_model=list[SolicitudCorporativaResponse])
 def listar_solicitudes_corporativas(
-    estado: Optional[str] = Query(None),
+    estado: str | None = Query(None),
     limit: int = Query(100, ge=1, le=300),
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
@@ -44,7 +46,12 @@ def listar_solicitudes_corporativas(
 
 
 @router.put("/{id_solicitud}", response_model=SolicitudCorporativaResponse)
-def actualizar_estado_solicitud(id_solicitud: int, data: SolicitudCorporativaUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def actualizar_estado_solicitud(
+    id_solicitud: int,
+    data: SolicitudCorporativaUpdate,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
     item = db.query(SolicitudCorporativa).filter(SolicitudCorporativa.id_solicitud == id_solicitud).first()
     if not item:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
@@ -55,7 +62,9 @@ def actualizar_estado_solicitud(id_solicitud: int, data: SolicitudCorporativaUpd
 
 
 @router.delete("/{id_solicitud}")
-def eliminar_solicitud_corporativa(id_solicitud: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def eliminar_solicitud_corporativa(
+    id_solicitud: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     item = db.query(SolicitudCorporativa).filter(SolicitudCorporativa.id_solicitud == id_solicitud).first()
     if not item:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")

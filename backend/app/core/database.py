@@ -1,20 +1,11 @@
-
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.core.config import settings
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    echo=True
-)
+engine = create_engine(settings.DATABASE_URL, echo=True)
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
@@ -31,4 +22,4 @@ def get_db():
 
 # Importar todos los modelos DESPUÉS de crear Base
 # Esto es necesario para que SQLAlchemy registre todas las tablas
-from app.models import *
+from app.models import *  # noqa: F403, E402 -- necesario para registrar todas las tablas en Base.metadata

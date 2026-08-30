@@ -1,6 +1,4 @@
-from typing import Optional, List
-
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -8,14 +6,16 @@ from app.core.security import get_user_from_token, hash_password, verify_passwor
 from app.models.user_model import Usuario
 from app.repositories.metodo_pago_guardado_repository import MetodoPagoGuardadoRepository
 from app.schemas.metodo_pago_guardado_schema import (
-    MetodoPagoGuardadoCreate, MetodoPagoGuardadoResponse,
-    VerificarClaveRequest, VerificarClaveResponse,
+    MetodoPagoGuardadoCreate,
+    MetodoPagoGuardadoResponse,
+    VerificarClaveRequest,
+    VerificarClaveResponse,
 )
 
 router = APIRouter(prefix="/api/metodos-pago-guardados", tags=["Métodos de pago guardados"])
 
 
-def get_current_usuario(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Usuario:
+def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
     """Mismo patrón de auth usado en favorito_route.py / resena_route.py"""
     if not authorization:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -41,7 +41,7 @@ def _require_cliente(usuario: Usuario) -> int:
     return usuario.cliente.id_cliente
 
 
-@router.get("", response_model=List[MetodoPagoGuardadoResponse])
+@router.get("", response_model=list[MetodoPagoGuardadoResponse])
 def listar_metodos_guardados(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_usuario),

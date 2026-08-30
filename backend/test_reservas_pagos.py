@@ -15,10 +15,12 @@ Mismo patrón que test_delete_exceptions.py: SQLite en memoria, sin
 mockear nada de la lógica real — se ejecuta el código de producción tal
 cual contra una base de datos real (aunque en memoria).
 """
-import pytest
+
 from datetime import date
+
+import pytest
 import sqlalchemy as sa
-from sqlalchemy import create_engine, ARRAY
+from sqlalchemy import ARRAY, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
@@ -27,28 +29,26 @@ from app.core.exceptions import (
     HabitacionNoEncontradaError,
     PaqueteNoEncontradoError,
 )
-from app.models.hotel_model import Hotel, Habitacion
 from app.models.cliente_model import Cliente
-from app.models.reserva_model import Reserva, ReservaHabitacion, Pago, MetodoPago
+from app.models.hotel_model import Habitacion, Hotel
+from app.models.reserva_model import (
+    MetodoPago,
+    Pago,
+    Reserva,
+    ReservaHabitacion,
+)
+
 # Mismo fix que test_delete_exceptions.py: registra en el mapper de
 # SQLAlchemy todos los modelos referenciados por nombre de clase en algún
 # relationship() de los modelos de arriba (ej. Hotel.resenas =
 # relationship("Resena", ...)), o configurar cualquier mapper revienta con
 # "failed to locate a name".
 from app.models.user_model import Usuario
-from app.models.resena_model import Resena
-from app.models.favorito_model import Favorito
-from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
-from app.models.configuracion_model import ConfiguracionSistema
-from app.models.notificacion_model import Notificacion
-from app.models.empresa_model import SolicitudCorporativa
-from app.models.reserva_model import SolicitudCancelacion, HistorialReserva
-from app.repositories.reserva_repository import ReservaRepository, PagoRepository
+from app.repositories.reserva_repository import PagoRepository, ReservaRepository
 from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
+from app.routes import reserva_route, solicitud_cancelacion_route
 from app.schemas.reserva_schema import PagarRequest
 from app.schemas.solicitud_cancelacion_schema import SolicitudCancelacionResolve
-from app.routes import reserva_route, solicitud_cancelacion_route
-
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -116,42 +116,48 @@ class TestPrecioMultiplesNoches:
         cliente = _crear_cliente(db)
         _, habitacion = _crear_hotel_y_habitacion(db, precio_noche=100000)
 
-        reserva = ReservaRepository.create(db, {
-            "id_cliente": cliente.id_cliente,
-            "numero_personas": 2,
-            "fecha_inicio": date(2026, 1, 10),
-            "fecha_fin": date(2026, 1, 13),
-            "habitaciones": [{
-                "id_habitacion": habitacion.id_habitacion,
-                "fecha_checkin": date(2026, 1, 10),
-                "fecha_checkout": date(2026, 1, 13),  # 3 noches
-            }],
-        })
+        reserva = ReservaRepository.create(
+            db,
+            {
+                "id_cliente": cliente.id_cliente,
+                "numero_personas": 2,
+                "fecha_inicio": date(2026, 1, 10),
+                "fecha_fin": date(2026, 1, 13),
+                "habitaciones": [
+                    {
+                        "id_habitacion": habitacion.id_habitacion,
+                        "fecha_checkin": date(2026, 1, 10),
+                        "fecha_checkout": date(2026, 1, 13),  # 3 noches
+                    }
+                ],
+            },
+        )
 
-        rh = db.query(ReservaHabitacion).filter(
-            ReservaHabitacion.id_reserva == reserva.id_reserva
-        ).first()
+        rh = db.query(ReservaHabitacion).filter(ReservaHabitacion.id_reserva == reserva.id_reserva).first()
         assert float(rh.precio_acordado) == 100000 * 3
 
     def test_precio_una_sola_noche(self, db):
         cliente = _crear_cliente(db)
         _, habitacion = _crear_hotel_y_habitacion(db, precio_noche=80000)
 
-        reserva = ReservaRepository.create(db, {
-            "id_cliente": cliente.id_cliente,
-            "numero_personas": 1,
-            "fecha_inicio": date(2026, 2, 1),
-            "fecha_fin": date(2026, 2, 2),
-            "habitaciones": [{
-                "id_habitacion": habitacion.id_habitacion,
-                "fecha_checkin": date(2026, 2, 1),
-                "fecha_checkout": date(2026, 2, 2),
-            }],
-        })
+        reserva = ReservaRepository.create(
+            db,
+            {
+                "id_cliente": cliente.id_cliente,
+                "numero_personas": 1,
+                "fecha_inicio": date(2026, 2, 1),
+                "fecha_fin": date(2026, 2, 2),
+                "habitaciones": [
+                    {
+                        "id_habitacion": habitacion.id_habitacion,
+                        "fecha_checkin": date(2026, 2, 1),
+                        "fecha_checkout": date(2026, 2, 2),
+                    }
+                ],
+            },
+        )
 
-        rh = db.query(ReservaHabitacion).filter(
-            ReservaHabitacion.id_reserva == reserva.id_reserva
-        ).first()
+        rh = db.query(ReservaHabitacion).filter(ReservaHabitacion.id_reserva == reserva.id_reserva).first()
         assert float(rh.precio_acordado) == 80000
 
 
@@ -176,17 +182,22 @@ class TestDisponibilidadHabitacion:
         _, habitacion = _crear_hotel_y_habitacion(db)
 
         # Reserva existente: 10 al 15 de enero, confirmada (activa)
-        ReservaRepository.create(db, {
-            "id_cliente": cliente.id_cliente,
-            "numero_personas": 1,
-            "fecha_inicio": date(2026, 1, 10),
-            "fecha_fin": date(2026, 1, 15),
-            "habitaciones": [{
-                "id_habitacion": habitacion.id_habitacion,
-                "fecha_checkin": date(2026, 1, 10),
-                "fecha_checkout": date(2026, 1, 15),
-            }],
-        })
+        ReservaRepository.create(
+            db,
+            {
+                "id_cliente": cliente.id_cliente,
+                "numero_personas": 1,
+                "fecha_inicio": date(2026, 1, 10),
+                "fecha_fin": date(2026, 1, 15),
+                "habitaciones": [
+                    {
+                        "id_habitacion": habitacion.id_habitacion,
+                        "fecha_checkin": date(2026, 1, 10),
+                        "fecha_checkout": date(2026, 1, 15),
+                    }
+                ],
+            },
+        )
 
         # Nueva reserva que se cruza (12 al 18) debe rechazarse
         with pytest.raises(HabitacionNoDisponibleError):
@@ -201,58 +212,67 @@ class TestDisponibilidadHabitacion:
         cliente = _crear_cliente(db)
         _, habitacion = _crear_hotel_y_habitacion(db)
 
-        ReservaRepository.create(db, {
-            "id_cliente": cliente.id_cliente,
-            "numero_personas": 1,
-            "fecha_inicio": date(2026, 1, 10),
-            "fecha_fin": date(2026, 1, 15),
-            "habitaciones": [{
-                "id_habitacion": habitacion.id_habitacion,
-                "fecha_checkin": date(2026, 1, 10),
-                "fecha_checkout": date(2026, 1, 15),
-            }],
-        })
+        ReservaRepository.create(
+            db,
+            {
+                "id_cliente": cliente.id_cliente,
+                "numero_personas": 1,
+                "fecha_inicio": date(2026, 1, 10),
+                "fecha_fin": date(2026, 1, 15),
+                "habitaciones": [
+                    {
+                        "id_habitacion": habitacion.id_habitacion,
+                        "fecha_checkin": date(2026, 1, 10),
+                        "fecha_checkout": date(2026, 1, 15),
+                    }
+                ],
+            },
+        )
 
         # No debe lanzar excepción
-        ReservaRepository._verificar_disponibilidad(
-            db, habitacion.id_habitacion, date(2026, 1, 15), date(2026, 1, 20)
-        )
+        ReservaRepository._verificar_disponibilidad(db, habitacion.id_habitacion, date(2026, 1, 15), date(2026, 1, 20))
 
     def test_reserva_cancelada_no_bloquea_la_habitacion(self, db):
         cliente = _crear_cliente(db)
         _, habitacion = _crear_hotel_y_habitacion(db)
 
-        reserva = ReservaRepository.create(db, {
-            "id_cliente": cliente.id_cliente,
-            "numero_personas": 1,
-            "fecha_inicio": date(2026, 3, 1),
-            "fecha_fin": date(2026, 3, 5),
-            "habitaciones": [{
-                "id_habitacion": habitacion.id_habitacion,
-                "fecha_checkin": date(2026, 3, 1),
-                "fecha_checkout": date(2026, 3, 5),
-            }],
-        })
+        reserva = ReservaRepository.create(
+            db,
+            {
+                "id_cliente": cliente.id_cliente,
+                "numero_personas": 1,
+                "fecha_inicio": date(2026, 3, 1),
+                "fecha_fin": date(2026, 3, 5),
+                "habitaciones": [
+                    {
+                        "id_habitacion": habitacion.id_habitacion,
+                        "fecha_checkin": date(2026, 3, 1),
+                        "fecha_checkout": date(2026, 3, 5),
+                    }
+                ],
+            },
+        )
         reserva.estado = "cancelada"
         db.commit()
 
         # Las mismas fechas ahora deben estar libres
-        ReservaRepository._verificar_disponibilidad(
-            db, habitacion.id_habitacion, date(2026, 3, 1), date(2026, 3, 5)
-        )
+        ReservaRepository._verificar_disponibilidad(db, habitacion.id_habitacion, date(2026, 3, 1), date(2026, 3, 5))
 
 
 class TestPaqueteInexistente:
     def test_id_paquete_inexistente_rechazado(self, db):
         cliente = _crear_cliente(db)
         with pytest.raises(PaqueteNoEncontradoError):
-            ReservaRepository.create(db, {
-                "id_cliente": cliente.id_cliente,
-                "id_paquete": 9999,
-                "numero_personas": 1,
-                "fecha_inicio": date(2026, 1, 1),
-                "fecha_fin": date(2026, 1, 2),
-            })
+            ReservaRepository.create(
+                db,
+                {
+                    "id_cliente": cliente.id_cliente,
+                    "id_paquete": 9999,
+                    "numero_personas": 1,
+                    "fecha_inicio": date(2026, 1, 1),
+                    "fecha_fin": date(2026, 1, 2),
+                },
+            )
 
 
 class TestIdempotenciaPagos:
@@ -344,17 +364,22 @@ class TestCorreoConfirmacionReserva:
     def _preparar_reserva_y_metodo(self, db, codigo_metodo, nombre_metodo):
         cliente = _crear_cliente(db)
         _, habitacion = _crear_hotel_y_habitacion(db, precio_noche=150000)
-        reserva = ReservaRepository.create(db, {
-            "id_cliente": cliente.id_cliente,
-            "numero_personas": 1,
-            "fecha_inicio": date(2026, 4, 1),
-            "fecha_fin": date(2026, 4, 3),
-            "habitaciones": [{
-                "id_habitacion": habitacion.id_habitacion,
-                "fecha_checkin": date(2026, 4, 1),
-                "fecha_checkout": date(2026, 4, 3),
-            }],
-        })
+        reserva = ReservaRepository.create(
+            db,
+            {
+                "id_cliente": cliente.id_cliente,
+                "numero_personas": 1,
+                "fecha_inicio": date(2026, 4, 1),
+                "fecha_fin": date(2026, 4, 3),
+                "habitaciones": [
+                    {
+                        "id_habitacion": habitacion.id_habitacion,
+                        "fecha_checkin": date(2026, 4, 1),
+                        "fecha_checkout": date(2026, 4, 3),
+                    }
+                ],
+            },
+        )
         metodo = MetodoPago(nombre_metodo=nombre_metodo, codigo=codigo_metodo)
         db.add(metodo)
         db.commit()
@@ -378,9 +403,7 @@ class TestCorreoConfirmacionReserva:
         monkeypatch.setattr(reserva_route.threading, "Thread", _HiloSincrono)
         monkeypatch.setattr(reserva_route, "send_reservation_confirmation", fake_send)
 
-        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(
-            db, "tarjeta_credito", "Tarjeta de crédito"
-        )
+        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(db, "tarjeta_credito", "Tarjeta de crédito")
         data = PagarRequest(id_metodo_pago=metodo.id_metodo, tipo_pago="completo", ultimos4="4242")
 
         resultado = reserva_route.pagar_reserva(
@@ -403,9 +426,7 @@ class TestCorreoConfirmacionReserva:
         monkeypatch.setattr(reserva_route.threading, "Thread", _HiloSincrono)
         monkeypatch.setattr(reserva_route, "send_reservation_confirmation", fake_send)
 
-        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(
-            db, "tarjeta_credito", "Tarjeta de crédito"
-        )
+        cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(db, "tarjeta_credito", "Tarjeta de crédito")
         # "0002" es el valor de prueba que payment_service siempre rechaza.
         data = PagarRequest(id_metodo_pago=metodo.id_metodo, tipo_pago="completo", ultimos4="0002")
 
@@ -430,21 +451,19 @@ class TestCorreoConfirmacionReserva:
         cliente, reserva, metodo, usuario = self._preparar_reserva_y_metodo(db, "pse", "PSE")
         # Documento normal (no "0000000000") -> se aprueba al confirmar.
         data = PagarRequest(
-            id_metodo_pago=metodo.id_metodo, tipo_pago="completo",
-            banco="Bancolombia", documento="123456789",
+            id_metodo_pago=metodo.id_metodo,
+            tipo_pago="completo",
+            banco="Bancolombia",
+            documento="123456789",
         )
 
-        inicio = reserva_route.pagar_reserva(
-            reserva.id_reserva, data, db=db, current_user=usuario, authorization=None
-        )
+        inicio = reserva_route.pagar_reserva(reserva.id_reserva, data, db=db, current_user=usuario, authorization=None)
         # PSE queda 'procesando' de inmediato — todavía no se manda nada.
         assert inicio.pago.estado == "procesando"
         assert llamadas == []
 
         pago_id = inicio.pago.id_pago
-        resultado = reserva_route.confirmar_pago(
-            pago_id, db=db, current_user=usuario, authorization=None
-        )
+        resultado = reserva_route.confirmar_pago(pago_id, db=db, current_user=usuario, authorization=None)
 
         assert resultado.reserva.estado == "confirmada"
         assert len(llamadas) == 1

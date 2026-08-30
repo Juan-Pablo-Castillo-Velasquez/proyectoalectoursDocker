@@ -34,6 +34,8 @@ import ModuleNotificaciones from "../components/admin/ModuleNotificaciones";
 import { notificacionService, type NotificacionItem } from "../services/notificacion.service";
 import ModuleEmpresas from "../components/admin/ModuleEmpresas";
 import { empresaService, type SolicitudCorporativa } from "../services/empresa.service";
+import ModuleBanners from "../components/admin/ModuleBanners";
+import { bannerService, type Banner, type BannerFormData } from "../services/banner.service";
 
 type PendingDelete =
   | { kind: "reserva"; id: number; label: string }
@@ -42,7 +44,8 @@ type PendingDelete =
   | { kind: "cliente"; id: number; label: string }
   | { kind: "usuario"; id: number; label: string }
   | { kind: "pago"; id: number; label: string }
-  | { kind: "empresa"; id: number; label: string };
+  | { kind: "empresa"; id: number; label: string }
+  | { kind: "banner"; id: number; label: string };
 
 export default function AdminDashboard() {
   const { usuario, logout, isAdmin, updateUsuario } = useAuth();
@@ -73,6 +76,7 @@ export default function AdminDashboard() {
   const [notificaciones, setNotificaciones] = useState<NotificacionItem[]>([]);
   const [notificacionesLoading, setNotificacionesLoading] = useState(false);
   const [solicitudesCorporativas, setSolicitudesCorporativas] = useState<SolicitudCorporativa[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
 
   // Conteo real de notificaciones no leídas (cancelaciones, contacto,
   // corporativo, pagos — ver Notificacion en notificacion_model.py),
@@ -94,6 +98,18 @@ export default function AdminDashboard() {
   const verReserva = (id: number) => {
     setReservaParaAbrir(id);
     setActiveModule("reservas");
+  };
+
+  // Mismo mecanismo, para las tarjetas de KPI del Dashboard (sección 3 del
+  // plan de mejora): clic navega al módulo real con el filtro de estado ya
+  // aplicado, en vez de solo cambiar de pestaña y dejar que el admin lo
+  // vuelva a elegir manualmente.
+  const [estadoReservaInicial, setEstadoReservaInicial] = useState<string | null>(null);
+  const [estadoPagoInicial, setEstadoPagoInicial] = useState<string | null>(null);
+  const irAModuloConFiltro = (mod: Module, estado?: string) => {
+    if (mod === "reservas") setEstadoReservaInicial(estado ?? null);
+    if (mod === "pagos") setEstadoPagoInicial(estado ?? null);
+    setActiveModule(mod);
   };
 
   // ─── Dark mode via clase en <html> ───────────────────────────────────────
@@ -124,10 +140,11 @@ export default function AdminDashboard() {
     fetchActividad(actividadLimit);
     fetchNotificaciones();
     fetchEmpresas();
+    fetchBanners();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
-  const fetchReservas  = async () => { try { setReservas(await apiFetch<Reserva[]>("/reservas?limit=100"));      } catch {} };
+  const fetchReservas  = async () => { try { setReservas(await apiFetch<Reserva[]>("/reservas?limit=100"));      } catch { /* no crítico */ } };
   // TTL de 120s: mismo valor que usa el backend para cachear estas listas en
   // Redis (GET /hoteles, /clientes) — no tiene sentido que el navegador
   // guarde una copia "más fresca" que la que el propio backend serviría.
@@ -139,7 +156,7 @@ export default function AdminDashboard() {
       const fresh = await apiFetch<HotelData[]>("/hoteles/?limit=300");
       setHoteles(fresh);
       setLocalCache("admin_cache_hoteles", fresh, ADMIN_CACHE_TTL);
-    } catch {}
+    } catch { /* no crítico */ }
   };
   // incluir_inactivos=true: el admin necesita ver y poder reactivar los
   // paquetes desactivados (ver PaqueteRepository.get_all), a diferencia del
@@ -151,7 +168,7 @@ export default function AdminDashboard() {
       const fresh = await apiFetch<Paquete[]>("/paquetes?limit=300&incluir_inactivos=true");
       setPaquetes(fresh);
       setLocalCache("admin_cache_paquetes", fresh, ADMIN_CACHE_TTL);
-    } catch {}
+    } catch { /* no crítico */ }
   };
   const fetchClientes  = async () => {
     const cached = getLocalCache<Cliente[]>("admin_cache_clientes");
@@ -160,22 +177,22 @@ export default function AdminDashboard() {
       const fresh = await apiFetch<Cliente[]>("/clientes?limit=300");
       setClientes(fresh);
       setLocalCache("admin_cache_clientes", fresh, ADMIN_CACHE_TTL);
-    } catch {}
+    } catch { /* no crítico */ }
   };
-  const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch {} };
-  const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=300"));               } catch {} };
-  const fetchMetodosPago = async () => { try { setMetodosPago(await apiFetch<MetodoPago[]>("/metodos-pago"));    } catch {} };
+  const fetchEmpleados = async () => { try { setEmpleados(await apiFetch<Empleado[]>("/empleados?limit=100"));   } catch { /* no crítico */ } };
+  const fetchPagos     = async () => { try { setPagos(await apiFetch<Pago[]>("/pagos?limit=300"));               } catch { /* no crítico */ } };
+  const fetchMetodosPago = async () => { try { setMetodosPago(await apiFetch<MetodoPago[]>("/metodos-pago"));    } catch { /* no crítico */ } };
   const fetchUsuarios  = async () => {
     try {
       const [u, r] = await Promise.all([usuarioAdminService.getAll(), usuarioAdminService.getRoles()]);
       setUsuarios(u); setRoles(r);
-    } catch {}
+    } catch { /* no crítico */ }
   };
   // Todas las solicitudes de cancelación (no solo pendientes) — el módulo
   // de Cancelaciones necesita ver también las ya resueltas, y de acá se
   // deriva `pendingCancelaciones` para la campana del header.
   const fetchSolicitudes = async () => {
-    try { setSolicitudes(await solicitudCancelacionService.getAll()); } catch {}
+    try { setSolicitudes(await solicitudCancelacionService.getAll()); } catch { /* no crítico */ }
   };
 
   // Feed real de actividad (historial_reservas de TODAS las reservas, ver
@@ -205,7 +222,7 @@ export default function AdminDashboard() {
   // corporativas, pagos aprobados) — ver notificacion_route.py.
   const fetchNotificaciones = async () => {
     setNotificacionesLoading(true);
-    try { setNotificaciones(await notificacionService.getAll()); } catch {} finally { setNotificacionesLoading(false); }
+    try { setNotificaciones(await notificacionService.getAll()); } catch { /* no crítico */ } finally { setNotificacionesLoading(false); }
   };
 
   const marcarNotificacionLeida = async (id: number) => {
@@ -238,8 +255,48 @@ export default function AdminDashboard() {
   // Solicitudes corporativas reales — cada una llegó desde el formulario
   // público de /corporate (ver empresa_model.py / Corporate.tsx).
   const fetchEmpresas = async () => {
-    try { setSolicitudesCorporativas(await empresaService.getAll()); } catch {}
+    try { setSolicitudesCorporativas(await empresaService.getAll()); } catch { /* no crítico */ }
   };
+
+  // Banners publicitarios (sección 7 del plan de mejora) — listado completo
+  // (incluye inactivos/fuera de vigencia) para ModuleBanners.tsx; el sitio
+  // público usa GET /banners/activos directo (BannersPromocionales.tsx),
+  // sin pasar por este estado del admin.
+  const fetchBanners = async () => {
+    try { setBanners(await bannerService.getAll()); } catch { /* no crítico */ }
+  };
+
+  const submitBanner = async (data: BannerFormData, id?: number) => {
+    setLoading(true);
+    try {
+      if (id) await bannerService.update(id, data);
+      else await bannerService.create(data);
+      await fetchBanners();
+      toast.success(id ? "Banner actualizado correctamente" : "Banner creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo guardar el banner");
+      throw e;
+    } finally { setLoading(false); }
+  };
+
+  const toggleActivoBanner = async (banner: Banner) => {
+    try {
+      const actualizado = await bannerService.toggleActivo(banner.id_banner, !banner.activo);
+      setBanners(prev => prev.map(b => b.id_banner === actualizado.id_banner ? actualizado : b));
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo actualizar el estado del banner");
+    }
+  };
+
+  const reordenarBanners = async (items: { id_banner: number; orden: number }[]) => {
+    try {
+      setBanners(await bannerService.reordenar(items));
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo reordenar los banners");
+    }
+  };
+
+  const deleteBanner = (id: number) => setConfirmDelete({ kind: "banner", id, label: "este banner" });
 
   const updateEstadoEmpresa = async (id: number, estado: SolicitudCorporativa["estado"]) => {
     try {
@@ -294,6 +351,10 @@ export default function AdminDashboard() {
         await empresaService.delete(id);
         await fetchEmpresas();
         toast.success("Solicitud eliminada correctamente");
+      } else if (kind === "banner") {
+        await bannerService.delete(id);
+        await fetchBanners();
+        toast.success("Banner eliminado correctamente");
       }
     } catch (e: any) {
       toast.error(e?.message || "No se pudo completar la eliminación");
@@ -455,7 +516,7 @@ export default function AdminDashboard() {
 
   const MODULES: Record<Module, React.ReactNode> = {
     dashboard: (
-      <ModuleDashboard setActiveModule={setActiveModule} onVerReserva={verReserva} />
+      <ModuleDashboard setActiveModule={setActiveModule} onVerReserva={verReserva} onFiltrarModulo={irAModuloConFiltro} />
     ),
     reservas: (
       <ModuleReservas
@@ -465,6 +526,7 @@ export default function AdminDashboard() {
         onNueva={() => setActiveModule("crear-reserva")}
         onUpdateEstado={updateEstadoReserva}
         reservaIdInicial={reservaParaAbrir}
+        estadoInicial={estadoReservaInicial}
       />
     ),
     "crear-reserva": (
@@ -513,6 +575,7 @@ export default function AdminDashboard() {
         onUpdateEstado={updatePagoEstado} onDelete={deletePago}
         onUploadComprobante={uploadComprobantePago} onDeleteComprobante={deleteComprobantePago}
         onVerReserva={verReserva}
+        estadoInicial={estadoPagoInicial}
       />
     ),
     notificaciones: (
@@ -541,6 +604,16 @@ export default function AdminDashboard() {
       />
     ),
     configuracion: <ModuleConfiguracion />,
+    banners: (
+      <ModuleBanners
+        banners={banners}
+        onSubmit={submitBanner}
+        onDelete={deleteBanner}
+        onToggleActivo={toggleActivoBanner}
+        onReordenar={reordenarBanners}
+        loading={loading}
+      />
+    ),
     "mi-cuenta": (
       <ModuleMiCuenta
         usuario={usuario}
@@ -579,7 +652,7 @@ export default function AdminDashboard() {
         />
 
         {/* ── Main content ─────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 transition-colors duration-300 bg-background">
+        <main className="flex-1 overflow-y-auto p-6 transition-colors duration-300 bg-background">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeModule}
@@ -587,7 +660,7 @@ export default function AdminDashboard() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="max-w-7xl mx-auto"
+              className="max-w-screen-2xl mx-auto"
             >
               {MODULES[activeModule]}
             </motion.div>

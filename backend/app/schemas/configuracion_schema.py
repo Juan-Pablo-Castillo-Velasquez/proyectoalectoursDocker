@@ -1,25 +1,25 @@
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel
 
 
 class ConfiguracionCreate(BaseModel):
     clave: str
-    valor: Optional[str] = None
-    descripcion: Optional[str] = None
+    valor: str | None = None
+    descripcion: str | None = None
 
 
 class ConfiguracionUpdate(BaseModel):
-    valor: Optional[str] = None
-    descripcion: Optional[str] = None
+    valor: str | None = None
+    descripcion: str | None = None
 
 
 class ConfiguracionResponse(BaseModel):
     id_config: int
     clave: str
-    valor: Optional[str] = None
-    descripcion: Optional[str] = None
-    actualizado_en: Optional[datetime] = None
+    valor: str | None = None
+    descripcion: str | None = None
+    actualizado_en: datetime | None = None
 
     class Config:
         from_attributes = True

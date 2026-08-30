@@ -1,12 +1,14 @@
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.models.reserva_model import Reserva, HistorialReserva
+from sqlalchemy.orm import Session
+
+from app.models.reserva_model import HistorialReserva, Reserva
+
 
 class ReservaDetailRepository:
-
     @staticmethod
     def get_habitaciones(db: Session, reserva_id: int):
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT rh.id_habitacion, rh.fecha_checkin, rh.fecha_checkout,
                    rh.precio_acordado, h.numero_habitacion, h.precio_noche,
                    h.estado, th.nombre_tipo, hot.nombre_hotel
@@ -15,12 +17,15 @@ class ReservaDetailRepository:
             JOIN tipo_habitacion th ON th.id_tipo_habitacion = h.id_tipo_habitacion
             JOIN hoteles hot ON hot.id_hotel = h.id_hotel
             WHERE rh.id_reserva = :id
-        """), {"id": reserva_id}).fetchall()
+        """),
+            {"id": reserva_id},
+        ).fetchall()
         return [dict(r._mapping) for r in result]
 
     @staticmethod
     def get_servicios(db: Session, reserva_id: int):
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT rs.id_servicio, rs.fecha_servicio, rs.numero_personas,
                    rs.precio_acordado, s.nombre_servicio, s.descripcion,
                    s.duracion_horas, cs.nombre_categoria
@@ -28,7 +33,9 @@ class ReservaDetailRepository:
             JOIN servicios s ON s.id_servicio = rs.id_servicio
             LEFT JOIN categoria_servicio cs ON cs.id_categoria = s.id_categoria
             WHERE rs.id_reserva = :id
-        """), {"id": reserva_id}).fetchall()
+        """),
+            {"id": reserva_id},
+        ).fetchall()
         return [dict(r._mapping) for r in result]
 
     @staticmethod
@@ -40,7 +47,8 @@ class ReservaDetailRepository:
         get_historial — no crea ninguna tabla/columna nueva, solo agrega
         una consulta agregada sobre datos que ya existían.
         """
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT hr.id_historial, hr.id_reserva, hr.estado_anterior, hr.estado_nuevo,
                    hr.fecha_cambio, hr.comentarios,
                    COALESCE(e.nombre || ' ' || e.apellido, 'Sistema') AS nombre_empleado
@@ -48,7 +56,9 @@ class ReservaDetailRepository:
             LEFT JOIN empleados e ON e.id_empleado = hr.id_empleado_responsable
             ORDER BY hr.fecha_cambio DESC
             LIMIT :limit
-        """), {"limit": limit}).fetchall()
+        """),
+            {"limit": limit},
+        ).fetchall()
         return [dict(r._mapping) for r in result]
 
     @staticmethod
@@ -61,7 +71,8 @@ class ReservaDetailRepository:
         historial_reservas que ya alimenta el timeline y la actividad
         reciente del admin — ninguna tabla ni columna nueva.
         """
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT hr.id_historial, hr.id_reserva, hr.estado_anterior, hr.estado_nuevo,
                    hr.fecha_cambio, hr.comentarios
             FROM historial_reservas hr
@@ -70,12 +81,15 @@ class ReservaDetailRepository:
               AND hr.estado_anterior IS DISTINCT FROM hr.estado_nuevo
             ORDER BY hr.fecha_cambio DESC
             LIMIT :limit
-        """), {"id_cliente": id_cliente, "limit": limit}).fetchall()
+        """),
+            {"id_cliente": id_cliente, "limit": limit},
+        ).fetchall()
         return [dict(r._mapping) for r in result]
 
     @staticmethod
     def get_historial(db: Session, reserva_id: int):
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT hr.id_historial, hr.estado_anterior, hr.estado_nuevo,
                    hr.fecha_cambio, hr.comentarios,
                    COALESCE(e.nombre || ' ' || e.apellido, 'Sistema') AS nombre_empleado
@@ -83,7 +97,9 @@ class ReservaDetailRepository:
             LEFT JOIN empleados e ON e.id_empleado = hr.id_empleado_responsable
             WHERE hr.id_reserva = :id
             ORDER BY hr.fecha_cambio ASC
-        """), {"id": reserva_id}).fetchall()
+        """),
+            {"id": reserva_id},
+        ).fetchall()
         return [dict(r._mapping) for r in result]
 
     @staticmethod

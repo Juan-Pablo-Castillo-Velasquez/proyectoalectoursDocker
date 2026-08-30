@@ -31,7 +31,8 @@ export type Module =
   | "roles"
   | "actividad"
   | "configuracion"
-  | "mi-cuenta";
+  | "mi-cuenta"
+  | "banners";
 
 export interface Reserva {
   id_reserva: number;

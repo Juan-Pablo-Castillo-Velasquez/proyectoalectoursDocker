@@ -1,6 +1,6 @@
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel
 
 from app.schemas.hotel_schema import HotelDetailResponse
 
@@ -12,8 +12,8 @@ class FavoritoCreate(BaseModel):
 class FavoritoResponse(BaseModel):
     id_favorito: int
     id_hotel: int
-    fecha_creacion: Optional[datetime] = None
-    hotel: Optional[HotelDetailResponse] = None
+    fecha_creacion: datetime | None = None
+    hotel: HotelDetailResponse | None = None
 
     class Config:
         from_attributes = True

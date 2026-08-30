@@ -1,16 +1,16 @@
 # services/auth_service.py
 
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from app.repositories.user_repository import get_user_by_username, get_user_by_email, create_user
 from app.core.security import (
+    create_verification_token,
+    generate_token_pair,
     hash_password,
     verify_password,
-    generate_token_pair,
-    create_verification_token,
     verify_verification_token,
 )
+from app.repositories.user_repository import create_user, get_user_by_email, get_user_by_username
 
 
 def register_user(db: Session, username: str, email: str, password: str):
@@ -19,9 +19,8 @@ def register_user(db: Session, username: str, email: str, password: str):
         return {"error": "El nombre de usuario ya existe"}
 
     from app.models.user_model import Usuario
-    existing_email = db.query(Usuario).filter(
-        Usuario.correo_electronico == email
-    ).first()
+
+    existing_email = db.query(Usuario).filter(Usuario.correo_electronico == email).first()
     if existing_email:
         return {"error": "El correo electrónico ya está registrado"}
 
@@ -36,10 +35,7 @@ def register_user(db: Session, username: str, email: str, password: str):
     user = create_user(db, user_data)
     verification_token = create_verification_token(email)
 
-    db.execute(
-        text("INSERT INTO usuarios_roles (id_usuario, id_rol) VALUES (:uid, 2)"),
-        {"uid": user.id_usuario}
-    )
+    db.execute(text("INSERT INTO usuarios_roles (id_usuario, id_rol) VALUES (:uid, 2)"), {"uid": user.id_usuario})
     db.commit()
 
     return {
@@ -72,18 +68,20 @@ def login_user(db: Session, correo_electronico: str, password: str):
             JOIN usuarios_roles ur ON r.id_rol = ur.id_rol
             WHERE ur.id_usuario = :uid
         """),
-        {"uid": user.id_usuario}
+        {"uid": user.id_usuario},
     ).fetchall()
     roles = [r.nombre_rol for r in rows]
 
     tokens = generate_token_pair(user.id_usuario, roles=roles)
-    tokens.update({
-        "user_id": user.id_usuario,
-        "username": user.username,
-        "id_cliente": user.id_cliente,
-        "roles": roles,
-        "foto_perfil": user.foto_perfil,
-    })
+    tokens.update(
+        {
+            "user_id": user.id_usuario,
+            "username": user.username,
+            "id_cliente": user.id_cliente,
+            "roles": roles,
+            "foto_perfil": user.foto_perfil,
+        }
+    )
     return tokens
 
 

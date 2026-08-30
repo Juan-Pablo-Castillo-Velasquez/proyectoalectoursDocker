@@ -35,7 +35,7 @@ export default function ModuleConfiguracion() {
 
   const cargar = async () => {
     setLoading(true);
-    try { setItems(await configuracionService.getAll()); } catch {} finally { setLoading(false); }
+    try { setItems(await configuracionService.getAll()); } catch { /* no crítico */ } finally { setLoading(false); }
   };
   useEffect(() => { cargar(); }, []);
 

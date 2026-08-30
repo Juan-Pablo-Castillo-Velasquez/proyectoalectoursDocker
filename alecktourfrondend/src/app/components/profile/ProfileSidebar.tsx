@@ -9,7 +9,6 @@ import {
   Plane,
   Settings,
   SlidersHorizontal,
-  Star,
   User,
 } from "lucide-react";
 import { BASE_URL } from "../../api/v1/api";
@@ -82,12 +81,6 @@ export default function ProfileSidebar({
           <p className="text-xs text-muted-foreground mt-0.5">
             @{usuario?.username || "viajero"}
           </p>
-          <div className="flex items-center justify-center gap-1 mt-2 vip-chip px-2.5 py-0.5 rounded-full w-max mx-auto">
-            <Star className="w-3 h-3 fill-current" />
-            <span className="text-[11px] font-bold uppercase tracking-wider">
-              Viajero VIP
-            </span>
-          </div>
         </div>
 
         {/* Contadores Semánticos */}
@@ -179,7 +172,7 @@ export default function ProfileSidebar({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -198,7 +191,7 @@ export default function ProfileSidebar({
         {/* Botón de Salida Destructivo */}
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 transition-all duration-200 mt-2 cursor-pointer"
+          className="w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 transition-all duration-200 mt-2 cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           Cerrar sesión

@@ -110,6 +110,22 @@ export default function Benefits() {
           </div>
         </section>
 
+        {/* Aviso: el programa todavía no está activo */}
+        <section className="py-6">
+          <div className="max-w-4xl mx-auto px-4">
+            <div className="flex items-start gap-3 bg-secondary/10 border border-secondary/30 rounded-2xl p-5">
+              <Sparkles className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-foreground text-sm">Próximamente</p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  AlecTours Rewards todavía no está activo. Lo de abajo es un adelanto de cómo
+                  funcionará — por ahora ninguna reserva acumula puntos ni existen niveles reales.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Benefits Grid */}
         <section className="py-20">
           <div className="max-w-7xl mx-auto px-4">
@@ -218,10 +234,10 @@ export default function Benefits() {
             >
               <div className="absolute top-0 right-0 w-40 h-40 bg-primary-foreground/10 rounded-full blur-3xl -mr-10 -mt-10" />
               <h2 className="text-4xl font-bold mb-6">
-                ¿Listo para empezar a ganar?
+                ¿Quieres ser de los primeros en enterarte?
               </h2>
               <p className="text-xl mb-8 text-primary-foreground/90 font-light max-w-2xl mx-auto">
-                Regístrate hoy y comienza a acumular puntos en tu próximo viaje con AlecTours.
+                Crea tu cuenta y te avisaremos en cuanto AlecTours Rewards esté disponible.
               </p>
               <motion.a
                 whileHover={{ scale: 1.05 }}
@@ -229,7 +245,7 @@ export default function Benefits() {
                 href="/register"
                 className="inline-block px-10 py-4 bg-primary-foreground text-primary rounded-full font-bold text-lg shadow-md hover:shadow-2xl transition-all cursor-pointer"
               >
-                Únete ahora gratis
+                Crear mi cuenta
               </motion.a>
             </motion.div>
           </div>

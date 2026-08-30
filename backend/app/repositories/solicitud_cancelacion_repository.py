@@ -1,24 +1,26 @@
 # Guardar como: backend/app/repositories/solicitud_cancelacion_repository.py
 
 from sqlalchemy.orm import Session
-from app.models.reserva_model import SolicitudCancelacion, Reserva
+
+from app.models.reserva_model import SolicitudCancelacion
 
 
 class SolicitudCancelacionRepository:
-
     @staticmethod
     def get_by_id(db: Session, id_solicitud: int):
-        return db.query(SolicitudCancelacion).filter(
-            SolicitudCancelacion.id_solicitud == id_solicitud
-        ).first()
+        return db.query(SolicitudCancelacion).filter(SolicitudCancelacion.id_solicitud == id_solicitud).first()
 
     @staticmethod
     def get_pendiente_by_reserva(db: Session, id_reserva: int):
         """Solicitud pendiente actual de esa reserva, si existe."""
-        return db.query(SolicitudCancelacion).filter(
-            SolicitudCancelacion.id_reserva == id_reserva,
-            SolicitudCancelacion.estado == "pendiente",
-        ).first()
+        return (
+            db.query(SolicitudCancelacion)
+            .filter(
+                SolicitudCancelacion.id_reserva == id_reserva,
+                SolicitudCancelacion.estado == "pendiente",
+            )
+            .first()
+        )
 
     @staticmethod
     def get_by_cliente(db: Session, id_cliente: int, skip: int = 0, limit: int = 10):

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP, func
+from sqlalchemy import TIMESTAMP, Boolean, Column, Integer, String, Text, func
+
 from app.core.database import Base
 
 
@@ -8,6 +9,7 @@ class Notificacion(Base):
     solicitud corporativa, pago aprobado...) vía
     app.services.notificacion_service.crear_notificacion. Nunca se inserta
     una fila con datos inventados."""
+
     __tablename__ = "notificaciones"
 
     id_notificacion = Column(Integer, primary_key=True, index=True)

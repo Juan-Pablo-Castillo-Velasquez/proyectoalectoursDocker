@@ -1,6 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, ForeignKey, CheckConstraint, UniqueConstraint, Numeric
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from app.core.database import Base
 
@@ -47,14 +46,18 @@ class Caracteristica(Base):
     id_caracteristica = Column(Integer, primary_key=True, index=True)
     nombre_caracteristica = Column(String(100), unique=True, nullable=False)
 
-    hotel_caracteristicas = relationship("HotelCaracteristica", back_populates="caracteristica", cascade="all, delete-orphan")
+    hotel_caracteristicas = relationship(
+        "HotelCaracteristica", back_populates="caracteristica", cascade="all, delete-orphan"
+    )
 
 
 class HotelCaracteristica(Base):
     __tablename__ = "hotel_caracteristicas"
 
     id_hotel = Column(Integer, ForeignKey("hoteles.id_hotel", ondelete="CASCADE"), primary_key=True)
-    id_caracteristica = Column(Integer, ForeignKey("caracteristicas_hotel.id_caracteristica", ondelete="CASCADE"), primary_key=True)
+    id_caracteristica = Column(
+        Integer, ForeignKey("caracteristicas_hotel.id_caracteristica", ondelete="CASCADE"), primary_key=True
+    )
     disponible = Column(Boolean, default=True)
 
     hotel = relationship("Hotel", back_populates="hotel_caracteristicas")
@@ -86,6 +89,4 @@ class Habitacion(Base):
     tipo_habitacion = relationship("TipoHabitacion", back_populates="habitaciones")
     reserva_habitaciones = relationship("ReservaHabitacion", back_populates="habitacion")
 
-    __table_args__ = (
-        UniqueConstraint('id_hotel', 'numero_habitacion', name='uq_hotel_numero'),
-    )
+    __table_args__ = (UniqueConstraint("id_hotel", "numero_habitacion", name="uq_hotel_numero"),)

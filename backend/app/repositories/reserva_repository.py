@@ -1,16 +1,29 @@
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, and_, or_
-from app.models.reserva_model import Reserva, Paquete, PaqueteHotel, PaqueteServicio, Pago, MetodoPago, HistorialReserva, ReservaHabitacion, ReservaServicio
-from app.models.hotel_model import Habitacion, Hotel
-from app.models.servicio_model import Servicio
+
 from app.core.exceptions import (
-    ReservaDependencyError, PaqueteDependencyError, NotFoundError,
-    HabitacionNoDisponibleError, HabitacionNoEncontradaError, PaqueteNoEncontradoError,
+    HabitacionNoDisponibleError,
+    HabitacionNoEncontradaError,
+    NotFoundError,
+    PaqueteDependencyError,
+    PaqueteNoEncontradoError,
+    ReservaDependencyError,
 )
+from app.models.hotel_model import Habitacion, Hotel
+from app.models.reserva_model import (
+    MetodoPago,
+    Pago,
+    Paquete,
+    PaqueteHotel,
+    PaqueteServicio,
+    Reserva,
+    ReservaHabitacion,
+    ReservaServicio,
+)
+from app.models.servicio_model import Servicio
 
 
 class PaqueteRepository:
-
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10, incluir_inactivos: bool = False):
         # El sitio público solo debe ver paquetes activos (comportamiento
@@ -19,13 +32,13 @@ class PaqueteRepository:
         # desactivados (delete_paquete solo los desactiva, nunca los borra).
         query = db.query(Paquete)
         if not incluir_inactivos:
-            query = query.filter(Paquete.activo == True)
+            query = query.filter(Paquete.activo)
         return query.order_by(Paquete.id_paquete).offset(skip).limit(limit).all()
-    
+
     @staticmethod
     def get_by_id(db: Session, paquete_id: int):
         return db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
-    
+
     @staticmethod
     def _sync_hoteles(db: Session, paquete_id: int, hoteles_data: list):
         """Sincroniza paquete_hotel con la lista real recibida — antes esta
@@ -41,16 +54,13 @@ class PaqueteRepository:
             return
 
         ids_pedidos = [h["id_hotel"] for h in hoteles_data]
-        hoteles_reales = set(
-            row[0] for row in db.query(Hotel.id_hotel).filter(Hotel.id_hotel.in_(ids_pedidos)).all()
-        )
+        hoteles_reales = {row[0] for row in db.query(Hotel.id_hotel).filter(Hotel.id_hotel.in_(ids_pedidos)).all()}
         faltantes = set(ids_pedidos) - hoteles_reales
         if faltantes:
             raise NotFoundError(f"Hotel(es) no encontrado(s): {sorted(faltantes)}")
 
         existentes = {
-            ph.id_hotel: ph
-            for ph in db.query(PaqueteHotel).filter(PaqueteHotel.id_paquete == paquete_id).all()
+            ph.id_hotel: ph for ph in db.query(PaqueteHotel).filter(PaqueteHotel.id_paquete == paquete_id).all()
         }
         ids_nuevos = set(ids_pedidos)
         for id_hotel, ph in existentes.items():
@@ -78,9 +88,9 @@ class PaqueteRepository:
             return
 
         ids_pedidos = [s["id_servicio"] for s in servicios_data]
-        servicios_reales = set(
+        servicios_reales = {
             row[0] for row in db.query(Servicio.id_servicio).filter(Servicio.id_servicio.in_(ids_pedidos)).all()
-        )
+        }
         faltantes = set(ids_pedidos) - servicios_reales
         if faltantes:
             raise NotFoundError(f"Servicio(s) no encontrado(s): {sorted(faltantes)}")
@@ -102,10 +112,14 @@ class PaqueteRepository:
                 existentes[id_servicio].dia_actividad = dia_actividad
                 existentes[id_servicio].incluido = incluido
             else:
-                db.add(PaqueteServicio(
-                    id_paquete=paquete_id, id_servicio=id_servicio,
-                    dia_actividad=dia_actividad, incluido=incluido,
-                ))
+                db.add(
+                    PaqueteServicio(
+                        id_paquete=paquete_id,
+                        id_servicio=id_servicio,
+                        dia_actividad=dia_actividad,
+                        incluido=incluido,
+                    )
+                )
 
     @staticmethod
     def create(db: Session, paquete_data: dict):
@@ -123,7 +137,7 @@ class PaqueteRepository:
         db.commit()
         db.refresh(paquete)
         return paquete
-    
+
     @staticmethod
     def update(db: Session, paquete_id: int, paquete_data: dict):
         paquete = db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
@@ -147,21 +161,19 @@ class PaqueteRepository:
             db.commit()
             db.refresh(paquete)
         return paquete
-    
+
     @staticmethod
     def delete(db: Session, paquete_id: int):
         paquete = db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
         if not paquete:
             raise NotFoundError(f"Paquete con ID {paquete_id} no encontrado")
-        
+
         # Verificar si hay reservas usando este paquete
-        reservas_count = db.query(func.count(Reserva.id_reserva)).filter(
-            Reserva.id_paquete == paquete_id
-        ).scalar() or 0
-        
+        reservas_count = db.query(func.count(Reserva.id_reserva)).filter(Reserva.id_paquete == paquete_id).scalar() or 0
+
         if reservas_count > 0:
             raise PaqueteDependencyError(paquete_id, reservas_count)
-        
+
         paquete.activo = False
         db.commit()
         db.refresh(paquete)
@@ -169,7 +181,6 @@ class PaqueteRepository:
 
 
 class ReservaRepository:
-    
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
         # joinedload evita N+1 al resolver Reserva.precio_total / .nombre_paquete
@@ -180,7 +191,9 @@ class ReservaRepository:
             db.query(Reserva)
             .options(
                 joinedload(Reserva.paquete).joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel),
-                joinedload(Reserva.reserva_habitaciones).joinedload(ReservaHabitacion.habitacion).joinedload(Habitacion.hotel),
+                joinedload(Reserva.reserva_habitaciones)
+                .joinedload(ReservaHabitacion.habitacion)
+                .joinedload(Habitacion.hotel),
                 joinedload(Reserva.reserva_servicios),
                 joinedload(Reserva.historial_reservas),
             )
@@ -188,11 +201,11 @@ class ReservaRepository:
             .limit(limit)
             .all()
         )
-    
+
     @staticmethod
     def get_by_id(db: Session, reserva_id: int):
         return db.query(Reserva).filter(Reserva.id_reserva == reserva_id).first()
-    
+
     @staticmethod
     def get_by_cliente(db: Session, cliente_id: int, skip: int = 0, limit: int = 10):
         # joinedload evita N+1 al resolver Reserva.nombre_paquete / Reserva.destino
@@ -203,14 +216,16 @@ class ReservaRepository:
             db.query(Reserva)
             .options(
                 joinedload(Reserva.paquete).joinedload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel),
-                joinedload(Reserva.reserva_habitaciones).joinedload(ReservaHabitacion.habitacion).joinedload(Habitacion.hotel),
+                joinedload(Reserva.reserva_habitaciones)
+                .joinedload(ReservaHabitacion.habitacion)
+                .joinedload(Habitacion.hotel),
             )
             .filter(Reserva.id_cliente == cliente_id)
             .offset(skip)
             .limit(limit)
             .all()
         )
-    
+
     @staticmethod
     def get_by_estado(db: Session, estado: str, skip: int = 0, limit: int = 10):
         return db.query(Reserva).filter(Reserva.estado == estado).offset(skip).limit(limit).all()
@@ -298,7 +313,7 @@ class ReservaRepository:
         db.commit()
         db.refresh(reserva)
         return reserva
-    
+
     @staticmethod
     def update(db: Session, reserva_id: int, reserva_data: dict):
         reserva = db.query(Reserva).filter(Reserva.id_reserva == reserva_id).first()
@@ -309,38 +324,39 @@ class ReservaRepository:
             db.commit()
             db.refresh(reserva)
         return reserva
-    
+
     @staticmethod
     def delete(db: Session, reserva_id: int):
         reserva = db.query(Reserva).filter(Reserva.id_reserva == reserva_id).first()
         if not reserva:
             raise NotFoundError(f"Reserva con ID {reserva_id} no encontrada")
-        
+
         # Verificar si tiene pagos
-        pagos_count = db.query(func.count(Pago.id_pago)).filter(
-            Pago.id_reserva == reserva_id
-        ).scalar() or 0
-        
+        pagos_count = db.query(func.count(Pago.id_pago)).filter(Pago.id_reserva == reserva_id).scalar() or 0
+
         # Verificar si tiene habitaciones asignadas
-        habitaciones_count = db.query(func.count(ReservaHabitacion.id_reserva)).filter(
-            ReservaHabitacion.id_reserva == reserva_id
-        ).scalar() or 0
-        
+        habitaciones_count = (
+            db.query(func.count(ReservaHabitacion.id_reserva))
+            .filter(ReservaHabitacion.id_reserva == reserva_id)
+            .scalar()
+            or 0
+        )
+
         # Verificar si tiene servicios asignados
-        servicios_count = db.query(func.count(ReservaServicio.id_reserva)).filter(
-            ReservaServicio.id_reserva == reserva_id
-        ).scalar() or 0
-        
+        servicios_count = (
+            db.query(func.count(ReservaServicio.id_reserva)).filter(ReservaServicio.id_reserva == reserva_id).scalar()
+            or 0
+        )
+
         if pagos_count > 0 or habitaciones_count > 0 or servicios_count > 0:
             raise ReservaDependencyError(reserva_id, pagos_count, habitaciones_count, servicios_count)
-        
+
         db.delete(reserva)
         db.commit()
         return reserva
 
 
 class PagoRepository:
-    
     @staticmethod
     def get_all(db: Session, skip: int = 0, limit: int = 10):
         # BUG del mismo patrón encontrado en todos los demás módulos: sin
@@ -349,11 +365,11 @@ class PagoRepository:
         # arbitrario e inestable entre requests — afecta directamente qué
         # pago "más representativo" ve el admin en ModuleReservas.tsx.
         return db.query(Pago).order_by(Pago.fecha_pago.desc()).offset(skip).limit(limit).all()
-    
+
     @staticmethod
     def get_by_id(db: Session, pago_id: int):
         return db.query(Pago).filter(Pago.id_pago == pago_id).first()
-    
+
     @staticmethod
     def get_by_reserva(db: Session, reserva_id: int):
         return db.query(Pago).filter(Pago.id_reserva == reserva_id).all()
@@ -368,17 +384,19 @@ class PagoRepository:
         en pagar_reserva y creaba un SEGUNDO Pago para la misma reserva
         (riesgo real de cobro duplicado). Se llama antes de crear cualquier
         Pago nuevo."""
-        return (
-            db.query(Pago)
-            .filter(Pago.id_reserva == reserva_id, Pago.estado == "procesando")
-            .first()
-            is not None
-        )
+        return db.query(Pago).filter(Pago.id_reserva == reserva_id, Pago.estado == "procesando").first() is not None
 
     @staticmethod
     def get_by_estado(db: Session, estado: str, skip: int = 0, limit: int = 10):
-        return db.query(Pago).filter(Pago.estado == estado).order_by(Pago.fecha_pago.desc()).offset(skip).limit(limit).all()
-    
+        return (
+            db.query(Pago)
+            .filter(Pago.estado == estado)
+            .order_by(Pago.fecha_pago.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
     @staticmethod
     def create(db: Session, pago_data: dict):
         pago = Pago(**pago_data, estado="pendiente")
@@ -386,7 +404,7 @@ class PagoRepository:
         db.commit()
         db.refresh(pago)
         return pago
-    
+
     @staticmethod
     def update(db: Session, pago_id: int, pago_data: dict):
         pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
@@ -397,7 +415,7 @@ class PagoRepository:
             db.commit()
             db.refresh(pago)
         return pago
-    
+
     @staticmethod
     def delete(db: Session, pago_id: int):
         pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
@@ -408,15 +426,14 @@ class PagoRepository:
 
 
 class MetodoPagoRepository:
-    
     @staticmethod
     def get_all(db: Session):
         return db.query(MetodoPago).all()
-    
+
     @staticmethod
     def get_by_id(db: Session, metodo_id: int):
         return db.query(MetodoPago).filter(MetodoPago.id_metodo == metodo_id).first()
-    
+
     @staticmethod
     def create(db: Session, metodo_data: dict):
         metodo = MetodoPago(**metodo_data)

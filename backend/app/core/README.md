@@ -31,6 +31,7 @@ print(settings.SECRET_KEY)
 from app.core.database import get_db
 from sqlalchemy.orm import Session
 
+
 @router.get("/users")
 async def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
@@ -58,7 +59,7 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
     get_user_from_token,
-    generate_token_pair
+    generate_token_pair,
 )
 
 # Hashear contraseña
@@ -93,14 +94,16 @@ from fastapi.security import HTTPBearer, HTTPAuthCredentials
 security = HTTPBearer()
 router = APIRouter()
 
+
 def get_current_user(credentials: HTTPAuthCredentials = Depends(security)):
     token = credentials.credentials
     user_id = get_user_from_token(token)
-    
+
     if user_id is None:
         raise HTTPException(status_code=401, detail="Token inválido")
-    
+
     return user_id
+
 
 @router.get("/me")
 async def get_profile(user_id: int = Depends(get_current_user)):
@@ -121,33 +124,20 @@ from app.core.mail import (
     send_verification_email,
     send_password_reset_email,
     send_reservation_confirmation,
-    send_cancellation_email
+    send_cancellation_email,
 )
 
 # Email genérico
-await send_email(
-    email="user@example.com",
-    subject="Hola",
-    body="Este es el cuerpo",
-    html_body="<h1>Este es HTML</h1>"
-)
+await send_email(email="user@example.com", subject="Hola", body="Este es el cuerpo", html_body="<h1>Este es HTML</h1>")
 
 # Email de bienvenida
 await send_welcome_email("user@example.com", "Juan")
 
 # Email de verificación
-await send_verification_email(
-    "user@example.com",
-    token="jwt_token_aqui",
-    base_url="http://localhost:3000"
-)
+await send_verification_email("user@example.com", token="jwt_token_aqui", base_url="http://localhost:3000")
 
 # Email de reset de contraseña
-await send_password_reset_email(
-    "user@example.com",
-    token="jwt_token_aqui",
-    base_url="http://localhost:3000"
-)
+await send_password_reset_email("user@example.com", token="jwt_token_aqui", base_url="http://localhost:3000")
 
 # Confirmación de reserva
 await send_reservation_confirmation(
@@ -157,15 +147,12 @@ await send_reservation_confirmation(
     check_in="2026-06-10",
     check_out="2026-06-15",
     total_price=500.00,
-    guest_name="Juan Pérez"
+    guest_name="Juan Pérez",
 )
 
 # Cancelación de reserva
 await send_cancellation_email(
-    email="guest@example.com",
-    reservation_id=123,
-    guest_name="Juan Pérez",
-    refund_amount=400.00
+    email="guest@example.com", reservation_id=123, guest_name="Juan Pérez", refund_amount=400.00
 )
 ```
 

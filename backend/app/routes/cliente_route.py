@@ -1,19 +1,26 @@
 import logging
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
-from app.core.security import verify_password, hash_password, require_admin
-from app.core.deps import get_current_usuario, exigir_propietario_o_admin, usuario_es_admin
-from app.core.cache import get_cached, set_cached, delete_pattern
+from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_admin
 from app.core.exceptions import ClienteDependencyError, EmpleadoDependencyError, NotFoundError
-from app.schemas.cliente_schema import ClienteCreate, ClienteUpdate, ClienteResponse, EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse
-from app.schemas.metodo_pago_guardado_schema import MetodoPagoGuardadoResponse
-from app.repositories.cliente_repository import ClienteRepository, EmpleadoRepository
-from app.models.user_model import Usuario
+from app.core.security import hash_password, require_admin, verify_password
 from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
+from app.models.user_model import Usuario
+from app.repositories.cliente_repository import ClienteRepository, EmpleadoRepository
+from app.schemas.cliente_schema import (
+    ClienteCreate,
+    ClienteResponse,
+    ClienteUpdate,
+    EmpleadoCreate,
+    EmpleadoResponse,
+    EmpleadoUpdate,
+)
+from app.schemas.metodo_pago_guardado_schema import MetodoPagoGuardadoResponse
 
 router = APIRouter(prefix="/api", tags=["Clientes y Empleados"])
 
@@ -22,8 +29,14 @@ logger = logging.getLogger(__name__)
 
 # ===================== CLIENTES CRUD =====================
 
+
 @router.get("/clientes", response_model=list[ClienteResponse])
-def get_clientes(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=300), db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def get_clientes(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=300),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
     # Cacheado 2 min: este listado lo pide el panel de admin completo
     # (?limit=100) cada vez que se abre — invalidado en cualquier escritura
     # de cliente (crear/editar/eliminar) o de su foto de perfil (usuario_route.py).
@@ -43,7 +56,7 @@ def get_cliente(
     cliente_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     exigir_propietario_o_admin(current_user, cliente_id, authorization)
     cliente = ClienteRepository.get_by_id(db, cliente_id)
@@ -74,7 +87,9 @@ def get_metodos_pago_cliente(cliente_id: int, db: Session = Depends(get_db), adm
 
 
 @router.post("/clientes", response_model=ClienteResponse, status_code=201)
-def create_cliente(cliente: ClienteCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_usuario)):
+def create_cliente(
+    cliente: ClienteCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_usuario)
+):
     if ClienteRepository.get_by_cedula(db, cliente.cedula):
         raise HTTPException(status_code=400, detail="Cliente con esa cédula ya existe")
     if cliente.correo and ClienteRepository.get_by_email(db, cliente.correo):
@@ -91,13 +106,14 @@ class CambiarContrasenaRequest(BaseModel):
     contrasena_actual: str
     nueva_contrasena: str
 
+
 @router.put("/clientes/{cliente_id}/cambiar-contrasena")
 def cambiar_contrasena(
     cliente_id: int,
     data: CambiarContrasenaRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     # Antes cualquiera en internet podía llamar esto sin sesión (solo pedía
     # la contraseña actual, sin límite de intentos ni verificación de quién
@@ -120,8 +136,11 @@ def cambiar_contrasena(
     usuario.password_hash = hash_password(data.nueva_contrasena)
     db.commit()
     return {"message": "Contraseña actualizada correctamente"}
+
+
 class VincularClienteRequest(BaseModel):
     id_cliente: int
+
 
 @router.put("/usuarios/{usuario_id}/vincular-cliente")
 def vincular_cliente(
@@ -129,7 +148,7 @@ def vincular_cliente(
     data: VincularClienteRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     # CRÍTICO (Fase 0 del plan de mejora): antes este endpoint no exigía
     # ninguna autenticación — cualquiera en internet podía vincular
@@ -146,9 +165,7 @@ def vincular_cliente(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     ya_vinculado = (
-        db.query(Usuario)
-        .filter(Usuario.id_cliente == data.id_cliente, Usuario.id_usuario != usuario_id)
-        .first()
+        db.query(Usuario).filter(Usuario.id_cliente == data.id_cliente, Usuario.id_usuario != usuario_id).first()
     )
     if ya_vinculado:
         raise HTTPException(status_code=409, detail="Ese cliente ya está vinculado a otro usuario")
@@ -157,13 +174,14 @@ def vincular_cliente(
     db.commit()
     return {"message": "Cliente vinculado correctamente"}
 
+
 @router.put("/clientes/{cliente_id}", response_model=ClienteResponse)
 def update_cliente(
     cliente_id: int,
     cliente: ClienteUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     exigir_propietario_o_admin(current_user, cliente_id, authorization)
     if not ClienteRepository.get_by_id(db, cliente_id):
@@ -181,22 +199,28 @@ def update_cliente(
 @router.delete("/clientes/{cliente_id}")
 def delete_cliente(cliente_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
     try:
-        resultado = ClienteRepository.delete(db, cliente_id)
+        ClienteRepository.delete(db, cliente_id)
         delete_pattern("clientes:list:*")
         return {"message": "Cliente eliminado exitosamente"}
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except ClienteDependencyError as e:
-        raise HTTPException(status_code=409, detail=e.detail)
+        raise HTTPException(status_code=409, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 # ===================== EMPLEADOS CRUD =====================
 
+
 @router.get("/empleados", response_model=list[EmpleadoResponse])
-def get_empleados(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def get_empleados(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
     cache_key = f"empleados:list:{skip}:{limit}"
     cached = get_cached(cache_key)
     if cached is not None:
@@ -209,7 +233,12 @@ def get_empleados(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=10
 
 
 @router.get("/empleados/activos/lista", response_model=list[EmpleadoResponse])
-def get_empleados_activos(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def get_empleados_activos(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
     return EmpleadoRepository.get_activos(db, skip, limit)
 
 
@@ -233,7 +262,9 @@ def create_empleado(empleado: EmpleadoCreate, db: Session = Depends(get_db), adm
 
 
 @router.put("/empleados/{empleado_id}", response_model=EmpleadoResponse)
-def update_empleado(empleado_id: int, empleado: EmpleadoUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def update_empleado(
+    empleado_id: int, empleado: EmpleadoUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     if not EmpleadoRepository.get_by_id(db, empleado_id):
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
     actualizado = EmpleadoRepository.update(db, empleado_id, empleado.dict(exclude_unset=True))
@@ -248,9 +279,9 @@ def delete_empleado(empleado_id: int, db: Session = Depends(get_db), admin_id: i
         delete_pattern("empleados:list:*")
         return {"message": "Empleado eliminado exitosamente"}
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except EmpleadoDependencyError as e:
-        raise HTTPException(status_code=409, detail=e.detail)
+        raise HTTPException(status_code=409, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e

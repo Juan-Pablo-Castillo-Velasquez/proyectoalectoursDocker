@@ -1,5 +1,4 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
 
 
 class UsuarioAdminResponse(BaseModel):
@@ -8,9 +7,9 @@ class UsuarioAdminResponse(BaseModel):
     correo_electronico: str
     activo: bool
     verificado: bool
-    nombre_completo: Optional[str] = None
-    roles: List[str] = []
-    foto_perfil: Optional[str] = None
+    nombre_completo: str | None = None
+    roles: list[str] = []
+    foto_perfil: str | None = None
 
     class Config:
         from_attributes = True
@@ -20,13 +19,13 @@ class UsuarioAdminCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     correo_electronico: EmailStr
     password: str = Field(..., min_length=8)
-    roles: List[str] = []
+    roles: list[str] = []
 
 
 class UsuarioAdminUpdate(BaseModel):
-    activo: Optional[bool] = None
-    verificado: Optional[bool] = None
-    roles: Optional[List[str]] = None
+    activo: bool | None = None
+    verificado: bool | None = None
+    roles: list[str] | None = None
 
 
 class RolResponse(BaseModel):

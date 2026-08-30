@@ -2,21 +2,16 @@
 Módulo de correo electrónico - Envío de emails con SMTP directo
 Configurado para Mailpit (desarrollo) — sin TLS, sin autenticación
 """
-   
 
-from typing import Optional
 import os
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from app.core.config import settings
 
-async def send_email(
-    email: str,
-    subject: str,
-    body: str,
-    html_body: Optional[str] = None
-) -> bool:
+
+async def send_email(email: str, subject: str, body: str, html_body: str | None = None) -> bool:
     """
     Envía un email simple o con cuerpo HTML usando SMTP directo.
 
@@ -145,6 +140,7 @@ El equipo de AlecTours
 
     return await send_email(email, subject, body, html_body)
 
+
 async def send_password_reset_email(
     email: str,
     reset_token: str,
@@ -168,14 +164,9 @@ async def send_password_reset_email(
     """
     return await send_email(email, subject, body, html_body)
 
+
 async def send_reservation_confirmation(
-    email: str,
-    reservation_id: int,
-    hotel_name: str,
-    check_in: str,
-    check_out: str,
-    total_price: float,
-    guest_name: str
+    email: str, reservation_id: int, hotel_name: str, check_in: str, check_out: str, total_price: float, guest_name: str
 ) -> bool:
     """
     Envía confirmación de reserva.
@@ -244,10 +235,7 @@ El equipo de AlecTours
 
 
 async def send_cancellation_email(
-    email: str,
-    reservation_id: int,
-    guest_name: str,
-    refund_amount: Optional[float] = None
+    email: str, reservation_id: int, guest_name: str, refund_amount: float | None = None
 ) -> bool:
     """
     Envía confirmación de cancelación de reserva.
@@ -269,8 +257,7 @@ El equipo de AlecTours
     """.strip()
 
     refund_html = (
-        f'<p style="color: #28a745;">Reembolso: <strong>${refund_amount:.2f}</strong></p>'
-        if refund_amount else ""
+        f'<p style="color: #28a745;">Reembolso: <strong>${refund_amount:.2f}</strong></p>' if refund_amount else ""
     )
 
     html_body = f"""
@@ -288,12 +275,9 @@ El equipo de AlecTours
     """.strip()
 
     return await send_email(email, subject, body, html_body)
-async def send_contact_email(
-    nombre: str,
-    correo: str,
-    asunto: str,
-    mensaje: str
-) -> bool:
+
+
+async def send_contact_email(nombre: str, correo: str, asunto: str, mensaje: str) -> bool:
     """
     Reenvía un mensaje del formulario de contacto a la bandeja de soporte
     y envía una confirmación de recibido al remitente.

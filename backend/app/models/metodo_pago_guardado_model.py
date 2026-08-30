@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, ForeignKey
+from sqlalchemy import TIMESTAMP, Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -19,6 +19,7 @@ class MetodoPagoGuardado(Base):
     vuelve a pedir al cliente para confirmar que es él quien autoriza usar
     este método guardado en un pago.
     """
+
     __tablename__ = "metodos_pago_guardados"
 
     id_metodo_guardado = Column(Integer, primary_key=True, index=True)

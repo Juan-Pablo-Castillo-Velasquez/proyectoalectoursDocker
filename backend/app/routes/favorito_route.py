@@ -1,19 +1,17 @@
-from typing import Optional, List
-
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_user_from_token
-from app.models.user_model import Usuario
 from app.models.hotel_model import Hotel
+from app.models.user_model import Usuario
 from app.repositories.favorito_repository import FavoritoRepository
 from app.schemas.favorito_schema import FavoritoCreate, FavoritoResponse
 
 router = APIRouter(prefix="/api/favoritos", tags=["Favoritos"])
 
 
-def get_current_usuario(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Usuario:
+def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
     """Mismo patrón de auth usado en resena_route.py / preferencias_route.py"""
     if not authorization:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -39,7 +37,7 @@ def _require_cliente(usuario: Usuario) -> int:
     return usuario.cliente.id_cliente
 
 
-@router.get("", response_model=List[FavoritoResponse])
+@router.get("", response_model=list[FavoritoResponse])
 def listar_favoritos(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_usuario),
@@ -50,7 +48,7 @@ def listar_favoritos(
     return FavoritoRepository.get_by_cliente(db, id_cliente)
 
 
-@router.get("/ids", response_model=List[int])
+@router.get("/ids", response_model=list[int])
 def listar_ids_favoritos(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_usuario),

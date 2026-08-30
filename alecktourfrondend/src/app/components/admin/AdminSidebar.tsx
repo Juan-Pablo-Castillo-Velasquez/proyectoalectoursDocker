@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, CalendarDays, XCircle, PlusCircle, Users, Hotel,
   Package, Building2, Wallet, Bell, UserPlus, ShieldCheck, Activity,
-  Settings, Plane, ChevronLeft, ChevronRight, UserCircle,
+  Settings, Plane, ChevronLeft, ChevronRight, UserCircle, Megaphone,
 } from "lucide-react";
 import type { Module } from "./types";
 import {
@@ -57,6 +57,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Comercial",
     items: [
       { id: "empresas", label: "Empresas y contactos", icon: Building2, ready: true },
+      { id: "banners", label: "Promociones y banners", icon: Megaphone, ready: true },
     ],
   },
   {
@@ -121,7 +122,7 @@ export default function AdminSidebar({
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className="flex-shrink-0 flex flex-col border-r transition-colors duration-300 bg-sidebar border-sidebar-border overflow-hidden"
         >
-          <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between gap-2">
+          <div className="px-5 py-3.5 border-b border-sidebar-border flex items-center justify-between gap-2">
             {!collapsed && (
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground truncate">
                 Panel de control
@@ -136,11 +137,11 @@ export default function AdminSidebar({
             </button>
           </div>
 
-          <nav className="flex-1 py-3 px-2.5 space-y-4 overflow-y-auto">
+          <nav className="flex-1 py-2.5 px-2.5 space-y-3 overflow-y-auto">
             {NAV_SECTIONS.map((section) => (
               <div key={section.label}>
                 {!collapsed && (
-                  <p className="px-2.5 mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                  <p className="px-2.5 mb-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
                     {section.label}
                   </p>
                 )}
@@ -151,7 +152,7 @@ export default function AdminSidebar({
                       <button
                         key={id}
                         onClick={() => setActiveModule(id)}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
+                        className={`w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-xl text-sm font-medium transition-all group relative ${
                           collapsed ? "justify-center" : ""
                         } ${
                           isActive

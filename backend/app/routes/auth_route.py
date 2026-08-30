@@ -1,7 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
 import os
 import threading
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.mail import send_password_reset_email  # ← agrega
+from app.core.security import create_verification_token, hash_password, verify_verification_token  # ← agrega
+from app.schemas.user_schema import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    UsuarioCreate,
+    UsuarioLogin,
+)
+from app.services.auth_service import login_user, register_user, verify_user_email
 
 # URL del frontend real, para los links de verificación/reset que se
 # mandan por correo — antes estaba fija en "http://localhost:5173", así
@@ -10,21 +23,14 @@ import threading
 # (mismo comportamiento de siempre en dev).
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-from app.core.database import get_db
-from app.schemas.user_schema import UsuarioLogin, UsuarioCreate, UsuarioResponse, PasswordResetRequest, PasswordResetConfirm
-from app.services.auth_service import login_user, register_user, verify_user_email
-from app.core.config import settings
-from app.core.security import create_verification_token, verify_verification_token, hash_password  # ← agrega
-from app.core.mail import send_password_reset_email  # ← agrega
-
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 def send_email_in_thread(email: str, token: str):
     try:
         import smtplib
-        from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
 
         verification_link = f"{FRONTEND_URL}/verify?token={token}"
         html_body = f"""
@@ -68,7 +74,7 @@ def register(data: UsuarioCreate, background_tasks: BackgroundTasks, db: Session
         "message": "Usuario registrado exitosamente. Revisa tu correo para verificar tu cuenta.",
         "user_id": result.get("user_id"),
         "email": email,
-        "verification_token": verification_token
+        "verification_token": verification_token,
     }
 
 
@@ -93,9 +99,8 @@ def verify_email(token: str, db: Session = Depends(get_db)):
 @router.post("/forgot-password", response_model=dict)
 async def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_db)):
     from app.models.user_model import Usuario
-    user = db.query(Usuario).filter(
-        Usuario.correo_electronico == data.correo_electronico
-    ).first()
+
+    user = db.query(Usuario).filter(Usuario.correo_electronico == data.correo_electronico).first()
 
     if user:
         token = create_verification_token(user.correo_electronico)

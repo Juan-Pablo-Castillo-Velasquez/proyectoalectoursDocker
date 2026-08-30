@@ -2,8 +2,7 @@
 Módulo de seguridad: autenticación JWT, hashing de contraseñas y autorización.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Header, HTTPException
 from jose import JWTError, jwt
@@ -22,30 +21,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
+    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=7)
+    expire = datetime.now(UTC) + timedelta(days=7)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> Optional[dict]:
+def decode_token(token: str) -> dict | None:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except JWTError:
         return None
 
 
-def get_user_from_token(token: str) -> Optional[int]:
+def get_user_from_token(token: str) -> int | None:
     payload = decode_token(token)
     if payload is None:
         return None
@@ -58,7 +55,7 @@ def get_user_from_token(token: str) -> Optional[int]:
         return None
 
 
-def generate_token_pair(user_id: int, roles: List[str] = []) -> dict:
+def generate_token_pair(user_id: int, roles: list[str] | None = None) -> dict:
     """
     Genera access + refresh token.
     Ahora incluye los roles en el payload del JWT.
@@ -70,9 +67,13 @@ def generate_token_pair(user_id: int, roles: List[str] = []) -> dict:
     Returns:
         Dict con access_token, refresh_token y token_type
     """
+    # Nunca uses una lista como valor por defecto (bug clásico de Python: el
+    # mismo objeto se reutilizaría en todas las llamadas que no pasen roles).
+    if roles is None:
+        roles = []
     payload = {
         "sub": str(user_id),
-        "roles": roles,          # ← nuevo campo
+        "roles": roles,  # ← nuevo campo
     }
     access_token = create_access_token(data=payload)
     refresh_token = create_refresh_token(data={"sub": str(user_id)})
@@ -86,12 +87,12 @@ def generate_token_pair(user_id: int, roles: List[str] = []) -> dict:
 
 def create_verification_token(email: str) -> str:
     to_encode = {"email": email, "type": "verification"}
-    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    expire = datetime.now(UTC) + timedelta(hours=24)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_verification_token(token: str) -> Optional[str]:
+def verify_verification_token(token: str) -> str | None:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         if payload.get("type") != "verification":
@@ -101,8 +102,9 @@ def verify_verification_token(token: str) -> Optional[str]:
         return None
 
 
-def get_current_user(authorization: Optional[str] = None) -> Optional[int]:
+def get_current_user(authorization: str | None = None) -> int | None:
     from fastapi import HTTPException
+
     if not authorization:
         raise HTTPException(status_code=401, detail="No autenticado")
     parts = authorization.split()
@@ -114,7 +116,7 @@ def get_current_user(authorization: Optional[str] = None) -> Optional[int]:
     return user_id
 
 
-def require_admin(authorization: Optional[str] = Header(None)) -> int:
+def require_admin(authorization: str | None = Header(None)) -> int:
     """
     Dependency reutilizable para endpoints exclusivos de administrador:
     exige un JWT válido cuyo claim `roles` incluya "admin". Se usa como

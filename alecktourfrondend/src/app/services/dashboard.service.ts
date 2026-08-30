@@ -30,6 +30,11 @@ export interface ReservasPorMesItem {
   total: number;
 }
 
+export interface SerieDiariaItem {
+  fecha: string; // "2026-08-20"
+  total: number;
+}
+
 // Espejo exacto de DashboardResumenResponse (backend/app/schemas/dashboard_schema.py).
 // Todo lo que llega en null significa "no hay información real suficiente para
 // calcular esto todavía" — nunca se debe reemplazar por un 0 inventado en la UI.
@@ -72,6 +77,15 @@ export interface DashboardResumen {
 
   hoteles_activos: number;
   paquetes_activos: number;
+
+  // Métricas derivadas — null solo cuando todavía no hay base real para
+  // calcularlas (ver dashboard_route.py), nunca un 0/100 inventado.
+  tasa_conversion_pct: number | null;
+  tasa_cancelacion_pct: number | null;
+  tiempo_promedio_confirmacion_horas: number | null;
+
+  reservas_ultimos_14d: SerieDiariaItem[];
+  ingresos_ultimos_14d: SerieDiariaItem[];
 }
 
 export const dashboardService = {

@@ -1,0 +1,207 @@
+"""Banners publicitarios administrables (sección 7 del plan de mejora).
+
+Distinto de /api/promociones/* (promociones_route.py), que deriva datos de
+la tabla `hoteles` y no es una tabla de banners real — ver el comentario en
+app/models/banner_model.py. Prefijo /api/banners a propósito, para no
+chocar con esa ruta existente.
+"""
+
+import os
+import uuid
+from datetime import date
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.cache import delete_pattern, get_cached, set_cached
+from app.core.database import get_db
+from app.core.exceptions import NotFoundError
+from app.core.security import require_admin
+from app.repositories.banner_repository import BannerRepository
+from app.schemas.banner_schema import BannerReorderItem, BannerResponse
+
+router = APIRouter(prefix="/api/banners", tags=["Banners"])
+
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "banners")
+PUBLIC_PATH_PREFIX = "/uploads/banners"
+EXTENSIONES_PERMITIDAS = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp"}
+TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
+
+# Ver sección 8 del plan de mejora (esquema de claves Redis): prefijo
+# "promo:" para contenido público cacheado con TTL largo (cambia con poca
+# frecuencia — un admin editando banners, no una escritura de cliente).
+BANNERS_CACHE_KEY = "promo:banners:activos"
+BANNERS_CACHE_PATTERN = "promo:banners:*"
+BANNERS_CACHE_TTL = 1800  # 30 min
+
+
+class BannerActivoUpdate(BaseModel):
+    activo: bool
+
+
+def _borrar_archivo_si_existe(imagen_url: str | None) -> None:
+    if not imagen_url or not imagen_url.startswith(PUBLIC_PATH_PREFIX):
+        return
+    filename = imagen_url.rsplit("/", 1)[-1]
+    ruta = os.path.join(UPLOAD_DIR, filename)
+    if os.path.isfile(ruta):
+        os.remove(ruta)
+
+
+def _guardar_imagen(file: UploadFile, contenido: bytes) -> str:
+    # Mismas validaciones que usuario_route.py::subir_foto_perfil (formato
+    # y tamaño máximo) — mismo criterio en todo el proyecto para cualquier
+    # imagen subida por un usuario/admin.
+    if file.content_type not in EXTENSIONES_PERMITIDAS:
+        raise HTTPException(status_code=422, detail="Formato de imagen no soportado. Usa JPG, PNG o WEBP.")
+    if len(contenido) > TAMANO_MAXIMO_BYTES:
+        raise HTTPException(status_code=422, detail="La imagen no puede superar los 5MB.")
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    extension = EXTENSIONES_PERMITIDAS[file.content_type]
+    nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
+    ruta_destino = os.path.join(UPLOAD_DIR, nombre_archivo)
+    with open(ruta_destino, "wb") as f:
+        f.write(contenido)
+    return f"{PUBLIC_PATH_PREFIX}/{nombre_archivo}"
+
+
+# ===================== PÚBLICO =====================
+@router.get("/activos", response_model=list[BannerResponse])
+def get_banners_activos(db: Session = Depends(get_db)):
+    """Solo banners activos y dentro de su rango de vigencia, en orden —
+    lo que debe ver un visitante del sitio ahora mismo (carrusel del home)."""
+    cached = get_cached(BANNERS_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    activos = BannerRepository.get_activos(db)
+    data = [BannerResponse.model_validate(b).model_dump(mode="json") for b in activos]
+    set_cached(BANNERS_CACHE_KEY, data, ttl_seconds=BANNERS_CACHE_TTL)
+    return data
+
+
+# ===================== ADMIN =====================
+@router.get("/", response_model=list[BannerResponse])
+def get_banners_admin(db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+    """Listado completo (incluye inactivos/fuera de vigencia) para
+    ModuleBanners.tsx — a diferencia de /activos, sin caché: es una vista
+    de administración, no contenido público de alto tráfico."""
+    return BannerRepository.get_all(db)
+
+
+@router.post("/", response_model=BannerResponse, status_code=201)
+async def create_banner(
+    titulo: str = Form(...),
+    descripcion_corta: str | None = Form(None),
+    texto_boton: str | None = Form(None),
+    link_destino: str | None = Form(None),
+    fecha_inicio: date | None = Form(None),
+    fecha_fin: date | None = Form(None),
+    activo: bool = Form(True),
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    contenido = await imagen.read()
+    imagen_url = _guardar_imagen(imagen, contenido)
+    orden = BannerRepository.get_siguiente_orden(db)
+
+    nuevo = BannerRepository.create(
+        db,
+        {
+            "titulo": titulo,
+            "descripcion_corta": descripcion_corta,
+            "imagen_url": imagen_url,
+            "texto_boton": texto_boton,
+            "link_destino": link_destino,
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
+            "orden": orden,
+            "activo": activo,
+        },
+    )
+    delete_pattern(BANNERS_CACHE_PATTERN)
+    return nuevo
+
+
+@router.put("/{banner_id}", response_model=BannerResponse)
+async def update_banner(
+    banner_id: int,
+    titulo: str = Form(...),
+    descripcion_corta: str | None = Form(None),
+    texto_boton: str | None = Form(None),
+    link_destino: str | None = Form(None),
+    fecha_inicio: date | None = Form(None),
+    fecha_fin: date | None = Form(None),
+    activo: bool = Form(True),
+    imagen: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    existente = BannerRepository.get_by_id(db, banner_id)
+    if not existente:
+        raise HTTPException(status_code=404, detail="Banner no encontrado")
+
+    datos = {
+        "titulo": titulo,
+        "descripcion_corta": descripcion_corta,
+        "texto_boton": texto_boton,
+        "link_destino": link_destino,
+        "fecha_inicio": fecha_inicio,
+        "fecha_fin": fecha_fin,
+        "activo": activo,
+    }
+
+    # La imagen es opcional al editar: si no se manda una nueva, se
+    # conserva la que ya tenía (no se puede "borrar solo la imagen", un
+    # banner siempre necesita una).
+    if imagen is not None:
+        contenido = await imagen.read()
+        nueva_imagen_url = _guardar_imagen(imagen, contenido)
+        _borrar_archivo_si_existe(existente.imagen_url)
+        datos["imagen_url"] = nueva_imagen_url
+
+    actualizado = BannerRepository.update(db, banner_id, datos)
+    delete_pattern(BANNERS_CACHE_PATTERN)
+    return actualizado
+
+
+@router.put("/reordenar", response_model=list[BannerResponse])
+def reordenar_banners(
+    items: list[BannerReorderItem],
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    resultado = BannerRepository.reorder(db, [item.dict() for item in items])
+    delete_pattern(BANNERS_CACHE_PATTERN)
+    return resultado
+
+
+@router.patch("/{banner_id}/activo", response_model=BannerResponse)
+def toggle_activo_banner(
+    banner_id: int,
+    data: BannerActivoUpdate,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    try:
+        actualizado = BannerRepository.set_activo(db, banner_id, data.activo)
+        delete_pattern(BANNERS_CACHE_PATTERN)
+        return actualizado
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.detail) from e
+
+
+@router.delete("/{banner_id}")
+def delete_banner(banner_id: int, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+    existente = BannerRepository.get_by_id(db, banner_id)
+    try:
+        resultado = BannerRepository.delete(db, banner_id)
+        if existente:
+            _borrar_archivo_si_existe(existente.imagen_url)
+        delete_pattern(BANNERS_CACHE_PATTERN)
+        return resultado
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.detail) from e

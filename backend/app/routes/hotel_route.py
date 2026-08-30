@@ -1,24 +1,34 @@
 import logging
 from datetime import date
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
-from app.core.cache import get_cached, set_cached, delete_pattern
 from app.core.exceptions import HotelDependencyError, NotFoundError
-from app.schemas.hotel_schema import (
-    HotelCreate, HotelUpdate, HotelResponse, HotelDetailResponse,
-    HabitacionCreate, HabitacionUpdate, HabitacionResponse,
-    CaracteristicaCreate, CaracteristicaResponse, HotelCaracteristicaCreate,
-    HabitacionFechasOcupadas, TipoHabitacionCreate, TipoHabitacionResponse,
-)
+from app.core.security import require_admin
 from app.repositories.hotel_repository import (
-    HotelRepository, HabitacionRepository, CaracteristicaRepository, HotelCaracteristicaRepository,
+    CaracteristicaRepository,
+    HabitacionRepository,
+    HotelCaracteristicaRepository,
+    HotelRepository,
     TipoHabitacionRepository,
 )
-from app.core.security import require_admin
+from app.schemas.hotel_schema import (
+    CaracteristicaCreate,
+    CaracteristicaResponse,
+    HabitacionCreate,
+    HabitacionFechasOcupadas,
+    HabitacionResponse,
+    HabitacionUpdate,
+    HotelCreate,
+    HotelDetailResponse,
+    HotelResponse,
+    HotelUpdate,
+    TipoHabitacionCreate,
+    TipoHabitacionResponse,
+)
 
 router = APIRouter(prefix="/api/hoteles", tags=["Hoteles"])
 
@@ -29,13 +39,18 @@ HOTELES_CACHE_PATTERN = "hoteles:list:*"
 
 # ===================== HOTELES CRUD =====================
 
+
 @router.get("/", response_model=list[HotelDetailResponse])
 def get_hotels(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=300),
-    fecha_checkin: Optional[date] = Query(None, description="Filtra a hoteles con disponibilidad real desde esta fecha (requiere fecha_checkout)"),
-    fecha_checkout: Optional[date] = Query(None, description="Filtra a hoteles con disponibilidad real hasta esta fecha (requiere fecha_checkin)"),
-    db: Session = Depends(get_db)
+    fecha_checkin: date | None = Query(
+        None, description="Filtra a hoteles con disponibilidad real desde esta fecha (requiere fecha_checkout)"
+    ),
+    fecha_checkout: date | None = Query(
+        None, description="Filtra a hoteles con disponibilidad real hasta esta fecha (requiere fecha_checkin)"
+    ),
+    db: Session = Depends(get_db),
 ):
     """Obtiene lista de hoteles. Cacheada 2 min (30s si se filtra por fechas,
     ya que esa disponibilidad cambia con cada reserva nueva) — es el endpoint
@@ -81,10 +96,7 @@ def get_fechas_ocupadas(hotel_id: int, db: Session = Depends(get_db)):
     disponibilidad cambia con cada reserva nueva y esta consulta es liviana
     (una sola query, sin N+1)."""
     fechas_por_habitacion = HotelRepository.get_fechas_ocupadas(db, hotel_id)
-    return [
-        {"id_habitacion": id_hab, "rangos": rangos}
-        for id_hab, rangos in fechas_por_habitacion.items()
-    ]
+    return [{"id_habitacion": id_hab, "rangos": rangos} for id_hab, rangos in fechas_por_habitacion.items()]
 
 
 @router.post("/", response_model=HotelResponse, status_code=201)
@@ -96,7 +108,9 @@ def create_hotel(hotel: HotelCreate, db: Session = Depends(get_db), admin_id: in
 
 
 @router.put("/{hotel_id}", response_model=HotelResponse)
-def update_hotel(hotel_id: int, hotel: HotelUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def update_hotel(
+    hotel_id: int, hotel: HotelUpdate, db: Session = Depends(get_db), admin_id: int = Depends(require_admin)
+):
     """Actualiza un hotel existente"""
     db_hotel = HotelRepository.get_by_id(db, hotel_id)
     if not db_hotel:
@@ -114,22 +128,20 @@ def delete_hotel(hotel_id: int, db: Session = Depends(get_db), admin_id: int = D
         delete_pattern(HOTELES_CACHE_PATTERN)
         return resultado
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except HotelDependencyError as e:
-        raise HTTPException(status_code=409, detail=e.detail)
+        raise HTTPException(status_code=409, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 # ===================== HABITACIONES CRUD =====================
 
+
 @router.get("/{hotel_id}/habitaciones", response_model=list[HabitacionResponse])
 def get_habitaciones(
-    hotel_id: int,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    hotel_id: int, skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db)
 ):
     """Obtiene habitaciones de un hotel"""
     hotel = HotelRepository.get_by_id(db, hotel_id)
@@ -140,10 +152,7 @@ def get_habitaciones(
 
 @router.get("/{hotel_id}/habitaciones/disponibles", response_model=list[HabitacionResponse])
 def get_habitaciones_disponibles(
-    hotel_id: int,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    hotel_id: int, skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db)
 ):
     """Obtiene habitaciones disponibles de un hotel"""
     hotel = HotelRepository.get_by_id(db, hotel_id)
@@ -172,7 +181,7 @@ def create_habitacion(
     hotel = HotelRepository.get_by_id(db, hotel_id)
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel no encontrado")
-    
+
     existente = HabitacionRepository.get_by_hotel_and_number(db, hotel_id, habitacion.numero_habitacion)
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe habitación con ese número")
@@ -208,13 +217,14 @@ def delete_habitacion(habitacion_id: int, db: Session = Depends(get_db), admin_i
         delete_pattern(HOTELES_CACHE_PATTERN)
         return {"message": "Habitación eliminada exitosamente"}
     except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        raise HTTPException(status_code=404, detail=e.detail) from e
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
 # ===================== CARACTERÍSTICAS CRUD =====================
+
 
 @router.get("/tipos-habitacion/", response_model=list[TipoHabitacionResponse])
 def get_tipos_habitacion(db: Session = Depends(get_db)):
@@ -262,7 +272,7 @@ def add_caracteristica_hotel(
     hotel = HotelRepository.get_by_id(db, hotel_id)
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel no encontrado")
-    
+
     caracteristica = CaracteristicaRepository.get_by_id(db, caracteristica_id)
     if not caracteristica:
         raise HTTPException(status_code=404, detail="Característica no encontrada")

@@ -37,7 +37,15 @@ FROM base AS prod
 # Ejecutar como root dentro del contenedor no aporta nada aquí (no hay
 # bind-mount que lo necesite) y es una superficie de ataque innecesaria si
 # alguien lograra ejecutar código dentro del proceso de la API.
+# static/uploads/* está en .gitignore (son archivos subidos en runtime, no
+# código) — en un build limpio (CI, clon nuevo) esas carpetas simplemente
+# no existen en la imagen. Sin este mkdir explícito, Docker crea el punto
+# de montaje del volumen (ver docker-compose.prod.yml) como root la primera
+# vez, y el proceso de la API (usuario "app", sin privilegios) no podría
+# escribir ninguna foto/comprobante/banner nuevo — falla silenciosa hasta
+# el primer upload real en producción.
 RUN groupadd --system app && useradd --system --gid app --no-create-home app \
+    && mkdir -p /app/app/static/uploads/perfiles /app/app/static/uploads/comprobantes /app/app/static/uploads/banners \
     && chown -R app:app /app
 USER app
 
