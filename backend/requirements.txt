@@ -21,6 +21,7 @@ email-validator==2.2.0
 
 redis==5.0.8
 
-# Observabilidad: expone /metrics (histogramas de duracion, contadores de
-# requests) para que Prometheus haga scrape y Grafana lo grafique.
-prometheus-fastapi-instrumentator==7.1.0
+# Observabilidad: monitoreo de errores y excepciones en tiempo real con
+# Sentry. Se activa solo si SENTRY_DSN está definido en el entorno (ver
+# app/core/config.py y app/main.py) — sin DSN la app arranca igual.
+sentry-sdk[fastapi]==2.18.0

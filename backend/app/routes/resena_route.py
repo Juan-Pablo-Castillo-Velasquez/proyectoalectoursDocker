@@ -1,13 +1,13 @@
 from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.cache import delete_pattern, get_cached, redis_client, set_cached
 from app.core.database import get_db
-from app.core.security import get_user_from_token
+from app.core.deps import get_current_usuario
 from app.models.resena_model import Resena
 from app.models.reserva_model import Reserva
 from app.models.user_model import Usuario
@@ -20,26 +20,6 @@ HOME_CACHE_KEY = "home:resenas_destacadas"
 # La tabla `resenas` no guarda avatar del cliente, así que generamos uno
 # consistente con la paleta de marca (granate/dorado) cuando no hay foto_url.
 AVATAR_BG = "7B1E3A"
-
-
-def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
-    """Mismo patrón de auth usado en preferencias_route.py"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    user_id = get_user_from_token(parts[1])
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Token expirado o inválido")
-
-    user = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    return user
 
 
 class ResenaCreate(BaseModel):
@@ -70,10 +50,20 @@ def _avatar_url(nombre_completo: str) -> str:
     )
 
 
+def _inicial_apellido(cliente) -> str:
+    """Primera letra del apellido para el formato 'Nombre A.'. Un cliente
+    puede tener apellido None o vacío en la BD; antes `apellido[0]` reventaba
+    con 500 en endpoints públicos (GET /api/resenas, /destacadas y
+    /hotel/{id}) — TypeError/IndexError. Ahora se cae a un string vacío."""
+    if not cliente or not cliente.apellido:
+        return ""
+    return f"{cliente.apellido[0]}."
+
+
 def _shape_resena(r: Resena) -> dict:
     """Formato compartido por /destacadas y el listado paginado: lo que
     consume directamente el frontend (tarjetas de testimonios)."""
-    nombre = f"{r.cliente.nombre} {r.cliente.apellido[0]}." if r.cliente else "Viajero AlecTours"
+    nombre = f"{r.cliente.nombre} {_inicial_apellido(r.cliente)}".strip() if r.cliente else "Viajero AlecTours"
     return {
         "id": r.id_resena,
         "name": nombre,
@@ -86,7 +76,7 @@ def _shape_resena(r: Resena) -> dict:
         "rating": r.calificacion,
         "trip": r.hotel.nombre_hotel if r.hotel else "AlecTours",
         "avatar": r.foto_url
-        or _avatar_url(f"{r.cliente.nombre} {r.cliente.apellido}" if r.cliente else "Viajero AlecTours"),
+        or _avatar_url(f"{r.cliente.nombre} {r.cliente.apellido}".strip() if r.cliente and r.cliente.apellido else "Viajero AlecTours"),
         "fecha": r.fecha_creacion.isoformat() if r.fecha_creacion else None,
     }
 
@@ -178,7 +168,7 @@ def get_resenas_hotel(id_hotel: int, db: Session = Depends(get_db)):
             comentario=r.comentario,
             foto_url=r.foto_url,
             fecha_creacion=r.fecha_creacion,
-            nombre_cliente=f"{r.cliente.nombre} {r.cliente.apellido[0]}." if r.cliente else "Viajero AlecTours",
+            nombre_cliente=f"{r.cliente.nombre} {_inicial_apellido(r.cliente)}".strip() if r.cliente else "Viajero AlecTours",
         )
         for r in resenas
     ]

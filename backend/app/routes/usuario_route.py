@@ -2,13 +2,14 @@ import contextlib
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.cache import delete_pattern
 from app.core.database import get_db
-from app.core.security import get_user_from_token, hash_password, require_admin, verify_password
+from app.core.deps import get_current_usuario
+from app.core.security import hash_password, require_admin, verify_password
 from app.models.auth_model import Rol, UsuarioRol
 from app.models.user_model import Usuario
 from app.schemas.user_schema import UsuarioResponse
@@ -26,26 +27,6 @@ UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", 
 PUBLIC_PATH_PREFIX = "/uploads/perfiles"
 EXTENSIONES_PERMITIDAS = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp"}
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
-
-
-def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
-    """Mismo patrón de auth usado en preferencias_route.py / resena_route.py"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    user_id = get_user_from_token(parts[1])
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Token expirado o inválido")
-
-    user = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    return user
 
 
 def _shape_usuario_admin(db: Session, usuario: Usuario) -> UsuarioAdminResponse:

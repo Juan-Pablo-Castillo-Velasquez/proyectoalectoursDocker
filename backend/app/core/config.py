@@ -13,6 +13,14 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = "redis://redis:6379/0"
 
+    # DSN de Sentry para monitoreo de errores. Vacío por defecto: si no se
+    # define, el backend arranca igual pero sin reportar errores a Sentry
+    # (ver app/main.py).  Formato: https://clave@ingest.sentry.io/12345
+    SENTRY_DSN: str = ""
+    # Porcentaje de transacciones (trazas con datos de rendimiento) que se
+    # envían a Sentry, 0-1. 0 desactiva el tracing y solo manda errores.
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""
     MAIL_FROM: str

@@ -1,7 +1,7 @@
 import os
 import threading
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -56,7 +56,7 @@ def send_email_in_thread(email: str, token: str):
 
 
 @router.post("/register", response_model=dict, status_code=201)
-def register(data: UsuarioCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def register(data: UsuarioCreate, db: Session = Depends(get_db)):
     result = register_user(db, data.username, data.correo_electronico, data.password)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -74,7 +74,6 @@ def register(data: UsuarioCreate, background_tasks: BackgroundTasks, db: Session
         "message": "Usuario registrado exitosamente. Revisa tu correo para verificar tu cuenta.",
         "user_id": result.get("user_id"),
         "email": email,
-        "verification_token": verification_token,
     }
 
 

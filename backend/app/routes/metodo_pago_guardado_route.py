@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_user_from_token, hash_password, verify_password
+from app.core.deps import get_current_usuario
+from app.core.security import hash_password, verify_password
 from app.models.user_model import Usuario
 from app.repositories.metodo_pago_guardado_repository import MetodoPagoGuardadoRepository
 from app.schemas.metodo_pago_guardado_schema import (
@@ -13,26 +14,6 @@ from app.schemas.metodo_pago_guardado_schema import (
 )
 
 router = APIRouter(prefix="/api/metodos-pago-guardados", tags=["Métodos de pago guardados"])
-
-
-def get_current_usuario(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Usuario:
-    """Mismo patrón de auth usado en favorito_route.py / resena_route.py"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    user_id = get_user_from_token(parts[1])
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Token expirado o inválido")
-
-    user = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    return user
 
 
 def _require_cliente(usuario: Usuario) -> int:

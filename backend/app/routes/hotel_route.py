@@ -79,6 +79,52 @@ def get_hotels(
     return data
 
 
+# ===================== CATÁLOGO (estático) =====================
+# OJO con el orden: estas rutas fijas ("/tipos-habitacion",
+# "/caracteristicas") deben declararse ANTES de "/{hotel_id}" para que
+# "/hoteles/tipos-habitacion" (con o sin barra final) no caiga en el
+# path param dinámico y devuelva 422. FastAPI no re-intenta la siguiente
+# ruta cuando falla la conversión a int del path param, así que un
+# "hotel_id" literal falla siempre.
+
+
+@router.get("/tipos-habitacion", response_model=list[TipoHabitacionResponse])
+def get_tipos_habitacion(db: Session = Depends(get_db)):
+    """Catálogo de tipos de habitación (Individual, Doble, Suite, etc.) —
+    antes no existía ningún endpoint para listarlos, así que el admin no
+    tenía forma de elegir uno al dar de alta una habitación nueva."""
+    return TipoHabitacionRepository.get_all(db)
+
+
+@router.post("/tipos-habitacion", response_model=TipoHabitacionResponse, status_code=201)
+def create_tipo_habitacion(
+    tipo: TipoHabitacionCreate,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Crea un nuevo tipo de habitación"""
+    return TipoHabitacionRepository.create(db, tipo.dict())
+
+
+@router.get("/caracteristicas", response_model=list[CaracteristicaResponse])
+def get_caracteristicas(db: Session = Depends(get_db)):
+    """Obtiene todas las características disponibles"""
+    return CaracteristicaRepository.get_all(db)
+
+
+@router.post("/caracteristicas", response_model=CaracteristicaResponse, status_code=201)
+def create_caracteristica(
+    caracteristica: CaracteristicaCreate,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Crea una nueva característica"""
+    return CaracteristicaRepository.create(db, caracteristica.dict())
+
+
+# ===================== HOTELES CRUD =====================
+
+
 @router.get("/{hotel_id}", response_model=HotelDetailResponse)
 def get_hotel(hotel_id: int, db: Session = Depends(get_db)):
     """Obtiene detalles completos de un hotel con sus habitaciones y características"""
@@ -223,41 +269,10 @@ def delete_habitacion(habitacion_id: int, db: Session = Depends(get_db), admin_i
         raise HTTPException(status_code=500, detail="Error interno del servidor") from e
 
 
-# ===================== CARACTERÍSTICAS CRUD =====================
-
-
-@router.get("/tipos-habitacion/", response_model=list[TipoHabitacionResponse])
-def get_tipos_habitacion(db: Session = Depends(get_db)):
-    """Catálogo de tipos de habitación (Individual, Doble, Suite, etc.) —
-    antes no existía ningún endpoint para listarlos, así que el admin no
-    tenía forma de elegir uno al dar de alta una habitación nueva."""
-    return TipoHabitacionRepository.get_all(db)
-
-
-@router.post("/tipos-habitacion/", response_model=TipoHabitacionResponse, status_code=201)
-def create_tipo_habitacion(
-    tipo: TipoHabitacionCreate,
-    db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
-):
-    """Crea un nuevo tipo de habitación"""
-    return TipoHabitacionRepository.create(db, tipo.dict())
-
-
-@router.get("/caracteristicas/", response_model=list[CaracteristicaResponse])
-def get_caracteristicas(db: Session = Depends(get_db)):
-    """Obtiene todas las características disponibles"""
-    return CaracteristicaRepository.get_all(db)
-
-
-@router.post("/caracteristicas/", response_model=CaracteristicaResponse, status_code=201)
-def create_caracteristica(
-    caracteristica: CaracteristicaCreate,
-    db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
-):
-    """Crea una nueva característica"""
-    return CaracteristicaRepository.create(db, caracteristica.dict())
+# ===================== CARACTERÍSTICAS DEL HOTEL =====================
+# Los catálogos estáticos (GET/POST /tipos-habitacion y /caracteristicas)
+# viven arriba, en la sección "CATÁLOGO", antes de /{hotel_id} — ver nota
+# de orden de rutas al inicio del archivo.
 
 
 @router.post("/{hotel_id}/caracteristicas/{caracteristica_id}")

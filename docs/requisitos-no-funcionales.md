@@ -605,11 +605,19 @@ Los requisitos no funcionales aplican a todos los componentes del sistema: front
 **Descripción:** El sistema debe exponer métricas de operación.
 
 **Métricas Expuestas:**
-- Endpoint `/metrics` en formato Prometheus
+- Endpoint `/metrics` en formato Prometheus ~~(reemplazado por Sentry, ver nota)~~
 - Histogramas de latencia por endpoint
 - Contadores de requests por status code
 - Métricas de negocio (reservas/hora, ingresos)
 - Métricas de sistema (CPU, memoria)
+
+> **Nota (2026):** La pila Prometheus/Grafana fue retirada del proyecto. La
+> observabilidad de la API se cubre hoy con **Sentry**, que captura
+> excepciones no controladas y trazas de rendimiento (ver
+> `backend/app/core/config.py` y `backend/app/main.py`), activado vía
+> `SENTRY_DSN`. Este requisito de "endpoint de métricas Prometheus" ha
+> quedado obsoleto; las métricas de latencia/counters a nivel de proceso ya
+> no se exponen públicamente para no añadir superficie de ataque.
 
 ---
 

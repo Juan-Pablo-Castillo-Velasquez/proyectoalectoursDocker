@@ -33,9 +33,8 @@
 #      (SECRET_KEY fuerte y propio, DATABASE_URL, MAIL_* de un SMTP real,
 #      FRONTEND_URL y CORS_ORIGINS apuntando al dominio real de Vercel —
 #      ver backend/.env.example).
-#   2. Exporta POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB y
-#      GRAFANA_ADMIN_PASSWORD (o ponlos en un .env.prod y pasa
-#      --env-file .env.prod). GRAFANA_ADMIN_USER es opcional (default: admin).
+#   2. Exporta POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB (o ponlos
+#      en un .env.prod y pasa --env-file .env.prod).
 #   3. docker compose -f docker-compose.prod.yml up -d --build
 #
 # Ver también docs/referencia-tecnica/despliegue-produccion.md.
@@ -96,57 +95,9 @@ services:
     networks:
       - alecktours_network_prod
 
-  # Observabilidad (ronda de mejora: linter + Prometheus/Grafana). Prometheus
-  # NO expone puerto al host -- mismo criterio de seguridad que postgres/redis
-  # arriba: solo Grafana (el servicio pensado para que un humano lo abra,
-  # igual que el backend es el único puerto de aplicación expuesto aquí)
-  # necesita hablarle, y lo hace por la red interna de Docker.
-  prometheus:
-    image: prom/prometheus:v2.55.1
-    container_name: prometheus_prod
-    restart: unless-stopped
-
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data_prod:/prometheus
-
-    depends_on:
-      - backend
-
-    networks:
-      - alecktours_network_prod
-
-  grafana:
-    image: grafana/grafana:11.3.0
-    container_name: grafana_prod
-    restart: unless-stopped
-
-    ports:
-      - "3000:3000"
-
-    environment:
-      # Sin default hardcodeado (a diferencia de docker-compose.yml de
-      # dev) -- mismo criterio que POSTGRES_USER/PASSWORD arriba: el
-      # backend nunca debe arrancar en producción con una contraseña
-      # débil o conocida públicamente en este repo.
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?falta GRAFANA_ADMIN_PASSWORD}
-
-    volumes:
-      - grafana_data_prod:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-
-    depends_on:
-      - prometheus
-
-    networks:
-      - alecktours_network_prod
-
 volumes:
   postgres_data_prod:
   backend_uploads_prod:
-  prometheus_data_prod:
-  grafana_data_prod:
 
 networks:
   alecktours_network_prod:

@@ -5,11 +5,11 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.cache import redis_client
+from app.core.config import settings
 from app.core.database import get_db
 
 # NOTA: este archivo ya no importa los modelos uno por uno a mano -- ese
@@ -81,6 +81,32 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+
+# ============================================================================
+# OBSERVABILIDAD: SENTRY (monitoreo de errores)
+# ============================================================================
+# Sustituye a Prometheus/Grafana como herramienta de monitoreo. Captura en
+# tiempo real las excepciones no controladas (y opcionalmente trazas de
+# rendimiento) y las reporta al panel de Sentry.
+#
+# Solo se activa si SENTRY_DSN está definido en el entorno (ver
+# app/core/config.py): sin DSN la app arranca igual, sin enviar nada — así
+# el desarrollo local y la CI no requieren ni la cuenta ni la clave.
+# El integrador de FastAPI registra los handlers para que el global
+# exception_handler de abajo siga devolviendo HTTP 500 genérico al cliente.
+if settings.SENTRY_DSN:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        # Los 4xx (no-autenticado, recurso no encontrado, etc.) no son
+        # errores: solo se reportan los 5xx y excepciones no controladas.
+        ignore_errors=[],
+    )
+    logger.info("Sentry inicializado (SENTRY_DSN definido)")
+else:
+    logger.info("Sentry desactivado (no hay SENTRY_DSN en el entorno)")
 
 # ============================================================================
 # CORS
@@ -259,29 +285,6 @@ app.include_router(notificacion_router)
 app.include_router(empresa_router)
 app.include_router(dashboard_router)
 app.include_router(banner_router)
-
-# ============================================================================
-# OBSERVABILIDAD: METRICAS PROMETHEUS
-# ============================================================================
-# Expone GET /metrics con histogramas de duracion y contadores de requests
-# por metodo/ruta/codigo de estado -- Prometheus (ver docker-compose.yml)
-# hace scrape de este endpoint cada 15s y Grafana lo consume como
-# datasource para medir tiempos de respuesta de la API y demas metricas.
-#
-# should_group_status_codes=False conserva el codigo exacto (200, 404, 500)
-# en vez de agruparlo en 2xx/4xx -- mas util para depurar un endpoint
-# especifico en Grafana. excluded_handlers evita que el propio healthcheck
-# (poleado cada 30s por Docker) y el endpoint de metricas se cuenten a si
-# mismos, lo que solo agregaria ruido constante al histograma.
-#
-# Se instrumenta despues de registrar todos los routers para que
-# Instrumentator ya vea las rutas reales con sus templates (ej.
-# /api/hoteles/{hotel_id}) en vez de tener que inferirlas mas tarde --
-# evita cardinalidad alta en las metricas si algo sale mal.
-Instrumentator(
-    should_group_status_codes=False,
-    excluded_handlers=["/health", "/metrics"],
-).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 # ============================================================================
 # ARCHIVOS ESTATICOS (fotos de perfil, etc.)
