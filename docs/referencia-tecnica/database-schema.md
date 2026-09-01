@@ -1,262 +1,318 @@
-# Esquema de Base de Datos — NN Auth System
+# Esquema de Base de Datos — AlecTours
 
-<!--
-  ¿Qué? Documentación del esquema relacional de la base de datos PostgreSQL.
-  ¿Para qué? Que cualquier desarrollador entienda la estructura de datos del sistema
-             sin necesidad de leer los modelos ORM ni conectarse a la base de datos.
-  ¿Impacto? El esquema es el contrato entre el backend y la base de datos.
-             Entender las relaciones, restricciones e índices es fundamental para
-             escribir queries eficientes y migraciones sin errores.
--->
-
-> **Motor**: PostgreSQL 17+
+> **Motor**: PostgreSQL 16
 > **ORM**: SQLAlchemy 2.0 con tipos declarativos (Mapped + mapped_column)
-> **Migraciones**: Alembic — nunca se modifica la BD manualmente
+> **Migraciones**: Alembic — 16 migraciones encadenadas
+> **Archivo de referencia**: `db_schema.sql` en la raíz del proyecto
 
 ---
 
-## Diagrama Entidad-Relación (ER)
+## Diagrama de Dominios
 
 ```
-┌─────────────────────────────────────────┐
-│                  users                  │
-├─────────────────────────────────────────┤
-│ PK  id               UUID               │
-│     email            VARCHAR(255) UNIQUE│
-│     full_name        VARCHAR(255)       │
-│     hashed_password  VARCHAR(255)       │
-│     is_active        BOOLEAN  = true    │
-│     is_email_verified BOOLEAN = false   │
-│     created_at       TIMESTAMPTZ        │
-│     updated_at       TIMESTAMPTZ        │
-└────────────────┬────────────────────────┘
-                 │ 1
-                 │
-       ┌─────────┴──────────┐
-       │ N                  │ N
-       ▼                    ▼
-┌────────────────────┐  ┌──────────────────────────┐
-│ password_reset_    │  │  email_verification_     │
-│ tokens             │  │  tokens                  │
-├────────────────────┤  ├──────────────────────────┤
-│PK id    UUID       │  │PK id    UUID             │
-│FK user_id → users  │  │FK user_id → users        │
-│   token  VARCHAR   │  │   token  VARCHAR         │
-│   expires_at TSTZ  │  │   expires_at TSTZ        │
-│   used   BOOLEAN   │  │   used   BOOLEAN         │
-│   created_at TSTZ  │  │   created_at TSTZ        │
-└────────────────────┘  └──────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        DOMINIO USUARIOS                             │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  ┌──────────────┐  │
+│  │ usuarios │──│ usuarios │──│    roles      │  │ sesiones_    │  │
+│  │          │  │ _roles   │  │               │  │ usuario      │  │
+│  └────┬─────┘  └──────────┘  └───────────────┘  └──────────────┘  │
+│       │                                                            │
+│  ┌────┴────┐  ┌───────────────────┐                                │
+│  │recuper- │  │                    │                               │
+│  │acion_   │  │                    │                               │
+│  │password │  │                    │                               │
+│  └─────────┘  │                    │                               │
+└───────────────┼────────────────────┼───────────────────────────────┘
+                │                    │
+┌───────────────┼────────────────────┼───────────────────────────────┐
+│               │   DOMINIO CLIENTES │                               │
+│  ┌────────────┴──┐  ┌─────────────┴──┐  ┌────────────────────┐    │
+│  │   clientes    │──│ preferencias_  │  │   metodos_pago_    │    │
+│  │               │  │   cliente      │  │   guardados        │    │
+│  └───────┬───────┘  └────────────────┘  └────────────────────┘    │
+│          │                                                         │
+│  ┌───────┴───────┐  ┌──────────────┐  ┌──────────────────┐        │
+│  │  resenas      │  │  favoritos   │  │ solicitudes_     │        │
+│  │               │  │              │  │ cancelacion      │        │
+│  └───────────────┘  └──────────────┘  └──────────────────┘        │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DOMINIO HOTELES                                  │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  ┌──────────────┐  │
+│  │ hoteles  │──│ habitac- │  │ tipo_         │  │caracteristicas│  │
+│  │          │  │ iones    │  │ habitacion    │  │   _hotel     │  │
+│  └──────────┘  └──────────┘  └───────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DOMINIO SERVICIOS                                │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │destinos  │──│servicios │──│ proveedores  │  │ categoria_   │  │
+│  │          │  │          │  │              │  │ servicio     │  │
+│  └──────────┘  └──────────┘  └──────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DOMINIO RESERVAS                                 │
+│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐                 │
+│  │ reservas │──│reserva_      │  │reserva_      │                 │
+│  │          │  │habitaciones  │  │servicios     │                 │
+│  └────┬─────┘  └──────────────┘  └──────────────┘                 │
+│       │                                                             │
+│  ┌────┴────┐  ┌────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  pagos  │  │historial_  │  │  metodos_    │  │solicitudes_  │  │
+│  │         │  │reservas    │  │  pago        │  │cancelacion   │  │
+│  └─────────┘  └────────────┘  └──────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DOMINIO PAQUETES                                 │
+│  ┌──────────┐  ┌────────────────┐  ┌──────────────────┐            │
+│  │ paquetes │──│paquete_        │  │paquete_hotel     │            │
+│  │          │  │servicios       │  │                  │            │
+│  └──────────┘  └────────────────┘  └──────────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DOMINIO SISTEMA                                  │
+│  ┌────────────────────┐  ┌──────────────┐  ┌──────────────────┐    │
+│  │configuracion_      │  │notificaciones│  │banners_          │    │
+│  │sistema             │  │              │  │publicitarios     │    │
+│  └────────────────────┘  └──────────────┘  └──────────────────┘    │
+│  ┌────────────────────────────────────────┐                        │
+│  │solicitudes_corporativas                │                        │
+│  └────────────────────────────────────────┘                        │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-**Relaciones**:
-
-- Un `User` puede tener **muchos** `PasswordResetToken` (uno por cada solicitud de recuperación)
-- Un `User` puede tener **muchos** `EmailVerificationToken` (uno por cada registro/reenvío)
-- Ambas tablas de tokens tienen `ondelete="CASCADE"` — si se elimina el usuario, sus tokens se borran automáticamente
 
 ---
 
-## Tabla: `users`
+## Tablas Principales
 
-Almacena los datos de todos los usuarios registrados en el sistema.
+### `usuarios`
 
 ```sql
-CREATE TABLE users (
-    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    email               VARCHAR(255) NOT NULL UNIQUE,
-    full_name           VARCHAR(255) NOT NULL,
-    hashed_password     VARCHAR(255) NOT NULL,
-    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
-    is_email_verified   BOOLEAN     NOT NULL DEFAULT FALSE,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE usuarios (
+    id_usuario SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    correo_electronico VARCHAR(100) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    id_cliente INTEGER UNIQUE REFERENCES clientes(id_cliente) ON DELETE CASCADE,
+    id_empleado INTEGER UNIQUE REFERENCES empleados(id_empleado) ON DELETE CASCADE,
+    activo BOOLEAN DEFAULT TRUE,
+    verificado BOOLEAN DEFAULT FALSE,
+    foto_perfil VARCHAR(255),
+    ultimo_login TIMESTAMP,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX ix_users_email ON users (email);
 ```
 
-### Columnas
+Un usuario puede estar vinculado a un cliente O un empleado (o ninguno en el caso del admin).
 
-| Columna             | Tipo         | Nulo | Default | Descripción                                                   |
-| ------------------- | ------------ | ---- | ------- | ------------------------------------------------------------- |
-| `id`                | UUID         | No   | uuid4() | Identificador único — UUID evita predicción secuencial        |
-| `email`             | VARCHAR(255) | No   | —       | Credencial de login. UNIQUE + INDEX para búsquedas rápidas    |
-| `full_name`         | VARCHAR(255) | No   | —       | Nombre completo para mostrar en la interfaz                   |
-| `hashed_password`   | VARCHAR(255) | No   | —       | Hash bcrypt de la contraseña. **Nunca texto plano**           |
-| `is_active`         | BOOLEAN      | No   | `true`  | Permite desactivar cuentas sin borrar datos (soft delete)     |
-| `is_email_verified` | BOOLEAN      | No   | `false` | `false` al registrarse → no puede hacer login hasta verificar |
-| `created_at`        | TIMESTAMPTZ  | No   | `now()` | Fecha de registro del usuario (generada por PostgreSQL)       |
-| `updated_at`        | TIMESTAMPTZ  | No   | `now()` | Fecha de última modificación — se actualiza en cada UPDATE    |
+### `roles` y `usuarios_roles`
 
-### Índices
+```sql
+CREATE TABLE roles (
+    id_rol SERIAL PRIMARY KEY,
+    nombre_rol VARCHAR(50) UNIQUE NOT NULL
+);
 
-| Índice           | Columna | Tipo   | Razón                                                  |
-| ---------------- | ------- | ------ | ------------------------------------------------------ |
-| `pk_users`       | `id`    | PK     | Búsquedas por ID (relaciones con tokens)               |
-| `ix_users_email` | `email` | UNIQUE | Login frecuente por email — O(log n) con índice B-tree |
+CREATE TABLE usuarios_roles (
+    id_usuario INTEGER NOT NULL,
+    id_rol INTEGER NOT NULL,
+    fecha_asignacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id_usuario, id_rol)
+);
+```
 
-### Notas de seguridad
+Roles semilla: `admin`, `cliente`, `empleado`, `supervisor`, `gerente`, `agente_ventas`, `soporte`, `guia_turistico`, `auditor`, `marketing`.
 
-- `hashed_password` almacena el hash bcrypt (formato `$2b$12$...`) — ~60 caracteres estándar, 255 como margen futuro.
-- `is_email_verified` implementa verificación de email obligatoria — los nuevos usuarios no pueden autenticarse hasta confirmar su email (OWASP A07).
-- `is_active` permite bloquear cuentas sospechosas sin perder datos históricos.
+### `hoteles`
+
+```sql
+CREATE TABLE hoteles (
+    id_hotel SERIAL PRIMARY KEY,
+    nombre_hotel VARCHAR(100) NOT NULL,
+    calificacion INTEGER CHECK (calificacion BETWEEN 1 AND 5),
+    direccion VARCHAR(255),
+    ciudad VARCHAR(100),
+    pais VARCHAR(100),
+    codigo_postal VARCHAR(20),
+    correo_electronico VARCHAR(100),
+    telefono VARCHAR(20)
+);
+```
+
+### `habitaciones`
+
+```sql
+CREATE TABLE habitaciones (
+    id_habitacion SERIAL PRIMARY KEY,
+    id_hotel INTEGER NOT NULL REFERENCES hoteles(id_hotel) ON DELETE CASCADE,
+    id_tipo_habitacion INTEGER NOT NULL REFERENCES tipo_habitacion(id_tipo_habitacion),
+    numero_habitacion VARCHAR(20) NOT NULL,
+    precio_noche NUMERIC(10,2) CHECK (precio_noche >= 0),
+    estado VARCHAR(20) CHECK (estado IN ('disponible', 'ocupada', 'mantenimiento')),
+    UNIQUE(id_hotel, numero_habitacion)
+);
+```
+
+### `reservas`
+
+```sql
+CREATE TABLE reservas (
+    id_reserva SERIAL PRIMARY KEY,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
+    id_empleado INTEGER REFERENCES empleados(id_empleado) ON DELETE SET NULL,
+    id_paquete INTEGER REFERENCES paquetes(id_paquete) ON DELETE SET NULL,
+    fecha_reserva TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_inicio DATE,
+    fecha_fin DATE,
+    numero_personas INTEGER CHECK (numero_personas > 0),
+    estado VARCHAR(20) CHECK (estado IN ('pendiente', 'confirmada', 'cancelada', 'finalizada')),
+    canal_origen VARCHAR(20) DEFAULT 'web' CHECK (canal_origen IN ('web', 'empleado', 'telefono'))
+);
+```
+
+### `pagos`
+
+```sql
+CREATE TABLE pagos (
+    id_pago SERIAL PRIMARY KEY,
+    id_reserva INTEGER NOT NULL REFERENCES reservas(id_reserva),
+    id_metodo_pago INTEGER NOT NULL REFERENCES metodos_pago(id_metodo),
+    monto NUMERIC(10,2) CHECK (monto >= 0),
+    fecha_pago TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    referencia VARCHAR(100),
+    numero_factura VARCHAR(20) UNIQUE,
+    comprobante_url VARCHAR(255),
+    estado VARCHAR(20) CHECK (estado IN ('pendiente', 'procesando', 'pagado', 'rechazado', 'cancelado')),
+    simular_rechazo BOOLEAN DEFAULT FALSE
+);
+```
+
+### `paquetes`
+
+```sql
+CREATE TABLE paquetes (
+    id_paquete SERIAL PRIMARY KEY,
+    nombre_paquete VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    duracion_dias INTEGER,
+    precio_base NUMERIC(10,2) CHECK (precio_base >= 0),
+    activo BOOLEAN DEFAULT TRUE,
+    ciudad_salida VARCHAR(100)
+);
+```
 
 ---
 
-## Tabla: `password_reset_tokens`
+## Tablas de Relación N:N
 
-Almacena tokens temporales para el flujo de recuperación de contraseña.
+| Tabla | Relaciona | Campos clave |
+|---|---|---|
+| `usuarios_roles` | usuarios ↔ roles | id_usuario, id_rol |
+| `hotel_caracteristicas` | hoteles ↔ caracteristicas_hotel | id_hotel, id_caracteristica |
+| `reserva_habitaciones` | reservas ↔ habitaciones | id_reserva, id_habitacion |
+| `reserva_servicios` | reservas ↔ servicios | id_reserva, id_servicio |
+| `paquete_servicios` | paquetes ↔ servicios | id_paquete, id_servicio |
+| `paquete_hotel` | paquetes ↔ hoteles | id_paquete, id_hotel |
+| `servicio_proveedor` | servicios ↔ proveedores | id_servicio, id_proveedor |
+
+---
+
+## Índices
 
 ```sql
-CREATE TABLE password_reset_tokens (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token       VARCHAR(255) NOT NULL UNIQUE,
-    expires_at  TIMESTAMPTZ NOT NULL,
-    used        BOOLEAN     NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX ix_password_reset_tokens_token ON password_reset_tokens (token);
-```
-
-### Columnas
-
-| Columna      | Tipo         | Nulo | Default | Descripción                                                |
-| ------------ | ------------ | ---- | ------- | ---------------------------------------------------------- |
-| `id`         | UUID         | No   | uuid4() | Identificador único del registro de token                  |
-| `user_id`    | UUID         | No   | —       | FK → `users.id`. CASCADE: si borra el user, borra el token |
-| `token`      | VARCHAR(255) | No   | —       | UUID aleatorio enviado en el email de recuperación         |
-| `expires_at` | TIMESTAMPTZ  | No   | —       | Expiración: **1 hora** desde la creación                   |
-| `used`       | BOOLEAN      | No   | `false` | `true` una vez utilizado — previene reúso del enlace       |
-| `created_at` | TIMESTAMPTZ  | No   | `now()` | Fecha de emisión del token                                 |
-
-### Índices
-
-| Índice                           | Columna | Tipo   | Razón                                           |
-| -------------------------------- | ------- | ------ | ----------------------------------------------- |
-| `pk_password_reset_tokens`       | `id`    | PK     | —                                               |
-| `ix_password_reset_tokens_token` | `token` | UNIQUE | Reset password busca por token — requiere INDEX |
-
-### Ciclo de vida de un token de reset
-
-```
-1. Usuario solicita reset → se crea registro (used=false, expires_at = now + 1h)
-2. Usuario hace clic en el enlace → backend valida token:
-   - ¿Existe? → OK
-   - ¿expires_at > now()? → OK (no expirado)
-   - ¿used == false? → OK (no reutilizado)
-3. Se actualiza contraseña + se marca used=true
-4. Cualquier intento posterior con el mismo token → rechazado (400)
+CREATE INDEX idx_reservas_cliente ON reservas(id_cliente);
+CREATE INDEX idx_reservas_estado ON reservas(estado);
+CREATE INDEX idx_habitaciones_hotel ON habitaciones(id_hotel);
+CREATE INDEX idx_usuarios_username ON usuarios(username);
+CREATE INDEX idx_usuarios_correo ON usuarios(correo_electronico);
+CREATE UNIQUE INDEX idx_solicitud_cancelacion_pendiente_unica
+    ON solicitudes_cancelacion (id_reserva) WHERE estado = 'pendiente';
+CREATE INDEX idx_solicitudes_cancelacion_cliente ON solicitudes_cancelacion(id_cliente);
+CREATE INDEX idx_solicitudes_cancelacion_estado ON solicitudes_cancelacion(estado);
 ```
 
 ---
 
-## Tabla: `email_verification_tokens`
-
-Almacena tokens temporales para el flujo de verificación de email al registrarse.
+## Vista SQL
 
 ```sql
-CREATE TABLE email_verification_tokens (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token       VARCHAR(255) NOT NULL UNIQUE,
-    expires_at  TIMESTAMPTZ NOT NULL,
-    used        BOOLEAN     NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX ix_email_verification_tokens_token ON email_verification_tokens (token);
-```
-
-### Columnas
-
-| Columna      | Tipo         | Nulo | Default | Descripción                                                |
-| ------------ | ------------ | ---- | ------- | ---------------------------------------------------------- |
-| `id`         | UUID         | No   | uuid4() | Identificador único del registro de token                  |
-| `user_id`    | UUID         | No   | —       | FK → `users.id`. CASCADE: si borra el user, borra el token |
-| `token`      | VARCHAR(255) | No   | —       | UUID aleatorio enviado en el email de verificación         |
-| `expires_at` | TIMESTAMPTZ  | No   | —       | Expiración: **24 horas** desde la creación                 |
-| `used`       | BOOLEAN      | No   | `false` | `true` una vez utilizado — previene reúso del enlace       |
-| `created_at` | TIMESTAMPTZ  | No   | `now()` | Fecha de emisión del token                                 |
-
-### Ciclo de vida de un token de verificación
-
-```
-1. Usuario se registra → se crea User(is_email_verified=false) + EmailVerificationToken
-2. Se envía email con enlace: /verify-email?token=<uuid>
-3. Usuario hace clic → backend valida token:
-   - ¿Existe? → OK
-   - ¿expires_at > now()? → OK (no expirado — válido 24h)
-   - ¿used == false? → OK
-4. Se actualiza User.is_email_verified = true + se marca token used=true
-5. Usuario ya puede hacer login
+CREATE OR REPLACE VIEW vista_paquetes_populares AS
+SELECT
+    p.id_paquete,
+    p.nombre_paquete,
+    p.descripcion,
+    p.duracion_dias,
+    p.precio_base,
+    p.activo,
+    COUNT(r.id_reserva) AS total_reservas,
+    ROUND(AVG(CASE WHEN pa.estado = 'pagado' THEN 1.0 ELSE 0.0 END) * 5, 1) AS calificacion_estimada
+FROM paquetes p
+LEFT JOIN reservas r ON r.id_paquete = p.id_paquete
+LEFT JOIN pagos pa ON pa.id_reserva = r.id_reserva
+WHERE p.activo = TRUE
+GROUP BY p.id_paquete
+ORDER BY total_reservas DESC, calificacion_estimada DESC;
 ```
 
 ---
 
 ## Migraciones con Alembic
 
-El historial de migraciones vive en `be/alembic/versions/`. **Nunca se modifica la BD directamente** — todo cambio va a través de Alembic.
+16 migraciones encadenadas desde el esquema inicial hasta el estado actual:
+
+| Revisión | Descripción |
+|---|---|
+| `49b74c185f93` | Esquema inicial — 27 tablas |
+| `2b118189cd9d` | Seed 10 roles |
+| `523e6283e58b` | Seed datos demo (hoteles, clientes, empleados, reservas, pagos) |
+| `83731da37b5e` | Tabla resenas |
+| `f4a9c1d8b2e3` | Campo foto_perfil en usuarios |
+| `a7c3e9f21b04` | Fix password hashes, crear admin user, asignar roles |
+| `d4c8a1f39b02` | Campo codigo en metodos_pago, estados procesando/cancelado |
+| `e1f5a2c9d7b6` | Tabla favoritos |
+| `b6a2d4f81c93` | Tabla metodos_pago_guardados |
+| `c8e2f5a91d47` | Campo numero_factura y comprobante_url en pagos |
+| `d3f7b6c281a9` | Tabla configuracion_sistema |
+| `e7a2c9f04b18` | Tabla notificaciones |
+| `f1b8d3a75c26` | Tabla solicitudes_corporativas |
+| `c8810ca8bd10` | Campo ciudad_salida en paquetes |
+| `6e292ee53809` | Tabla banners_publicitarios |
+| `5b3d408e912a` | Tabla solicitudes_cancelacion (head) |
 
 ```bash
-# Ver estado actual de las migraciones
-cd be && alembic current
-
-# Ver historial de migraciones
-alembic history --verbose
-
-# Aplicar todas las migraciones pendientes
-alembic upgrade head
-
-# Revertir la última migración (solo en desarrollo)
-alembic downgrade -1
-
-# Crear nueva migración (detecta cambios en los modelos automáticamente)
-alembic revision --autogenerate -m "descripcion del cambio"
+# Comandos útiles
+docker compose exec backend alembic current     # Ver migración actual
+docker compose exec backend alembic history     # Ver historial
+docker compose exec backend alembic upgrade head # Aplicar pendientes
 ```
-
-### Migraciones existentes
-
-| Revisión     | Descripción                                   |
-| ------------ | --------------------------------------------- |
-| `a7c03fd8`   | Create users and password_reset_tokens tables |
-| `c3d5e7f9` ¹ | Add email_verification_tokens table           |
-
-> ¹ El hash exacto puede variar según la instalación — verificar con `alembic history`.
 
 ---
 
-## Convenciones de Nomenclatura en la BD
+## Convenciones de Nomenclatura
 
-| Aspecto          | Convención                  | Ejemplo                               |
-| ---------------- | --------------------------- | ------------------------------------- |
-| Tablas           | `snake_case`, plural        | `users`, `password_reset_tokens`      |
-| Columnas         | `snake_case`                | `hashed_password`, `created_at`       |
-| Primary Keys     | `id` con tipo UUID          | `id UUID PK`                          |
-| Foreign Keys     | `<tabla_singular>_id`       | `user_id` → `users.id`                |
-| Timestamps       | `created_at` / `updated_at` | Todas las tablas tienen `created_at`  |
-| Índices          | `ix_<tabla>_<columna>`      | `ix_users_email`                      |
-| Primary Key Name | `pk_<tabla>`                | PostgreSQL los genera automáticamente |
+| Aspecto | Convención | Ejemplo |
+|---|---|---|
+| Tablas | `snake_case`, plural | `reservas`, `metodos_pago` |
+| Columnas | `snake_case` | `fecha_creacion`, `precio_noche` |
+| Primary Keys | `id_<tabla>` SERIAL | `id_reserva`, `id_hotel` |
+| Foreign Keys | `id_<tabla_referenciada>` | `id_cliente`, `id_hotel` |
+| Timestamps | `fecha_creacion` / `fecha_actualizacion` | — |
+| Índices | `idx_<tabla>_<columna>` | `idx_reservas_cliente` |
 
 ---
 
-## ¿Por qué UUID como Primary Key?
+## Datos Semilla
 
-En lugar de integers autoincrementales (1, 2, 3...), este proyecto usa **UUID v4** como PK:
+El proyecto incluye 10 hoteles, 10 habitaciones, 10 clientes, 10 empleados, 11 usuarios (incluyendo admin), 10 servicios, 10 paquetes, 10 reservas y 10 pagos como datos de demostración.
 
-```
-# UUID v4 — completamente aleatorio:
-550e8400-e29b-41d4-a716-446655440000
+Credenciales de prueba:
+- **Admin**: `admin@alektours.com` / `Admin1234!`
+- **Cliente**: `juanp` / `Cliente1234!`
+- **Cliente**: `mariag` / `Cliente1234!`
 
-# vs Integer autoincremental:
-1, 2, 3, 4...
-```
-
-**Ventajas del UUID:**
-
-- **Seguridad**: No revela cuántos usuarios hay (`/users/1000` expone que hay al menos 1000 usuarios)
-- **No predecible**: No se pueden adivinar IDs de otros usuarios para intentar accesos
-- **Distribuido**: Permite generar IDs sin coordinación central (útil en arquitecturas multi-servicio)
-
-**Desventaja**: Los UUIDs son más grandes (16 bytes vs 4 bytes de int) — impacto mínimo en este proyecto educativo.
+> Ver `db_schema.sql` para el SQL completo con seeds.

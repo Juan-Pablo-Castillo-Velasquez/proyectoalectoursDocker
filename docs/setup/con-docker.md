@@ -1,122 +1,78 @@
-# Setup con Docker — NN Auth System
+# Setup con Docker — AlecTours
 
-<!--
-  ¿Qué? Guía paso a paso para levantar TODO el sistema usando Docker Compose.
-  ¿Para qué? Permitir que cualquier desarrollador levante el proyecto con un solo comando,
-             sin instalar Python, Node.js ni PostgreSQL en su máquina.
-  ¿Impacto? Es la forma más rápida y reproducible de correr el proyecto.
-             Docker garantiza que todos usen el mismo entorno de ejecución.
--->
-
-> **Modo recomendado para:** demostraciones, pruebas rápidas, entornos de clase
-> o cuando no quieres instalar dependencias en tu máquina.
+> **Modo recomendado para:** demostraciones, pruebas rápidas, entornos de clase.
 
 Con Docker Compose, todos los servicios corren en contenedores:
 
-| Servicio  | Qué es                         | Puerto host |
-| --------- | ------------------------------ | ----------- |
-| `db`      | PostgreSQL 17                  | 5432        |
-| `be`      | FastAPI + Uvicorn              | 8000        |
-| `fe`      | React + Nginx (build estático) | 3000        |
-| `mailpit` | Servidor SMTP local + Web UI   | 8025 / 1025 |
+| Servicio | Qué es | Puerto |
+|---|---|---|
+| `postgres` | PostgreSQL 16 | 5432 |
+| `backend` | FastAPI + Uvicorn | 8000 |
+| `frontend` | React + Vite | 5173 |
+| `pgadmin` | Administración de BD | 5050 |
+| `mailpit` | Servidor SMTP local + Web UI | 8025 / 1025 |
+| `redis` | Cache + rate limiting | 6379 |
 
 ---
 
 ## Prerrequisitos
 
-Antes de comenzar, instala estas herramientas:
+| Herramienta | Versión mínima | Verificar con |
+|---|---|---|
+| Docker | 24+ | `docker --version` |
+| Docker Compose | 2.20+ | `docker compose version` |
+| Git | 2.40+ | `git --version` |
 
-| Herramienta        | Versión mínima | Verificar con            | Descargar                           |
-| ------------------ | -------------- | ------------------------ | ----------------------------------- |
-| **Docker**         | 24+            | `docker --version`       | https://docs.docker.com/get-docker/ |
-| **Docker Compose** | 2.20+          | `docker compose version` | Incluido con Docker Desktop         |
-| **Git**            | 2.40+          | `git --version`          | https://git-scm.com/downloads       |
-
-> ⚠️ **Windows**: Docker Desktop requiere WSL2 habilitado.
-> Seguir la guía oficial: https://docs.docker.com/desktop/install/windows-install/
+> **Windows**: Docker Desktop requiere WSL2 habilitado.
 
 ---
 
 ## Paso 1 — Clonar el repositorio
 
 ```bash
-git clone <url-del-repositorio>
-cd proyecto
-```
-
-Verificar la estructura básica:
-
-```bash
-ls
-# Deberías ver: be/  fe/  docker-compose.yml  README.md  ...
+git clone https://github.com/Juan-Pablo-Castillo-Velasquez/proyectoalectoursDocker.git
+cd proyectoalectoursDocker
 ```
 
 ---
 
 ## Paso 2 — Configurar variables de entorno del Backend
 
-Docker Compose carga las variables de `be/.env`. Crear ese archivo a partir del ejemplo:
-
 ```bash
-cp be/.env.example be/.env
+cp backend/.env.example backend/.env
 ```
 
-Abrir `be/.env` con cualquier editor y revisar los valores:
+Abrir `backend/.env` y revisar los valores:
 
-```bash
-# Mínimo necesario para que funcione con Docker Compose — NO cambiar estos:
-DATABASE_URL=postgresql://nn_user:nn_password@db:5432/nn_auth_db
-SMTP_HOST=mailpit
-SMTP_PORT=1025
-FRONTEND_URL=http://localhost:3000
+```env
+DATABASE_URL=postgresql+psycopg://admin:admin123@postgres:5432/alektours_db
+SECRET_KEY=change_this_secret_key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+MAIL_USERNAME=your_email@example.com
+MAIL_PASSWORD=your_password
+MAIL_FROM=noreply@alektours.com
+MAIL_PORT=1025
+MAIL_SERVER=mailpit
+MAIL_FROM_NAME=AlekTours
+MAIL_STARTTLS=False
+MAIL_SSL_TLS=False
+REDIS_URL=redis://redis:6379/0
 ```
 
-> ⚠️ Nota: dentro de Docker, la BD se llama `db` (nombre del servicio), **no** `localhost`.
-> El frontend se sirve en el puerto `3000` (mapeado en `docker-compose.yml`).
-
-**Opcional — email real con Resend:**
-Si quieres que los emails lleguen a una bandeja real en lugar de Mailpit,
-obtén una API key gratuita en https://resend.com y completa:
-
-```bash
-RESEND_API_KEY=re_tu_api_key_aqui
-RESEND_FROM_EMAIL=onboarding@resend.dev   # dominio de prueba de Resend
-SMTP_HOST=                                # dejar vacío para desactivar SMTP/Mailpit
-```
+> Dentro de Docker, la BD se llama `postgres` (nombre del servicio), no `localhost`.
 
 ---
 
-## Paso 3 — Construir imágenes y levantar todos los servicios
-
-### Opción A — Script automatizado (recomendado)
-
-El proyecto incluye scripts que automatizan el arranque con healthchecks y resumen final:
+## Paso 3 — Levantar todos los servicios
 
 ```bash
-# Primera vez (o cuando hay cambios en código o dependencias) — construye + levanta
-./scripts/start.sh
-
-# Arranque rápido sin reconstruir imágenes
-./scripts/start.sh --no-build
+docker compose up -d
 ```
 
-El script:
-- Crea `be/.env` automáticamente desde `be/.env.example` si no existe
-- Construye las imágenes con `docker compose up --build -d`
-- Espera a que cada servicio esté listo (healthchecks activos)
-- Muestra un resumen con las URLs de todos los servicios
+La primera vez tarda más porque descarga las imágenes base.
 
-### Opción B — Comandos manuales
-
-```bash
-# Construye las imágenes de be y fe, y levanta todos los contenedores en segundo plano
-docker compose up --build -d
-```
-
-La primera vez tarda más porque descarga las imágenes base y compila el frontend.
-Las veces siguientes (sin `--build`) es mucho más rápido.
-
-Verificar que todos los contenedores están corriendo y sanos:
+Verificar que todos los contenedores están corriendo:
 
 ```bash
 docker compose ps
@@ -125,166 +81,130 @@ docker compose ps
 Deberías ver algo así:
 
 ```
-NAME              IMAGE              STATUS
-nn_auth_db        postgres:17-alpine Up (healthy)
-nn_auth_mailpit   axllent/mailpit    Up
-nn_auth_be        proyecto-be-fe-be  Up
-nn_auth_fe        proyecto-be-fe-fe  Up
-```
-
-> Si algún servicio aparece como `Exit` o `unhealthy`, ver el Paso 6 — Solución de problemas.
-
----
-
-## Paso 4 — Verificar que todo funciona
-
-Abrir en el navegador:
-
-| URL                               | Qué muestra                                          |
-| --------------------------------- | ---------------------------------------------------- |
-| http://localhost:3000             | Landing page del frontend                            |
-| http://localhost:8000/docs        | Swagger UI del backend (solo en entorno development) |
-| http://localhost:8000/api/v1/health | JSON `{"status": "healthy"}` — healthcheck de la API |
-| http://localhost:8025             | Mailpit — bandeja de emails capturados               |
-
-Probar la API directamente:
-
-```bash
-# Verificar que la API responde
-curl http://localhost:8000/api/v1/health
-# → {"status":"healthy","project":"NN Auth System","version":"0.1.0"}
-
-# Registrar un usuario de prueba
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","full_name":"Test User","password":"Test1234"}'
-```
-
-Después del registro, ir a http://localhost:8025 para ver el email de verificación.
-
----
-
-## Paso 5 — Comandos útiles del día a día
-
-```bash
-# ─── Ver logs ───
-docker compose logs -f          # logs de todos los servicios en tiempo real
-docker compose logs -f be        # solo logs del backend
-docker compose logs -f fe        # solo logs del frontend (Nginx)
-docker compose logs -f db        # solo logs de PostgreSQL
-
-# ─── Detener y reiniciar (scripts del proyecto) ───
-./scripts/stop.sh                # detiene contenedores, conserva datos de la BD
-./scripts/stop.sh --volumes      # ídem + borra el volumen → ¡se pierden los datos! (pide confirmación)
-./scripts/start.sh --no-build    # vuelve a iniciarlos sin reconstruir imágenes
-
-# ─── Detener y reiniciar (comandos manuales equivalentes) ───
-docker compose stop              # detiene los contenedores (conserva datos)
-docker compose start             # vuelve a iniciarlos
-docker compose restart be        # reinicia solo el backend
-
-# ─── Reconstruir (cuando cambias código o dependencias) ───
-./scripts/start.sh               # reconstruye + levanta + healthchecks (recomendado)
-docker compose up --build        # equivalente manual
-docker compose up --build be     # reconstruye solo el backend
-
-# ─── Limpiar ───
-docker compose down              # detiene y elimina contenedores (datos persisten en volumen)
-docker compose down -v           # ídem + borra volúmenes → ¡se pierden los datos de la BD!
-
-# ─── Ejecutar comandos dentro de un contenedor ───
-docker compose exec be bash      # abrir shell en el contenedor del backend
-docker compose exec db psql -U nn_user -d nn_auth_db  # consola de PostgreSQL
+NAME              IMAGE                    STATUS
+postgres_db       postgres:16              Up (healthy)
+fastapi_backend   ...                      Up
+react_frontend    ...                      Up
+pgadmin           dpage/pgadmin4           Up
+mailpit           axllent/mailpit          Up
+redis_cache       redis:7-alpine           Up
 ```
 
 ---
 
-## Paso 6 — Ejecutar tests (dentro de los contenedores)
+## Paso 4 — Aplicar migraciones
 
 ```bash
-# Tests del backend
-docker compose exec be pytest -v
-
-# Tests del backend con cobertura
-docker compose exec be pytest --cov=app --cov-report=term-missing
-
-# Linting del backend
-docker compose exec be ruff check app/
+docker compose exec backend alembic upgrade head
 ```
 
-> El frontend en este modo sirve el build estático (producción).
-> Para correr los tests del frontend, usar el modo **sin Docker** (ver [`sin-docker.md`](sin-docker.md)).
+Esto crea todas las tablas y carga los datos semilla (hoteles, clientes, reservas, etc.).
 
 ---
 
-## Paso 7 — Solución de problemas comunes
+## Paso 5 — Verificar que todo funciona
 
-### El contenedor `be` arranca y se cae inmediatamente
+| URL | Qué muestra |
+|---|---|
+| http://localhost:5173 | Frontend (landing page) |
+| http://localhost:8000/docs | Swagger UI del backend |
+| http://localhost:8000/redoc | ReDoc del backend |
+| http://localhost:5050 | pgAdmin |
+| http://localhost:8025 | Mailpit (bandeja de emails) |
+
+### Credenciales de prueba
+
+| Usuario | Email/Username | Contraseña | Rol |
+|---|---|---|---|
+| Admin | `admin@alektours.com` | `Admin1234!` | admin |
+| Cliente | `juanp` | `Cliente1234!` | cliente |
+| Cliente | `mariag` | `Cliente1234!` | cliente |
+
+---
+
+## Paso 6 — Comandos útiles del día a día
 
 ```bash
-# Ver el error completo
-docker compose logs be
+# Ver logs
+docker compose logs -f              # todos los servicios
+docker compose logs -f backend      # solo backend
+docker compose logs -f frontend     # solo frontend
+docker compose logs -f postgres     # solo PostgreSQL
 
-# Causas frecuentes:
-# 1. be/.env no existe → ejecutar: cp be/.env.example be/.env
-# 2. DATABASE_URL apunta a localhost en lugar de db
-#    → Revisar que sea: postgresql://nn_user:nn_password@db:5432/nn_auth_db
+# Detener y reiniciar
+docker compose stop                 # detiene (conserva datos)
+docker compose start                # vuelve a iniciar
+docker compose restart backend      # reinicia solo backend
+
+# Reconstruir (cuando cambias código)
+docker compose up --build -d        # reconstruye + levanta
+
+# Limpiar
+docker compose down                 # elimina contenedores (datos persisten)
+docker compose down -v              # elimina contenedores + volúmenes (¡borra datos!)
+
+# Ejecutar comandos dentro de un contenedor
+docker compose exec backend bash
+docker compose exec postgres psql -U admin -d alektours_db
+
+# Migraciones
+docker compose exec backend alembic current
+docker compose exec backend alembic history
+docker compose exec backend alembic upgrade head
+docker compose exec backend alembic revision --autogenerate -m "descripcion"
 ```
 
-### Error "port is already in use"
+---
+
+## Producción
+
+Para despliegue real, usar el compose de producción:
 
 ```bash
-# Verificar qué proceso usa el puerto (ej: 5432)
-sudo lsof -i :5432
-
-# Opción A — detener el proceso local
-sudo kill -9 <PID>
-
-# Opción B — cambiar el puerto en docker-compose.yml
-# En el servicio db, cambiar "5432:5432" por "5433:5432"
-# y luego: docker compose up -d
+# Completar backend/.env con valores reales de producción
+# Exportar variables de PostgreSQL (no usar defaults de dev)
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-### Los emails no aparecen en Mailpit
+Diferencias con dev:
+- Backend usa stage `prod` (non-root user, 4 workers, healthcheck)
+- PostgreSQL y Redis sin exposición de puerto al host
+- Sin Mailpit ni pgAdmin
+- Frontend desplegado en Vercel (no Docker)
+
+---
+
+## Solución de problemas
+
+### Backend arranca y se cae
 
 ```bash
+docker compose logs backend
+# Causa común: backend/.env no existe → cp backend/.env.example backend/.env
+```
+
+### Puerto ya en uso
+
+```bash
+# Ver qué usa el puerto (ej: 5432)
+netstat -ano | findstr :5432
+# Cambiar puerto en docker-compose.yml o cerrar el proceso
+```
+
+### Emails no aparecen en Mailpit
+
+```bash
+# Verificar que MAIL_SERVER=mailpit en backend/.env
+grep MAIL_SERVER backend/.env
 # Verificar que Mailpit está corriendo
 docker compose ps mailpit
-
-# Verificar que SMTP_HOST=mailpit en be/.env (no localhost)
-grep SMTP_HOST be/.env
-
-# Ver los logs del backend para confirmar el envío
-docker compose logs be | grep -i email
 ```
 
-### Reconstruir desde cero (reset total)
+### Reset total
 
 ```bash
-# Detiene, elimina contenedores, imágenes y volúmenes
 docker compose down -v
 docker system prune -f
-
-# Volver a construir
 docker compose up --build -d
-```
-
----
-
-## Resumen rápido
-
-```bash
-# Setup inicial (una sola vez)
-git clone <url> && cd proyecto
-# be/.env se crea automáticamente desde .env.example al ejecutar el script
-# Editarlo manualmente solo si quieres cambiar algún valor
-
-# Levantar todo (construye imágenes + healthchecks + resumen de URLs)
-./scripts/start.sh
-
-# Arranques siguientes (sin reconstruir)
-./scripts/start.sh --no-build
-
-# Detener
-./scripts/stop.sh
+docker compose exec backend alembic upgrade head
 ```

@@ -1,256 +1,170 @@
-# Design System — NN Auth System (Serie Educativa)
-
-<!--
-  ¿Qué? Referencia técnica del sistema de temas visuales diferenciales por stack.
-  ¿Para qué? Documentar la decisión de diseño, la arquitectura CSS y las instrucciones
-             exactas para clonar y adaptar el tema a cada proyecto de la serie.
-  ¿Impacto? Sin esta referencia, cada proyecto herecería colores hardcodeados de otro stack,
-            generando confusión visual entre los aprendices al comparar proyectos.
--->
+# Design System — AlecTours
 
 ---
 
-## 1. Propósito
+## 1. Identidad Visual
 
-Cada proyecto de la serie educativa implementa el mismo sistema de autenticación con
-**un stack backend diferente**. Para que los aprendices puedan identificar visualmente
-a qué stack pertenece cada proyecto, se asigna un **color de acento único** a cada uno.
+AlecTours usa una paleta de colores basada en tonos granate/borgoña que transmite sofisticación y confianza para una plataforma turística.
 
-Este color no es decorativo: es **semiótico**. Verde = Python; Azul = Node.js; etc.
+### Colores de Marca
 
----
+| Token | Hex | Uso |
+|---|---|---|
+| Primary (Granate) | `#6e1832` | Botones primarios, links, acentos |
+| Primary Light (dark mode) | `#c24d6e` | Variante clara para modo oscuro |
+| Gold | `#b8912e` | Badges premium, estrellas, acentos dorados |
 
-## 2. Tabla de Identidades Visuales
+### Paleta Completa
 
-| Stack backend               | Proyecto              | Color Tailwind | Hex referencia |
-| --------------------------- | --------------------- | -------------- | -------------- |
-| **FastAPI (Python)** ← ESTE | `proyecto-be-fe`      | `emerald`      | `#059669`      |
-| Express.js (Node)           | `proyecto-beex-fe`    | `blue`         | `#2563eb`      |
-| Next.js fullstack           | `proyecto-be-fe-next` | `violet`       | `#7c3aed`      |
-| Spring Boot Java            | `proyecto-besb-fe`    | `amber`        | `#d97706`      |
-| Spring Boot Kotlin          | `proyecto-besbk-fe`   | `fuchsia`      | `#c026d3`      |
-| Go REST API                 | `proyecto-bego-fe`    | `cyan`         | `#0891b2`      |
-
----
-
-## 3. Arquitectura del Sistema de Temas
-
-### 3.1 Principio: token semántico `accent-*`
-
-Los componentes **nunca** referencian un color concreto (`blue-600`, `emerald-500`).
-Usan el token abstracto `accent-*`, que está definido **una sola vez** en `index.css`.
-
-```
-Componentes (Button, InputField, LandingPage…)
-      │
-      │  usan  bg-accent-600, text-accent-500, border-accent-300 …
-      │
-      ▼
-  index.css  @theme inline
-      │
-      │  mapea  --color-accent-* → --color-emerald-*
-      │
-      ▼
-  TailwindCSS v4 (paleta base: emerald, blue, violet, amber, fuchsia, cyan…)
-```
-
-**Beneficio**: clonar el tema para otro stack = cambiar **11 líneas** en `index.css`.
-Cero cambios en componentes, páginas, tests ni documentación.
-
-### 3.2 Implementación en TailwindCSS v4
-
-TailwindCSS v4 expone cada paleta base como variables CSS (`--color-emerald-500`, etc.).
-La directiva `@theme inline` crea aliases que las referencian:
-
-```css
-/* fe/src/index.css */
-
-@theme inline {
-  --color-accent-50: var(--color-emerald-50);
-  --color-accent-100: var(--color-emerald-100);
-  --color-accent-200: var(--color-emerald-200);
-  --color-accent-300: var(--color-emerald-300);
-  --color-accent-400: var(--color-emerald-400);
-  --color-accent-500: var(--color-emerald-500); /* ← color base de acento */
-  --color-accent-600: var(--color-emerald-600); /* ← botones primarios */
-  --color-accent-700: var(--color-emerald-700); /* ← hover de botones */
-  --color-accent-800: var(--color-emerald-800);
-  --color-accent-900: var(--color-emerald-900);
-  --color-accent-950: var(--color-emerald-950);
-}
-```
-
-Esto genera automáticamente las utilidades:
-
-- `bg-accent-{50…950}` → fondos
-- `text-accent-{50…950}` → textos
-- `border-accent-{50…950}` → bordes
-- `ring-accent-{50…950}` → rings de focus
-- etc.
-
-**¿Por qué `inline`?** Sin esa palabra clave, Tailwind intenta resolver el valor
-en tiempo de compilación y no puede seguir referencias a otras variables CSS.
-Con `inline`, inyecta `var(--color-accent-600)` directamente en el CSS generado,
-y el navegador resuelve la cadena en runtime.
+| Variable | Light Mode | Dark Mode |
+|---|---|---|
+| `--background` | `#fbf8f6` (bone) | `#0f0f10` |
+| `--foreground` | `#1a0a10` | `#f0ebe8` |
+| `--card` | `#ffffff` | `#18181b` |
+| `--primary` | `#6e1832` | `#c24d6e` |
+| `--primary-foreground` | `#ffffff` | `#ffffff` |
+| `--secondary` | `#f5f0ec` | `#27272a` |
+| `--muted` | `#f0ebe8` | `#27272a` |
+| `--accent` | `#b8912e` | `#d4a940` |
+| `--destructive` | `#dc2626` | `#f87171` |
+| `--border` | `#e8e0da` | `#2a2a2e` |
+| `--ring` | `#6e1832` | `#c24d6e` |
 
 ---
 
-## 4. Colores Semánticos — Excepción Documentada
+## 2. Stack de Estilos
 
-El token `accent-*` es para **marca e interacción primaria**. Existen colores con
-significado **semántico fijo** que NO cambian entre proyectos:
-
-| Semántica   | Color Tailwind | Uso                                      |
-| ----------- | -------------- | ---------------------------------------- |
-| Éxito       | `green-*`      | Alert type="success", confirmaciones     |
-| Error       | `red-*`        | Alert type="error", validaciones         |
-| Advertencia | `yellow-*`     | Avisos no críticos                       |
-| Información | `blue-*`       | Alert type="info", cajas informacionales |
-
-**Regla concreta**: `Alert.tsx` tipo `"info"` conserva `blue-*` en todos los proyectos
-de la serie. `ContactPage.tsx` mantiene azul el cuadro anti-spam (informacional).
-Esto es correcto: el azul semántico de "información" no debe confundirse con el
-color de acento de un proyecto concreto.
+| Tecnología | Versión | Propósito |
+|---|---|---|
+| Tailwind CSS | 4.1.12 | Utility-first CSS framework |
+| `@tailwindcss/vite` | — | Plugin Vite para Tailwind 4 |
+| `tw-animate-css` | 1.3.8 | Animaciones Tailwind |
+| shadcn/ui | — | Componentes base (Radix UI) |
+| MUI | 7.3.5 | Componentes complejos (admin) |
+| `@emotion/react` + `@emotion/styled` | — | CSS-in-JS para MUI |
 
 ---
 
-## 5. Logo SVG — Colores Hardcodeados
+## 3. Tema Claro / Oscuro
 
-El componente `NNAuthLogo` en `LandingPage.tsx` usa valores SVG directos, no clases
-Tailwind. Al cambiar el stack, actualizar también estos colores:
+### Implementación
 
-| Token semántico | FastAPI (emerald)  | Express (blue)     | Go (cyan)          |
-| --------------- | ------------------ | ------------------ | ------------------ |
-| Borde del badge | `stroke="#059669"` | `stroke="#2563eb"` | `stroke="#0891b2"` |
-| Trazos letras N | `stroke="#34d399"` | `stroke="#60a5fa"` | `stroke="#22d3ee"` |
+- **Toggle**: `ThemeToggle.tsx` — alterna clase `.dark` en `<html>`
+- **Persistencia**: `localStorage` key `"theme"`
+- **Fallback**: `prefers-color-scheme: dark` del sistema
+- **Variant dark**: `@custom-variant dark (&:is(.dark *))` en Tailwind
 
-La relación es: borde = `{paleta}-600`, trazos = `{paleta}-400`.
+### Archivos CSS
 
----
-
-## 6. Cómo Clonar Este Proyecto para Otro Stack
-
-### Paso 1 — Cambiar el color de acento en `index.css`
-
-Editar únicamente el bloque `@theme inline` en `fe/src/index.css`:
-
-```css
-/* Ejemplo: cambiar de FastAPI (emerald) a Express.js (blue) */
-
-@theme inline {
-  /* Antes: var(--color-emerald-*)  */
-  /* Después:                       */
-  --color-accent-50: var(--color-blue-50);
-  --color-accent-100: var(--color-blue-100);
-  --color-accent-200: var(--color-blue-200);
-  --color-accent-300: var(--color-blue-300);
-  --color-accent-400: var(--color-blue-400);
-  --color-accent-500: var(--color-blue-500);
-  --color-accent-600: var(--color-blue-600);
-  --color-accent-700: var(--color-blue-700);
-  --color-accent-800: var(--color-blue-800);
-  --color-accent-900: var(--color-blue-900);
-  --color-accent-950: var(--color-blue-950);
-}
-```
-
-### Paso 2 — Actualizar el logo SVG
-
-En `fe/src/pages/LandingPage.tsx`, función `NNAuthLogo`, cambiar los dos valores
-de `stroke` según la tabla de la sección 5.
-
-### Paso 3 — Actualizar el comentario de cabecera en `index.css`
-
-Cambiar la línea `/* FastAPI (Python) ← ESTE */` para identificar el nuevo stack.
-
-### Paso 4 _(opcional)_ — Actualizar el `tech stack` en `LandingPage.tsx`
-
-El array `techStack` lista las tecnologías del proyecto. Reemplazar `"Python 3.12"`,
-`"FastAPI"`, `"SQLAlchemy"`, `"Alembic"`, `"Pydantic"`, `"pytest"` por las del nuevo stack.
+| Archivo | Contenido |
+|---|---|
+| `src/styles/theme.css` | Variables CSS, utilidades `.card-elevated`, `.btn-primary-depth`, `.badge-gold`, etc. |
+| `src/styles/tailwind.css` | Configuración Tailwind con `@source` y dark variant |
+| `src/styles/index.css` | Master CSS con imports de fonts, tailwind, theme |
+| `src/styles/fonts.css` | Fuentes (Google Fonts CDN en `index.html`) |
 
 ---
 
-## 7. Patrones de Uso Correcto en Componentes
+## 4. Utilidades CSS del Proyecto
 
-### 7.1 Botón primario
+| Clase | Propósito |
+|---|---|
+| `.card-elevated` | Tarjeta con sombra elevada y borde sutil |
+| `.btn-primary-depth` | Botón primario con efecto de profundidad |
+| `.badge-gold` | Badge dorado premium |
+| `.hero-brand` | Gradiente de hero con colores de marca |
+| `.navbar-surface` | Superficie de navbar con blur |
+| `.footer-brand` | Estilo de footer con colores de marca |
+| `.banner-textured` | Banner con textura de fondo |
+
+---
+
+## 5. Componentes UI
+
+### shadcn/ui (42 componentes base)
+
+Accordion, Alert, Avatar, Badge, Button, Calendar, Card, Checkbox, Collapsible, Command, Dialog, Drawer, DropdownMenu, Form, HoverCard, Input, InputOTP, Label, Menubar, NavigationMenu, Popover, Progress, RadioGroup, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Sonner (Toast), Switch, Table, Tabs, Textarea, Toggle, ToggleGroup, Tooltip.
+
+### MUI (componentes admin)
+
+DataGrid, DatePicker, Breadcrumbs, IconButton, LinearProgress, Chip, Collapse, Divider, List, ListItem, ListItemIcon, ListItemText.
+
+---
+
+## 6. Icons
+
+- **Primario**: `lucide-react` (0.487) — iconos ligeros y consistentes
+- **Secundario**: `@mui/icons-material` — iconos para componentes MUI en admin
+
+---
+
+## 7. Animación
+
+| Librería | Uso |
+|---|---|
+| `motion` (Framer Motion) 12.23 | Transiciones de página, modales, animaciones de entrada |
+| GSAP 3.15 | Animaciones complejas de scroll y hero |
+| `canvas-confetti` 1.9 | Efecto confetti en confirmaciones |
+
+---
+
+## 8. Responsive Design
+
+- **Mobile-first**: todos los componentes se diseñan primero para móvil
+- **Breakpoints**: Tailwind estándar (sm, md, lg, xl)
+- **Admin Sidebar**: Colapsable en móvil, siempre visible en desktop
+- **Navbar**: Menú hamburguesa en móvil, navegación horizontal en desktop
+
+---
+
+## 9. Patrones de Uso en Componentes
+
+### Botón primario
 
 ```tsx
-// ✅ CORRECTO — usa accent, funciona en todos los proyectos
-<button className="bg-accent-600 hover:bg-accent-700 dark:bg-accent-500 dark:hover:bg-accent-600 text-white ...">
-  Guardar
-</button>
-
-// ❌ INCORRECTO — hardcodea un color concreto
-<button className="bg-emerald-600 hover:bg-emerald-700 ...">
-  Guardar
+// Correcto — usa colores del design system
+<button className="bg-primary hover:bg-primary/90 text-primary-foreground ...">
+  Reservar
 </button>
 ```
 
-### 7.2 Link de acento
+### Card con elevación
 
 ```tsx
-// ✅ CORRECTO
-<a className="text-accent-600 hover:text-accent-700 dark:text-accent-400 dark:hover:text-accent-300">
-  Ver más
-</a>
+<div className="card-elevated">
+  <h3>Hotel Paraíso</h3>
+  <p>Desde $150.000/noche</p>
+</div>
 ```
 
-### 7.3 Focus ring en inputs y enlaces
+### Badge dorado
 
 ```tsx
-// ✅ CORRECTO
-<input className="focus:border-accent-500 focus:ring-accent-500/20 dark:focus:border-accent-400 ..." />
-<a className="focus-visible:ring-2 focus-visible:ring-accent-500 ..." />
+<span className="badge-gold">Premium</span>
 ```
 
-### 7.4 Badges numerados / íconos de sección
+### Dark mode
 
 ```tsx
-// ✅ CORRECTO
-<span className="border-accent-300 bg-accent-50 text-accent-600 dark:border-accent-800 dark:bg-accent-950 dark:text-accent-400">
-  01
-</span>
-```
-
-### 7.5 Alerta informacional (EXCEPCIÓN — NO usar accent)
-
-```tsx
-// ✅ CORRECTO — info SIEMPRE azul, sin importar el stack
-<div className="bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-300">
-  Información importante
+// Tailwind maneja automáticamente la transición
+<div className="bg-card text-foreground border-border">
+  {/* Se adapta automáticamente a light/dark */}
 </div>
 ```
 
 ---
 
-## 8. Verificación
+## 10. Fuentes
 
-Para auditar que un proyecto no tiene colores hardcodeados de otro stack:
-
-```bash
-cd fe/src
-
-# Verificar que no hay colores concretos donde debería ir accent
-# (estos patrones en componentes/páginas son errores)
-grep -rn "bg-blue-6\|bg-emerald-6\|bg-violet-6\|bg-amber-6\|bg-fuchsia-6\|bg-cyan-6" \
-  --include="*.tsx" . | grep -v "Alert.tsx"
-
-# Ver qué color de acento está activo en este proyecto
-grep "color-accent-500" index.css
-```
-
-Si el primer comando devuelve resultados (excluyendo `Alert.tsx`), hay colores
-hardcodeados que deben migrarse a `accent-*`.
+| Fuente | Uso | Carga |
+|---|---|---|
+| Playfair Display | Títulos principales, hero | Google Fonts CDN |
+| Inter | Body text, UI | Google Fonts CDN |
 
 ---
 
-## 9. Relación con el Repositorio de Referencia
+## 11. Despliegue
 
-El repositorio `ergrato-dev/proyecto-beex-fe` (Express.js) implementa el mismo
-sistema con `blue` como acento. Es el proyecto de referencia para comparar la
-misma arquitectura con distinto stack y distinto color de identidad.
-
-| Repositorio        | Stack             | Acento  | URL                                       |
-| ------------------ | ----------------- | ------- | ----------------------------------------- |
-| `proyecto-be-fe`   | FastAPI + Python  | emerald | _(este repo)_                             |
-| `proyecto-beex-fe` | Express.js + Node | blue    | `github.com/ergrato-dev/proyecto-beex-fe` |
+- **Frontend**: Vercel (`https://proyectoalectours-docker.vercel.app/`)
+- **Build**: Vite produce `/dist` → servido por nginx en Docker prod
+- **Meta tags**: Open Graph, Schema.org JSON-LD, SEO optimizado en `index.html`

@@ -1,58 +1,46 @@
-# API Endpoints — NN Auth System
-
-<!--
-  ¿Qué? Documentación de referencia de todos los endpoints de la API REST del backend.
-  ¿Para qué? Que cualquier desarrollador (frontend, backend, QA) pueda integrar o probar
-             la API sin necesidad de leer el código fuente ni acceder a Swagger UI.
-  ¿Impacto? En producción, Swagger UI (/docs) está deshabilitado por seguridad
-             (OWASP A05 — Security Misconfiguration). Este documento es la única
-             referencia pública de la API para entornos de producción.
--->
+# API Endpoints — AlecTours
 
 > **Base URL**: `http://localhost:8000`
-> **Versionamiento**: Todos los endpoints usan el prefijo `/api/v1/`
-> **Formato**: JSON en request y response (Content-Type: `application/json`)
+> **Formato**: JSON en request y response
 > **Autenticación**: JWT Bearer Token — `Authorization: Bearer <access_token>`
 
 ---
 
-## Resumen de Endpoints
+## Resumen de Routers
 
-| Método | Ruta                           | Descripción                              | Auth | Rate Limit |
-| ------ | ------------------------------ | ---------------------------------------- | ---- | ---------- |
-| POST   | `/api/v1/auth/register`        | Registrar nuevo usuario                  | No   | 5/min      |
-| POST   | `/api/v1/auth/login`           | Iniciar sesión, obtener tokens JWT       | No   | 10/min     |
-| POST   | `/api/v1/auth/refresh`         | Renovar access token con refresh token   | No † | —          |
-| POST   | `/api/v1/auth/change-password` | Cambiar contraseña (usuario autenticado) | Sí   | —          |
-| POST   | `/api/v1/auth/forgot-password` | Solicitar email de recuperación          | No   | 5/min      |
-| POST   | `/api/v1/auth/reset-password`  | Restablecer contraseña con token         | No † | —          |
-| POST   | `/api/v1/auth/verify-email`    | Verificar dirección de email             | No † | —          |
-| GET    | `/api/v1/users/me`             | Obtener perfil del usuario actual        | Sí   | —          |
-
-> **†** No requiere `Authorization` header, pero sí un token específico en el body (refresh token, reset token o verification token).
-
----
-
-## Códigos de Estado HTTP Comunes
-
-| Código | Significado                                                         |
-| ------ | ------------------------------------------------------------------- |
-| 200    | OK — Operación exitosa                                              |
-| 201    | Created — Recurso creado exitosamente (registro de usuario)         |
-| 400    | Bad Request — Datos inválidos (email duplicado, lógica de negocio)  |
-| 401    | Unauthorized — Token inválido, expirado o ausente                   |
-| 403    | Forbidden — Autenticado pero sin permiso (email no verificado)      |
-| 422    | Unprocessable Entity — Validación Pydantic fallida (tipos, formato) |
-| 429    | Too Many Requests — Rate limit superado                             |
-| 500    | Internal Server Error — Error no controlado del servidor            |
+| Router | Prefijo | Descripción |
+|---|---|---|
+| Auth | `/auth` | Registro, login, verificación email, recuperación contraseña |
+| Hoteles | `/api/hoteles` | CRUD hoteles, habitaciones, tipos, características |
+| Clientes | `/api/clientes` | CRUD clientes, métodos de pago, cambio contraseña |
+| Empleados | `/api/empleados` | CRUD empleados, lista activos |
+| Reservas | `/api/reservas` | CRUD reservas, pagar, historial, habitaciones/servicios |
+| Paquetes | `/api/paquetes` | CRUD paquetes turísticos, populares, detalle |
+| Pagos | `/api/pagos` | Métodos de pago, CRUD pagos, comprobantes |
+| Servicios | `/api/servicios` | CRUD servicios, categorías |
+| Destinos | `/api/destinos` | CRUD destinos, sugerencias |
+| Preferencias | `/api/preferencias-cliente` | Preferencias de viaje, sugerencias IA |
+| Promociones | `/api/promociones` | Destacados, selección para home |
+| Contacto | `/api/contacto` | Formulario de contacto |
+| Reseñas | `/api/resenas` | Crear reseñas, obtener por hotel, destacadas |
+| Usuarios | `/api/usuarios` | CRUD usuarios, admin, perfil, foto |
+| Roles | `/api/roles` | Consultar roles |
+| Favoritos | `/api/favoritos` | Lista, agregar, eliminar favoritos |
+| MétosPagoGuardados | `/api/metodos-pago-guardados` | CRUD métodos de pago guardados |
+| Configuración | `/api/configuracion` | CRUD configuración del sistema |
+| Notificaciones | `/api/notificaciones` | Lista, conteo no leídas, marcar leídas |
+| SolicitudesCancelación | `/api/solicitudes-cancelacion` | Crear, resolver solicitudes |
+| SolicitudesCorporativas | `/api/solicitudes-corporativas` | Crear, gestionar solicitudes empresa |
+| Dashboard | `/api/dashboard` | Resumen KPIs, métricas, gráficas |
+| Banners | `/api/banners` | CRUD banners publicitarios |
 
 ---
 
-## Autenticación — Endpoints Auth
+## Autenticación — `/auth`
 
-### POST /api/v1/auth/register
+### POST /auth/register
 
-Registra un nuevo usuario en el sistema y envía un email de verificación.
+Registra un nuevo usuario con rol `cliente` por defecto.
 
 **Rate limit**: 5 peticiones/minuto por IP
 
@@ -60,182 +48,72 @@ Registra un nuevo usuario en el sistema y envía un email de verificación.
 
 ```json
 {
-  "email": "usuario@ejemplo.com",
-  "full_name": "Juan Pérez",
+  "username": "juanp",
+  "correo_electronico": "juan@example.com",
   "password": "MiContrasena1"
 }
 ```
 
-| Campo       | Tipo   | Requerido | Validación                                   |
-| ----------- | ------ | --------- | -------------------------------------------- |
-| `email`     | string | Sí        | Formato email válido (`EmailStr`)            |
-| `full_name` | string | Sí        | Mínimo 1 caracter (sin espacios en blanco)   |
-| `password`  | string | Sí        | ≥8 chars, 1 mayúscula, 1 minúscula, 1 número |
-
-**Respuesta exitosa (201 Created):**
+**Respuesta (201 Created):**
 
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "usuario@ejemplo.com",
-  "full_name": "Juan Pérez",
-  "is_active": true,
-  "is_email_verified": false,
-  "created_at": "2026-02-15T10:30:00+00:00",
-  "updated_at": "2026-02-15T10:30:00+00:00"
+  "id_usuario": 1,
+  "username": "juanp",
+  "correo_electronico": "juan@example.com",
+  "activo": true,
+  "verificado": false
 }
 ```
 
-> ⚠️ El usuario queda con `is_email_verified: false`. No puede hacer login hasta verificar su email.
+### POST /auth/login
 
-**Errores posibles:**
+Autentica al usuario y retorna tokens JWT.
 
-| Código | Condición                                 |
-| ------ | ----------------------------------------- |
-| 400    | Email ya registrado en el sistema         |
-| 422    | Validación fallida (password débil, etc.) |
-| 429    | Rate limit superado (5/min)               |
+**Rate limit**: 5 peticiones/minuto por IP
 
----
+**Request body (OAuth2 form-encoded):**
 
-### POST /api/v1/auth/login
+```
+username=juanp&password=MiContrasena1
+```
 
-Autentica al usuario y retorna un par de tokens JWT.
+**Respuesta (200 OK):**
 
-**Rate limit**: 10 peticiones/minuto por IP
+```json
+{
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "user_id": 1,
+  "username": "juanp",
+  "id_cliente": 1,
+  "roles": ["cliente"]
+}
+```
+
+### POST /auth/verify-email
+
+Verifica la dirección de email del usuario.
+
+**Query param**: `?token=<token>`
+
+### POST /auth/forgot-password
+
+Solicita email de recuperación de contraseña.
+
+**Rate limit**: 3 peticiones/minuto por IP
 
 **Request body:**
 
 ```json
 {
-  "email": "usuario@ejemplo.com",
-  "password": "MiContrasena1"
+  "email": "juan@example.com"
 }
 ```
 
-| Campo      | Tipo   | Requerido |
-| ---------- | ------ | --------- |
-| `email`    | string | Sí        |
-| `password` | string | Sí        |
+### POST /auth/reset-password
 
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-| Campo           | Tipo   | Descripción                         |
-| --------------- | ------ | ----------------------------------- |
-| `access_token`  | string | JWT de acceso — duración 15 min     |
-| `refresh_token` | string | JWT de renovación — duración 7 días |
-| `token_type`    | string | Siempre `"bearer"`                  |
-
-**Cómo usar los tokens:**
-
-```http
-# Usar access_token en cada petición protegida:
-GET /api/v1/users/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-**Errores posibles:**
-
-| Código | Condición                                   |
-| ------ | ------------------------------------------- |
-| 401    | Email no registrado o contraseña incorrecta |
-| 403    | Cuenta creada pero email no verificado aún  |
-| 429    | Rate limit superado (10/min)                |
-
-> **Nota de seguridad**: La API devuelve el mismo `401` tanto si el email no existe como si la contraseña es incorrecta. Esto evita la **enumeración de usuarios** — un atacante no puede saber si un email está registrado.
-
----
-
-### POST /api/v1/auth/refresh
-
-Genera un nuevo par de tokens usando un refresh token válido (rotación de tokens).
-
-**Request body:**
-
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-> **Rotación de tokens**: El refresh token anterior queda invalidado al usar este endpoint. Siempre hay que guardar el nuevo par.
-
-**Cuándo usar este endpoint:**
-
-```
-1. El frontend hace GET /api/v1/users/me → 401 (access_token expirado)
-2. El frontend llama POST /api/v1/auth/refresh con el refresh_token guardado
-3. El servidor retorna nuevos access_token + refresh_token
-4. El frontend reintenta GET /api/v1/users/me con el nuevo access_token
-```
-
-**Errores posibles:**
-
-| Código | Condición                                   |
-| ------ | ------------------------------------------- |
-| 401    | Refresh token inválido, expirado o ya usado |
-
----
-
-### POST /api/v1/auth/change-password
-
-Cambia la contraseña del usuario autenticado, verificando primero la contraseña actual.
-
-**Auth requerida**: `Authorization: Bearer <access_token>`
-
-**Request body:**
-
-```json
-{
-  "current_password": "MiContrasenaActual1",
-  "new_password": "MiNuevaContrasena1"
-}
-```
-
-| Campo              | Tipo   | Validación                                   |
-| ------------------ | ------ | -------------------------------------------- |
-| `current_password` | string | Contraseña actual correcta                   |
-| `new_password`     | string | ≥8 chars, 1 mayúscula, 1 minúscula, 1 número |
-
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "message": "Contraseña actualizada exitosamente"
-}
-```
-
-**Errores posibles:**
-
-| Código | Condición                                          |
-| ------ | -------------------------------------------------- |
-| 400    | La contraseña actual no es correcta                |
-| 401    | Token ausente, inválido o expirado                 |
-| 422    | Nueva contraseña no cumple requisitos de fortaleza |
-
----
-
-### POST /api/v1/auth/forgot-password
-
-Solicita el envío de un email con enlace de recuperación de contraseña.
+Restablece contraseña con token.
 
 **Rate limit**: 5 peticiones/minuto por IP
 
@@ -243,210 +121,317 @@ Solicita el envío de un email con enlace de recuperación de contraseña.
 
 ```json
 {
-  "email": "usuario@ejemplo.com"
-}
-```
-
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "message": "Si el email está registrado, recibirás un enlace de recuperación"
-}
-```
-
-> **Nota de seguridad**: La respuesta es **siempre idéntica**, sin importar si el email está registrado o no. Esto previene la **enumeración de usuarios** — un atacante no puede saber si un email existe consultando la respuesta.
-
-El enlace enviado al email tiene este formato:
-
-```
-{FRONTEND_URL}/reset-password?token=<uuid-token>
-```
-
-El token expira en **1 hora**.
-
-**Errores posibles:**
-
-| Código | Condición                   |
-| ------ | --------------------------- |
-| 422    | Email con formato inválido  |
-| 429    | Rate limit superado (5/min) |
-
----
-
-### POST /api/v1/auth/reset-password
-
-Restablece la contraseña usando el token recibido por email.
-
-**Request body:**
-
-```json
-{
-  "token": "550e8400-e29b-41d4-a716-446655440000",
-  "new_password": "MiNuevaContrasena1"
-}
-```
-
-| Campo          | Tipo   | Descripción                           |
-| -------------- | ------ | ------------------------------------- |
-| `token`        | string | Token UUID del email de recuperación  |
-| `new_password` | string | ≥8 chars, 1 mayúscula, 1 min., 1 núm. |
-
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "message": "Contraseña restablecida exitosamente"
-}
-```
-
-**Errores posibles:**
-
-| Código | Condición                                          |
-| ------ | -------------------------------------------------- |
-| 400    | Token inválido, expirado o ya usado                |
-| 422    | Nueva contraseña no cumple requisitos de fortaleza |
-
----
-
-### POST /api/v1/auth/verify-email
-
-Verifica la dirección de email del usuario usando el token enviado al registrarse.
-
-**Request body:**
-
-```json
-{
-  "token": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "message": "Email verificado exitosamente. Ya puedes iniciar sesión."
-}
-```
-
-> Tras la verificación exitosa, el campo `is_email_verified` del usuario pasa a `true` y puede hacer login.
-
-El enlace del email de verificación tiene este formato:
-
-```
-{FRONTEND_URL}/verify-email?token=<uuid-token>
-```
-
-El token expira en **24 horas**.
-
-**Errores posibles:**
-
-| Código | Condición                                  |
-| ------ | ------------------------------------------ |
-| 400    | Token inválido, expirado (>24h) o ya usado |
-
----
-
-## Perfil de Usuario — Endpoints Users
-
-### GET /api/v1/users/me
-
-Retorna el perfil del usuario autenticado actualmente.
-
-**Auth requerida**: `Authorization: Bearer <access_token>`
-
-**Respuesta exitosa (200 OK):**
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "usuario@ejemplo.com",
-  "full_name": "Juan Pérez",
-  "is_active": true,
-  "is_email_verified": true,
-  "created_at": "2026-02-15T10:30:00+00:00",
-  "updated_at": "2026-02-15T10:30:00+00:00"
-}
-```
-
-| Campo               | Tipo             | Descripción                     |
-| ------------------- | ---------------- | ------------------------------- |
-| `id`                | string (UUID)    | Identificador único del usuario |
-| `email`             | string           | Email del usuario               |
-| `full_name`         | string           | Nombre completo                 |
-| `is_active`         | boolean          | Si la cuenta está activa        |
-| `is_email_verified` | boolean          | Si el email fue verificado      |
-| `created_at`        | string (ISO8601) | Fecha de registro               |
-| `updated_at`        | string (ISO8601) | Fecha de última actualización   |
-
-> **Nota**: El campo `hashed_password` **nunca** aparece en ninguna respuesta de la API. El schema `UserResponse` lo excluye explícitamente mediante el response model de FastAPI.
-
-**Errores posibles:**
-
-| Código | Condición                          |
-| ------ | ---------------------------------- |
-| 401    | Token ausente, inválido o expirado |
-
----
-
-## Rate Limiting — Detalles Técnicos
-
-El rate limiting está implementado con [slowapi](https://github.com/laurentS/slowapi) (puerto de Flask-Limiter para FastAPI), usando la IP del cliente como identificador.
-
-| Endpoint                     | Límite | Razón                                      |
-| ---------------------------- | ------ | ------------------------------------------ |
-| `POST /auth/register`        | 5/min  | Prevenir creación masiva de cuentas falsas |
-| `POST /auth/login`           | 10/min | Prevenir brute force de contraseñas        |
-| `POST /auth/forgot-password` | 5/min  | Prevenir spam de emails de recuperación    |
-
-**Respuesta cuando se supera el límite (429):**
-
-```json
-{
-  "error": "Rate limit exceeded: 10 per 1 minute"
+  "token": "...",
+  "new_password": "NuevaContrasena1"
 }
 ```
 
 ---
 
-## Seguridad de la Documentación
+## Hoteles — `/api/hoteles`
 
-En **producción** (`ENVIRONMENT=production`), las rutas `/docs` y `/redoc` están **deshabilitadas** — devuelven 404. Esta es una medida de seguridad (OWASP A05) para evitar exponer la superficie de ataque de la API públicamente.
+### Endpoints principales
 
-En **desarrollo** (`ENVIRONMENT=development`, valor por defecto), Swagger UI está disponible en:
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/hoteles/` | No | Listar hoteles (cached, con filtros) |
+| `GET` | `/api/hoteles/{id}` | No | Obtener hotel con reseñas y características |
+| `POST` | `/api/hoteles/` | Admin | Crear hotel |
+| `PUT` | `/api/hoteles/{id}` | Admin | Actualizar hotel |
+| `DELETE` | `/api/hoteles/{id}` | Admin | Eliminar hotel (dependency-safe) |
+| `GET` | `/api/hoteles/{id}/fechas-ocupadas` | No | Fechas ocupadas del hotel |
 
-- `http://localhost:8000/docs` — Swagger UI (interactivo)
-- `http://localhost:8000/redoc` — ReDoc (solo lectura)
+### Tipos de habitación
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/hoteles/tipos-habitacion` | No | Listar tipos de habitación |
+| `POST` | `/api/hoteles/tipos-habitacion` | Admin | Crear tipo |
+
+### Características
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/hoteles/caracteristicas` | No | Listar características |
+| `POST` | `/api/hoteles/caracteristicas` | Admin | Crear característica |
+| `POST` | `/api/hoteles/{id}/caracteristicas` | Admin | Agregar característica a hotel |
+| `DELETE` | `/api/hoteles/{id}/caracteristicas/{id_car}` | Admin | Quitar característica |
+
+### Habitaciones
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/hoteles/{id}/habitaciones` | No | Listar habitaciones del hotel |
+| `POST` | `/api/hoteles/{id}/habitaciones` | Admin | Crear habitación |
+| `PUT` | `/api/hoteles/{id}/habitaciones/{id_hab}` | Admin | Actualizar habitación |
+| `DELETE` | `/api/hoteles/{id}/habitaciones/{id_hab}` | Admin | Eliminar habitación |
+| `GET` | `/api/hoteles/habitaciones/disponibles` | No | Habitaciones disponibles por fechas |
 
 ---
 
-## Flujos de Uso — Ejemplos Paso a Paso
+## Clientes — `/api/clientes`
 
-### Flujo completo de registro y verificación
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/clientes/` | Admin | Listar clientes |
+| `GET` | `/api/clientes/{id}` | Admin/Propietario | Obtener cliente |
+| `POST` | `/api/clientes/` | No | Crear cliente |
+| `PUT` | `/api/clientes/{id}` | Admin/Propietario | Actualizar cliente |
+| `DELETE` | `/api/clientes/{id}` | Admin | Eliminar cliente |
+| `GET` | `/api/clientes/buscar/{term}` | Admin | Buscar por término |
+| `GET` | `/api/clientes/{id}/metodos-pago` | Admin/Propietario | Métodos de pago guardados |
+| `PUT` | `/api/clientes/{id}/cambiar-contrasena` | Admin/Propietario | Cambiar contraseña |
 
-```
-1. POST /api/v1/auth/register → 201 (is_email_verified: false)
-2. (Revisar bandeja de entrada — llega email con enlace de verificación)
-3. POST /api/v1/auth/verify-email { token } → 200
-4. POST /api/v1/auth/login { email, password } → 200 (access_token, refresh_token)
-5. GET /api/v1/users/me con Bearer token → 200 (perfil completo)
-```
+---
 
-### Flujo de renovación de sesión
+## Empleados — `/api/empleados`
 
-```
-1. (access_token expire a los 15 minutos)
-2. POST /api/v1/auth/refresh { refresh_token } → 200 (nuevos tokens)
-3. (Si refresh_token también expiró por >7 días)
-   → 401 → Redirigir al login
-```
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/empleados/` | Admin | Listar empleados |
+| `GET` | `/api/empleados/{id}` | Admin | Obtener empleado |
+| `POST` | `/api/empleados/` | Admin | Crear empleado |
+| `PUT` | `/api/empleados/{id}` | Admin | Actualizar empleado |
+| `DELETE` | `/api/empleados/{id}` | Admin | Eliminar empleado |
+| `GET` | `/api/empleados/buscar/{term}` | Admin | Buscar por término |
+| `GET` | `/api/empleados/activos/lista` | Admin | Solo empleados activos |
 
-### Flujo de recuperación de contraseña
+---
 
-```
-1. POST /api/v1/auth/forgot-password { email } → 200 (siempre)
-2. (El usuario hace clic en el enlace del email)
-   Frontend captura: /reset-password?token=<uuid>
-3. POST /api/v1/auth/reset-password { token, new_password } → 200
-4. POST /api/v1/auth/login { email, new_password } → 200 (nuevos tokens)
-```
+## Reservas — `/api/reservas`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/reservas/` | Admin | Listar reservas (cached 60s) |
+| `GET` | `/api/reservas/{id}` | Admin/Propietario | Obtener reserva |
+| `GET` | `/api/reservas/cliente/{id}` | Admin/Propietario | Reservas por cliente |
+| `GET` | `/api/reservas/estado/{estado}` | Admin | Filtrar por estado |
+| `POST` | `/api/reservas/` | Auth | Crear reserva |
+| `PUT` | `/api/reservas/{id}` | Admin | Actualizar reserva |
+| `DELETE` | `/api/reservas/{id}` | Admin | Eliminar reserva |
+| `POST` | `/api/reservas/{id}/pagar` | Auth | Simular pago |
+| `GET` | `/api/reservas/{id}/habitaciones` | Auth | Habitaciones de la reserva |
+| `GET` | `/api/reservas/{id}/servicios` | Auth | Servicios de la reserva |
+| `GET` | `/api/reservas/{id}/historial` | Auth | Historial de cambios |
+| `GET` | `/api/reservas/historial-reservas/recientes` | Admin | Historial reciente |
+
+---
+
+## Pagos — `/api/pagos`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/pagos/metodos-pago` | No | Métodos de pago disponibles |
+| `POST` | `/api/pagos/metodos-pago` | Admin | Crear método de pago |
+| `GET` | `/api/pagos/` | Admin | Listar pagos |
+| `GET` | `/api/pagos/{id}` | Admin | Obtener pago |
+| `POST` | `/api/pagos/{id}/confirmar` | Admin | Confirmar pago asíncrono (PSE/Nequi) |
+| `POST` | `/api/pagos/{id}/comprobante` | Auth | Subir comprobante (max 5MB) |
+| `DELETE` | `/api/pagos/{id}/comprobante` | Auth | Eliminar comprobante |
+
+---
+
+## Paquetes — `/api/paquetes`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/paquetes/` | No | Listar paquetes (cached 2min) |
+| `GET` | `/api/paquetes/populares` | No | Paquetes más populares (vista SQL) |
+| `GET` | `/api/paquetes/{id}` | No | Obtener paquete |
+| `GET` | `/api/paquetes/{id}/detalle` | No | Detalle con servicios y hoteles |
+| `POST` | `/api/paquetes/` | Admin | Crear paquete |
+| `PUT` | `/api/paquetes/{id}` | Admin | Actualizar paquete |
+| `DELETE` | `/api/paquetes/{id}` | Admin | Eliminar paquete |
+
+---
+
+## Servicios — `/api/servicios`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/servicios/` | No | Listar servicios |
+| `GET` | `/api/servicios/{id}` | No | Obtener servicio |
+| `POST` | `/api/servicios/` | Admin | Crear servicio |
+| `PUT` | `/api/servicios/{id}` | Admin | Actualizar servicio |
+| `DELETE` | `/api/servicios/{id}` | Admin | Eliminar servicio |
+| `GET` | `/api/servicios/categorias` | No | Listar categorías |
+
+---
+
+## Destinos — `/api/destinos`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/destinos/` | No | Listar destinos |
+| `GET` | `/api/destinos/{id}` | No | Obtener destino |
+| `POST` | `/api/destinos/` | Admin | Crear destino |
+| `PUT` | `/api/destinos/{id}` | Admin | Actualizar destino |
+| `DELETE` | `/api/destinos/{id}` | Admin | Eliminar destino |
+| `GET` | `/api/destinos/sugerencias` | No | Sugerencias de destinos |
+
+---
+
+## Reseñas — `/api/resenas`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/resenas/` | No | Listar reseñas (paginado, con promedio) |
+| `GET` | `/api/resenas/hotel/{id}` | No | Reseñas de un hotel |
+| `GET` | `/api/resenas/destacadas` | No | Reseñas destacadas (cached 10min) |
+| `POST` | `/api/resenas/` | Cliente | Crear reseña (1 por reserva, 1-5 estrellas) |
+
+---
+
+## Preferencias — `/api/preferencias-cliente`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/preferencias-cliente/` | Auth | Guardar preferencias |
+| `GET` | `/api/preferencias-cliente/{cliente_id}` | Auth | Obtener preferencias |
+| `GET` | `/api/preferencias-cliente/{cliente_id}/sugerencias` | Auth | Sugerencias personalizadas |
+| `GET` | `/api/preferencias-cliente/{cliente_id}/sugerencias-hoteles` | Auth | Hoteles recomendados |
+
+---
+
+## Usuarios — `/api/usuarios`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/usuarios/` | Admin | Listar usuarios |
+| `GET` | `/api/usuarios/{id}` | Admin | Obtener usuario |
+| `POST` | `/api/usuarios/` | Admin | Crear usuario |
+| `PUT` | `/api/usuarios/{id}` | Admin | Actualizar usuario |
+| `DELETE` | `/api/usuarios/{id}` | Admin | Eliminar usuario |
+| `GET` | `/api/usuarios/me` | Auth | Perfil del usuario actual |
+| `PUT` | `/api/usuarios/me/password` | Auth | Cambiar contraseña |
+| `POST` | `/api/usuarios/me/foto` | Auth | Subir foto de perfil |
+| `DELETE` | `/api/usuarios/me/foto` | Auth | Eliminar foto de perfil |
+| `PUT` | `/api/usuarios/{id}/vincular-cliente` | Admin | Vincular usuario con cliente |
+
+---
+
+## Otros Endpoints
+
+### Favoritos — `/api/favoritos`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/favoritos/` | Auth | Lista de favoritos |
+| `GET` | `/api/favoritos/ids` | Auth | IDs de hoteles favoritos |
+| `POST` | `/api/favoritos/` | Auth | Agregar hotel a favoritos |
+| `DELETE` | `/api/favoritos/{id_hotel}` | Auth | Quitar de favoritos |
+
+### Notificaciones — `/api/notificaciones`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/notificaciones/` | Auth | Listar notificaciones |
+| `GET` | `/api/notificaciones/no-leidas/conteo` | Auth | Conteo no leídas |
+| `PUT` | `/api/notificaciones/leer-todas` | Auth | Marcar todas leídas |
+| `PUT` | `/api/notificaciones/{id}/leer` | Auth | Marcar una leída |
+| `DELETE` | `/api/notificaciones/{id}` | Auth | Eliminar notificación |
+
+### Contacto — `/api/contacto`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/contacto/` | No | Enviar mensaje de contacto (email dual + notificación) |
+
+### Promociones — `/api/promociones`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/promociones/destacados` | No | Promociones destacadas |
+| `GET` | `/api/promociones/seleccion-casa` | No | Selección para home |
+
+### Dashboard — `/api/dashboard`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/dashboard/resumen` | Admin | KPIs, métricas, gráficas (cached 60s) |
+
+### Configuración — `/api/configuracion`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/configuracion/` | Admin | Listar configuración |
+| `GET` | `/api/configuracion/{clave}` | Admin | Obtener valor |
+| `POST` | `/api/configuracion/` | Admin | Crear configuración |
+| `PUT` | `/api/configuracion/{clave}` | Admin | Actualizar configuración |
+| `DELETE` | `/api/configuracion/{clave}` | Admin | Eliminar configuración |
+
+### Solicitudes de Cancelación — `/api/solicitudes-cancelacion`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/solicitudes-cancelacion/` | Cliente | Crear solicitud |
+| `GET` | `/api/solicitudes-cancelacion/` | Admin | Listar solicitudes |
+| `PUT` | `/api/solicitudes-cancelacion/{id}/resolver` | Admin | Aprobar/rechazar (email en background) |
+
+### Solicitudes Corporativas — `/api/solicitudes-corporativas`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/solicitudes-corporativas/` | No | Crear solicitud (público) |
+| `GET` | `/api/solicitudes-corporativas/` | Admin | Listar solicitudes |
+| `PUT` | `/api/solicitudes-corporativas/{id}` | Admin | Actualizar estado |
+| `DELETE` | `/api/solicitudes-corporativas/{id}` | Admin | Eliminar solicitud |
+
+### Banners — `/api/banners`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/banners/` | No | Banners activos |
+| `GET` | `/api/banners/todos` | Admin | Todos los banners |
+| `POST` | `/api/banners/` | Admin | Crear banner |
+| `PUT` | `/api/banners/{id}` | Admin | Actualizar banner |
+| `DELETE` | `/api/banners/{id}` | Admin | Eliminar banner |
+| `PUT` | `/api/banners/orden` | Admin | Reordenar banners |
+
+### Métodos de Pago Guardados — `/api/metodos-pago-guardados`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/metodos-pago-guardados/` | Auth | Listar métodos guardados |
+| `POST` | `/api/metodos-pago-guardados/` | Auth | Guardar método de pago |
+| `DELETE` | `/api/metodos-pago-guardados/{id}` | Auth | Eliminar método |
+| `PUT` | `/api/metodos-pago-guardados/{id}/predeterminado` | Auth | Establecer predeterminado |
+| `POST` | `/api/metodos-pago-guardados/{id}/verificar` | Auth | Verificar clave |
+
+---
+
+## Rate Limiting
+
+Implementado con Redis token-bucket middleware:
+
+| Endpoint | Límite | Razón |
+|---|---|---|
+| `POST /auth/login` | 5/60s | Prevenir brute force |
+| `POST /auth/register` | 5/60s | Prevenir creación masiva |
+| `POST /auth/forgot-password` | 3/60s | Prevenir spam de emails |
+| `POST /auth/reset-password` | 5/60s | Prevenir abuso |
+| `POST /api/reservas/*/pagar` | 10/60s | Prevenir fraude de pagos |
+
+---
+
+## Security Headers
+
+Todas las respuestas incluyen:
+
+| Header | Valor |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(), microphone=()` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+
+---
+
+## Documentación Swagger
+
+Disponible en desarrollo:
+
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
+- **Health check**: `http://localhost:8000/health`
