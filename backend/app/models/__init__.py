@@ -3,6 +3,7 @@ from app.models.auth_model import RecuperacionPassword, Rol, SesionUsuario, Usua
 from app.models.cliente_model import Cliente, Empleado, PreferenciaCliente
 from app.models.favorito_model import Favorito
 from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, TipoHabitacion
+from app.models.resena_model import Resena
 from app.models.reserva_model import (
     HistorialReserva,
     MetodoPago,
@@ -27,6 +28,7 @@ __all__ = [
     "Caracteristica",
     "HotelCaracteristica",
     "TipoHabitacion",
+    "Resena",
     "Servicio",
     "Destino",
     "CategoriaServicio",
