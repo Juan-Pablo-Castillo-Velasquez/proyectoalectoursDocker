@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
-  Search, Trash2, Pencil, PlusCircle, Users, MapPin, Globe, Phone, Mail,
-  Calendar, CreditCard, ChevronRight, AlertCircle, Heart,
+  Search, Trash2, Pencil, PlusCircle, Users, MapPin, Globe,
+  CreditCard, ChevronRight, AlertCircle, Heart,
 } from "lucide-react";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
 import { preferenciasService, type PreferenciaResponse } from "../../services/preferencias.service";
@@ -13,7 +13,7 @@ import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import Avatar from "./ui/Avatar";
-import Pagination from "../ui/Pagination";
+import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
 import {

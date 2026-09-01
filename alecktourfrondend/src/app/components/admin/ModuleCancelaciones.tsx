@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Search, XCircle, CheckCircle, Clock, MessageSquare, ChevronRight,
-  AlertCircle, MessageCircle, Calendar, Users, Globe, ArrowUpRight,
+  AlertCircle, MessageCircle, ArrowUpRight,
 } from "lucide-react";
 import { Cliente, Empleado, Reserva, ESTADO_COLOR } from "./types";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
@@ -11,7 +11,7 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
-import Pagination from "../ui/Pagination";
+import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Timeline, { type TimelineItem } from "./ui/Timeline";

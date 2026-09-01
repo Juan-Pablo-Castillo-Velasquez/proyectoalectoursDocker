@@ -5,7 +5,7 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
-import Pagination from "../ui/Pagination";
+import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,

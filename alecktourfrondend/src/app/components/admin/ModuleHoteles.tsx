@@ -12,7 +12,7 @@ import EmptyState from "./ui/EmptyState";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
-import Pagination from "../ui/Pagination";
+import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 
 const EMPTY_FORM = {

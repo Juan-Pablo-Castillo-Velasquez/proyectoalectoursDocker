@@ -6,7 +6,7 @@ import {
   CheckCircle, Clock, XCircle, FileText, Save, MoreHorizontal,
   MessageCircle, Send,
 } from "lucide-react";
-import { Reserva, Cliente, Paquete, ESTADO_COLOR, inputCls, labelCls, resolveFotoUrl } from "./types";
+import { Reserva, Cliente, Paquete, ESTADO_COLOR, inputCls, resolveFotoUrl } from "./types";
 import { reservaDetailService, reservaService, type PagoResponse } from "../../services/reserva.service";
 import { type SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
 import AdminModal from "./ui/AdminModal";
@@ -14,7 +14,7 @@ import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import Avatar from "./ui/Avatar";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
-import Pagination from "../ui/Pagination";
+import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 import {
   DropdownMenu,
