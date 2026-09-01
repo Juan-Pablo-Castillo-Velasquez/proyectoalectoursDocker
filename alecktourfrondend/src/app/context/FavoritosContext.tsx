@@ -22,12 +22,17 @@ const FavoritosContext = createContext<FavoritosContextType | null>(null);
 // Un solo fetch de /favoritos/ids compartido por todas las HotelCard
 // montadas a la vez (evita N llamadas por N tarjetas en un listado).
 export function FavoritosProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, usuario } = useAuth();
   const [idsFavoritos, setIdsFavoritos] = useState<Set<number>>(new Set());
   const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // GET /favoritos/ids exige un cliente real (ver _require_cliente en
+    // favorito_route.py) — antes se llamaba para cualquier isAuthenticated,
+    // así que un admin/empleado (sin id_cliente) recibía un 403 en cada
+    // página del panel, verificado en vivo. Los favoritos son un concepto
+    // exclusivo del cliente, así que simplemente no se piden si no hay uno.
+    if (!isAuthenticated || !usuario?.id_cliente) {
       setIdsFavoritos(new Set());
       return;
     }
@@ -38,7 +43,7 @@ export function FavoritosProvider({ children }: { children: ReactNode }) {
         // Silencioso: si falla, el corazón simplemente arranca "vacío"
         // y el usuario puede reintentar marcando de nuevo.
       });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, usuario?.id_cliente]);
 
   const isFavorito = useCallback(
     (idHotel: number) => idsFavoritos.has(idHotel),
