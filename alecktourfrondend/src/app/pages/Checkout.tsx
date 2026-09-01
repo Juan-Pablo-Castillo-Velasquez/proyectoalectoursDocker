@@ -5,7 +5,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { toast, Toaster } from "sonner";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
-import { ClienteResponse, clienteService } from "../services/cliente.service";
+import { clienteService } from "../services/cliente.service";
 import { HabitacionResponse, HotelDetailResponse, hotelService } from "../services/hotel.service";
 import { MetodoPago, pagoService, reservaService } from "../services/reserva.service";
 import { MetodoPagoGuardado, metodoPagoGuardadoService } from "../services/metodoPagoGuardado.service";
@@ -50,7 +50,6 @@ export default function Checkout() {
   // el método marcado como predeterminado en el paso de pago, nunca para
   // saltarse la elección: el cliente sigue pudiendo cambiarlo.
   const [metodosGuardados, setMetodosGuardados] = useState<MetodoPagoGuardado[]>([]);
-  const [cliente, setCliente] = useState<ClienteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   // Paso real (1-3) y error del overlay de checkout (ver ReservationLoader) —
@@ -204,7 +203,6 @@ export default function Checkout() {
     if (isAuthenticated && usuario?.id_cliente) {
       clienteService.getById(usuario.id_cliente)
         .then((c) => {
-          setCliente(c);
           setNombres(c.nombre ?? '');
           setApellidos(c.apellido ?? '');
           setCorreo(c.correo ?? '');
@@ -226,7 +224,13 @@ export default function Checkout() {
             setCardValue((prev) => (prev.name ? prev : { ...prev, name: nombreCompleto }));
           }
         })
-        .catch(() => setCliente(null));
+        .catch(() => {
+          // Sin perfil de cliente cargado, los campos del viajero se
+          // quedan como estaban (vacíos o lo que el usuario ya haya
+          // escrito) — el envío del formulario igual exige
+          // usuario?.id_cliente más abajo, así que no se puede pagar sin
+          // un cliente real de todas formas.
+        });
     }
   }, [isAuthenticated, usuario?.id_cliente]);
 
@@ -556,26 +560,29 @@ export default function Checkout() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Nombres</label>
+                        <label htmlFor="checkout-nombres" className="block text-xs font-semibold text-muted-foreground mb-1.5">Nombres</label>
                         <input
+                          id="checkout-nombres"
                           value={nombres}
                           onChange={(e) => setNombres(e.target.value)}
                           className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Apellidos</label>
+                        <label htmlFor="checkout-apellidos" className="block text-xs font-semibold text-muted-foreground mb-1.5">Apellidos</label>
                         <input
+                          id="checkout-apellidos"
                           value={apellidos}
                           onChange={(e) => setApellidos(e.target.value)}
                           className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Correo electrónico</label>
+                        <label htmlFor="checkout-correo" className="block text-xs font-semibold text-muted-foreground mb-1.5">Correo electrónico</label>
                         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-input-background">
                           <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
                           <input
+                            id="checkout-correo"
                             value={correo}
                             onChange={(e) => setCorreo(e.target.value)}
                             className="w-full bg-transparent text-foreground text-sm focus:outline-none"
@@ -583,10 +590,11 @@ export default function Checkout() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Celular</label>
+                        <label htmlFor="checkout-celular" className="block text-xs font-semibold text-muted-foreground mb-1.5">Celular</label>
                         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-input-background">
                           <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
                           <input
+                            id="checkout-celular"
                             value={celular}
                             onChange={(e) => setCelular(e.target.value)}
                             className="w-full bg-transparent text-foreground text-sm focus:outline-none"
@@ -594,10 +602,11 @@ export default function Checkout() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Cédula</label>
+                        <label htmlFor="checkout-cedula" className="block text-xs font-semibold text-muted-foreground mb-1.5">Cédula</label>
                         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-input-background">
                           <IdCard className="w-4 h-4 text-muted-foreground shrink-0" />
                           <input
+                            id="checkout-cedula"
                             value={cedula}
                             onChange={(e) => setCedula(e.target.value)}
                             className="w-full bg-transparent text-foreground text-sm focus:outline-none"
@@ -605,10 +614,11 @@ export default function Checkout() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Ciudad</label>
+                        <label htmlFor="checkout-ciudad" className="block text-xs font-semibold text-muted-foreground mb-1.5">Ciudad</label>
                         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-input-background">
                           <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
                           <input
+                            id="checkout-ciudad"
                             value={ciudad}
                             onChange={(e) => setCiudad(e.target.value)}
                             className="w-full bg-transparent text-foreground text-sm focus:outline-none"
@@ -616,8 +626,9 @@ export default function Checkout() {
                         </div>
                       </div>
                       <div className="sm:col-span-2">
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Dirección</label>
+                        <label htmlFor="checkout-direccion" className="block text-xs font-semibold text-muted-foreground mb-1.5">Dirección</label>
                         <input
+                          id="checkout-direccion"
                           value={direccion}
                           onChange={(e) => setDireccion(e.target.value)}
                           className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none"
@@ -664,24 +675,24 @@ export default function Checkout() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">Check-in</label>
-                      <input type="date" required value={fechaInicio}
+                      <label htmlFor="checkout-checkin" className="block text-xs font-medium text-muted-foreground mb-1.5">Check-in</label>
+                      <input id="checkout-checkin" type="date" required value={fechaInicio}
                         min={new Date().toISOString().split('T')[0]}
                         onChange={(e) => setFechaInicio(e.target.value)}
                         className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">Check-out</label>
-                      <input type="date" required value={fechaFin}
+                      <label htmlFor="checkout-checkout" className="block text-xs font-medium text-muted-foreground mb-1.5">Check-out</label>
+                      <input id="checkout-checkout" type="date" required value={fechaFin}
                         min={fechaInicio || new Date().toISOString().split('T')[0]}
                         onChange={(e) => setFechaFin(e.target.value)}
                         className="w-full px-3 py-2.5 rounded-xl border border-border bg-input-background text-foreground text-sm focus:ring-2 focus:ring-primary/40 focus:outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">Huéspedes</label>
+                      <label htmlFor="checkout-huespedes" className="block text-xs font-medium text-muted-foreground mb-1.5">Huéspedes</label>
                       <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-input-background">
                         <Users className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <input type="number" min={1} max={habitacion.tipo_habitacion?.capacidad_personas ?? 10}
+                        <input id="checkout-huespedes" type="number" min={1} max={habitacion.tipo_habitacion?.capacidad_personas ?? 10}
                           value={people}
                           onChange={(e) => setPeople(Math.max(1, parseInt(e.target.value) || 1))}
                           className="w-full bg-transparent text-foreground text-sm focus:outline-none" />
