@@ -24,14 +24,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(UTC) + timedelta(days=7)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -45,6 +45,13 @@ def decode_token(token: str) -> dict | None:
 def get_user_from_token(token: str) -> int | None:
     payload = decode_token(token)
     if payload is None:
+        return None
+    # El refresh token tiene la misma clave de firma pero NUNCA debe servir
+    # como token de acceso: dura 7 días (contra 30 min del de acceso). Si
+    # no se distingue el tipo, un refresh token robado da acceso a la cuenta
+    # durante toda una semana. Solo los tokens marcados como "access" valen
+    # aquí (Fase H-02 del plan de mejora).
+    if payload.get("type") != "access":
         return None
     user_id = payload.get("sub")
     if user_id is None:
@@ -76,7 +83,10 @@ def generate_token_pair(user_id: int, roles: list[str] | None = None) -> dict:
         "roles": roles,  # ← nuevo campo
     }
     access_token = create_access_token(data=payload)
-    refresh_token = create_refresh_token(data={"sub": str(user_id)})
+    # El refresh token también lleva los roles, para que al renovar una
+    # sesión de admin (que decodifica el claim `roles` del JWT) no se
+    # pierda el privilegio (Fase H-02 del plan de mejora).
+    refresh_token = create_refresh_token(data={"sub": str(user_id), "roles": roles})
 
     return {
         "access_token": access_token,

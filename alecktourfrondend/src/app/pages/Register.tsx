@@ -63,6 +63,14 @@ export default function Register() {
         password: formData.password,
       });
 
+      // 1b. Auto-login: el registro devuelve un access_token (usuario recién
+      //     creado con rol cliente). Se guarda en localStorage para que el
+      //     backend acepte las llamadas siguientes (crear y vincular cliente),
+      //     que exigen sesión.
+      if (res.access_token) {
+        localStorage.setItem("token", res.access_token);
+      }
+
       // 2. Crear cliente
       const cliente = await apiFetch<{ id_cliente: number }>('/clientes', {
         method: 'POST',

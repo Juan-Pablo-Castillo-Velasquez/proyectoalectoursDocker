@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.cache import delete_pattern
 from app.core.database import get_db
 from app.core.deps import get_current_usuario
+from app.core.file_validation import validar_y_leer_archivo
 from app.core.security import hash_password, require_admin, verify_password
 from app.models.auth_model import Rol, UsuarioRol
 from app.models.user_model import Usuario
@@ -25,7 +26,7 @@ roles_router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "perfiles")
 PUBLIC_PATH_PREFIX = "/uploads/perfiles"
-EXTENSIONES_PERMITIDAS = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp"}
+PERFILES_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 
 
@@ -144,7 +145,7 @@ def admin_delete_usuario(usuario_id: int, db: Session = Depends(get_db), _admin:
 
 
 @roles_router.get("", response_model=list[RolResponse])
-def get_roles(db: Session = Depends(get_db)):
+def get_roles(db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
     return db.query(Rol).order_by(Rol.nombre_rol.asc()).all()
 
 
@@ -197,19 +198,21 @@ async def subir_foto_perfil(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_usuario),
 ):
-    if file.content_type not in EXTENSIONES_PERMITIDAS:
+    if file.content_type not in PERFILES_TIPOS_PERMITIDOS:
         raise HTTPException(
             status_code=422,
             detail="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         )
 
-    contenido = await file.read()
-    if len(contenido) > TAMANO_MAXIMO_BYTES:
-        raise HTTPException(status_code=422, detail="La imagen no puede superar los 5MB.")
+    contenido, extension = validar_y_leer_archivo(
+        file,
+        tipos_permitidos=PERFILES_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=TAMANO_MAXIMO_BYTES,
+    )
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    extension = EXTENSIONES_PERMITIDAS[file.content_type]
     nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
     ruta_destino = os.path.join(UPLOAD_DIR, nombre_archivo)
     with open(ruta_destino, "wb") as f:

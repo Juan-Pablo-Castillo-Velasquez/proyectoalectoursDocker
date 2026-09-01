@@ -16,6 +16,9 @@ build/
 .env.test.local
 .env.production.local
 *.env.*
+# El ejemplo de variables de entorno sí se versiona (no contiene secretos,
+# solo documenta qué variables existen y su valor por defecto local).
+!.env.example
 
 # --- Registros del sistema y errores (Logs) ---
 npm-debug.log*

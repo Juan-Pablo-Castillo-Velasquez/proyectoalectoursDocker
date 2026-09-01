@@ -195,6 +195,12 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                 correo_electronico: formData.correo_electronico,
                 password: formData.password,
             });
+            // Auto-login: el registro devuelve un access_token (rol cliente).
+            // Se guarda para que crear/vincular el cliente (que exigen sesión)
+            // no fallen con 401.
+            if (res.access_token) {
+                localStorage.setItem("token", res.access_token);
+            }
             const cliente = await apiFetch<{ id_cliente: number }>("/clientes", {
                 method: "POST",
                 body: {

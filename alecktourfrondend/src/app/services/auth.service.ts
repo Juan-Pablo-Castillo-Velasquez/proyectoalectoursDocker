@@ -1,4 +1,7 @@
-const BASE_URL = 'http://localhost:8000';
+// En producción, VITE_API_BASE_URL debe apuntar al backend real (variable de
+// entorno en Vercel/hosting). Sin la variable definida (dev local), usa
+// localhost como siempre — mismo criterio que src/app/api/v1/api.ts.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export interface UsuarioCreate {
   username: string;
@@ -16,6 +19,8 @@ export interface RegisterResponse {
   user_id: number;
   email: string;
   verification_token: string;
+  access_token?: string;
+  token_type?: string;
 }
 
 export interface AuthResponse {

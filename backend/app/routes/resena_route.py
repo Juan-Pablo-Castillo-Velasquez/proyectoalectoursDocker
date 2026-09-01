@@ -76,7 +76,11 @@ def _shape_resena(r: Resena) -> dict:
         "rating": r.calificacion,
         "trip": r.hotel.nombre_hotel if r.hotel else "AlecTours",
         "avatar": r.foto_url
-        or _avatar_url(f"{r.cliente.nombre} {r.cliente.apellido}".strip() if r.cliente and r.cliente.apellido else "Viajero AlecTours"),
+        or _avatar_url(
+            f"{r.cliente.nombre} {r.cliente.apellido}".strip()
+            if r.cliente and r.cliente.apellido
+            else "Viajero AlecTours"
+        ),
         "fecha": r.fecha_creacion.isoformat() if r.fecha_creacion else None,
     }
 
@@ -168,7 +172,9 @@ def get_resenas_hotel(id_hotel: int, db: Session = Depends(get_db)):
             comentario=r.comentario,
             foto_url=r.foto_url,
             fecha_creacion=r.fecha_creacion,
-            nombre_cliente=f"{r.cliente.nombre} {_inicial_apellido(r.cliente)}".strip() if r.cliente else "Viajero AlecTours",
+            nombre_cliente=f"{r.cliente.nombre} {_inicial_apellido(r.cliente)}".strip()
+            if r.cliente
+            else "Viajero AlecTours",
         )
         for r in resenas
     ]

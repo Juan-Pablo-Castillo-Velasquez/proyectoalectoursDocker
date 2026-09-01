@@ -943,7 +943,7 @@ export default function Checkout() {
                             </h2>
                           </div>
 
-                          {esTarjeta && usarMetodoGuardado && metodoGuardadoDelTipo?.ultimos4 && (
+                          {esTarjeta && usandoMetodoGuardado && metodoGuardadoDelTipo?.ultimos4 && (
                             <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
                               <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
                                 <CreditCard className="w-5 h-5 text-primary" />

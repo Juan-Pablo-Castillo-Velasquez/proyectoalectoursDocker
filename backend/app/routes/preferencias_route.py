@@ -246,9 +246,7 @@ _KEYWORDS_HOTEL_INTERES = {
 
 def _min_precio_hotel(hotel: Hotel) -> float | None:
     """Menor precio por noche de una habitación disponible del hotel."""
-    disponibles = [
-        h for h in hotel.habitaciones if h.estado and h.estado.lower() == "disponible"
-    ]
+    disponibles = [h for h in hotel.habitaciones if h.estado and h.estado.lower() == "disponible"]
     if not disponibles:
         return None
     return min(float(h.precio_noche) for h in disponibles)

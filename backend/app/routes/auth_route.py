@@ -74,6 +74,8 @@ def register(data: UsuarioCreate, db: Session = Depends(get_db)):
         "message": "Usuario registrado exitosamente. Revisa tu correo para verificar tu cuenta.",
         "user_id": result.get("user_id"),
         "email": email,
+        "access_token": result.get("access_token"),
+        "token_type": "bearer",
     }
 
 

@@ -21,6 +21,7 @@ from app.core.exceptions import (
     PaqueteNoEncontradoError,
     ReservaDependencyError,
 )
+from app.core.file_validation import validar_y_leer_archivo
 from app.core.mail import send_reservation_confirmation
 from app.core.security import require_admin
 from app.models.hotel_model import Hotel, HotelCaracteristica
@@ -81,13 +82,7 @@ METODOS_PAGO_CACHE_KEY = "metodos_pago:list"
 # perfil en usuario_route.py, pero admitiendo también PDF.
 COMPROBANTES_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "comprobantes")
 COMPROBANTES_PUBLIC_PREFIX = "/uploads/comprobantes"
-COMPROBANTES_TIPOS_PERMITIDOS = {
-    "image/jpeg": "jpg",
-    "image/jpg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "application/pdf": "pdf",
-}
+COMPROBANTES_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
 COMPROBANTES_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 
 
@@ -945,13 +940,15 @@ async def subir_comprobante_pago(
             detail="Formato no soportado. Usa JPG, PNG, WEBP o PDF.",
         )
 
-    contenido = await file.read()
-    if len(contenido) > COMPROBANTES_TAMANO_MAXIMO_BYTES:
-        raise HTTPException(status_code=422, detail="El archivo no puede superar los 5MB.")
+    contenido, extension = validar_y_leer_archivo(
+        file,
+        tipos_permitidos=COMPROBANTES_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato no soportado. Usa JPG, PNG, WEBP o PDF.",
+        tamano_maximo_bytes=COMPROBANTES_TAMANO_MAXIMO_BYTES,
+    )
 
     os.makedirs(COMPROBANTES_UPLOAD_DIR, exist_ok=True)
 
-    extension = COMPROBANTES_TIPOS_PERMITIDOS[file.content_type]
     nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
     ruta_destino = os.path.join(COMPROBANTES_UPLOAD_DIR, nombre_archivo)
     with open(ruta_destino, "wb") as f:

@@ -71,9 +71,7 @@ def actualizar_metodo_guardado(
     else:
         cambios.pop("clave", None)
 
-    actualizado = MetodoPagoGuardadoRepository.update(
-        db, id_cliente, id_metodo_guardado, **cambios
-    )
+    actualizado = MetodoPagoGuardadoRepository.update(db, id_cliente, id_metodo_guardado, **cambios)
     if not actualizado:
         raise HTTPException(status_code=404, detail="Método de pago guardado no encontrado")
     return actualizado

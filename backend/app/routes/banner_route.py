@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.file_validation import validar_y_leer_archivo
 from app.core.security import require_admin
 from app.repositories.banner_repository import BannerRepository
 from app.schemas.banner_schema import BannerReorderItem, BannerResponse
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/banners", tags=["Banners"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "banners")
 PUBLIC_PATH_PREFIX = "/uploads/banners"
-EXTENSIONES_PERMITIDAS = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp"}
+BANNER_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 
 # Ver sección 8 del plan de mejora (esquema de claves Redis): prefijo
@@ -49,17 +50,18 @@ def _borrar_archivo_si_existe(imagen_url: str | None) -> None:
         os.remove(ruta)
 
 
-def _guardar_imagen(file: UploadFile, contenido: bytes) -> str:
+async def _guardar_imagen(file: UploadFile) -> str:
     # Mismas validaciones que usuario_route.py::subir_foto_perfil (formato
-    # y tamaño máximo) — mismo criterio en todo el proyecto para cualquier
-    # imagen subida por un usuario/admin.
-    if file.content_type not in EXTENSIONES_PERMITIDAS:
-        raise HTTPException(status_code=422, detail="Formato de imagen no soportado. Usa JPG, PNG o WEBP.")
-    if len(contenido) > TAMANO_MAXIMO_BYTES:
-        raise HTTPException(status_code=422, detail="La imagen no puede superar los 5MB.")
+    # por magic bytes y tamaño máximo en chunks) — mismo criterio en todo el
+    # proyecto para cualquier imagen subida por un usuario/admin.
+    contenido, extension = validar_y_leer_archivo(
+        file,
+        tipos_permitidos=BANNER_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=TAMANO_MAXIMO_BYTES,
+    )
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    extension = EXTENSIONES_PERMITIDAS[file.content_type]
     nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
     ruta_destino = os.path.join(UPLOAD_DIR, nombre_archivo)
     with open(ruta_destino, "wb") as f:
@@ -104,8 +106,7 @@ async def create_banner(
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
 ):
-    contenido = await imagen.read()
-    imagen_url = _guardar_imagen(imagen, contenido)
+    imagen_url = await _guardar_imagen(imagen)
     orden = BannerRepository.get_siguiente_orden(db)
 
     nuevo = BannerRepository.create(
@@ -158,8 +159,7 @@ async def update_banner(
     # conserva la que ya tenía (no se puede "borrar solo la imagen", un
     # banner siempre necesita una).
     if imagen is not None:
-        contenido = await imagen.read()
-        nueva_imagen_url = _guardar_imagen(imagen, contenido)
+        nueva_imagen_url = await _guardar_imagen(imagen)
         _borrar_archivo_si_existe(existente.imagen_url)
         datos["imagen_url"] = nueva_imagen_url
 

@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.security import (
+    create_access_token,
     create_verification_token,
     generate_token_pair,
     hash_password,
@@ -38,8 +39,19 @@ def register_user(db: Session, username: str, email: str, password: str):
     db.execute(text("INSERT INTO usuarios_roles (id_usuario, id_rol) VALUES (:uid, 2)"), {"uid": user.id_usuario})
     db.commit()
 
+    # El frontend (Register.tsx / RegisterModal.tsx) crea y vincula el perfil
+    # de cliente en la MISMA operación, justo después del registro. Esos
+    # endpoints exigen sesión (Authorization: Bearer), así que este registro
+    # debe devolver un access_token — auto-login del usuario recién creado —
+    # para que el flujo no falle con 401. El rol por defecto es "cliente"
+    # (id_rol 2). Un access token expira en minutos, de modo que no deja la
+    # cuenta abierta indefinidamente; la verificación de email sigue aparte.
+    access_token = create_access_token(data={"sub": str(user.id_usuario), "roles": ["cliente"]})
+
     return {
         "user_id": user.id_usuario,
+        "access_token": access_token,
+        "token_type": "bearer",
         "verification_token": verification_token,
         "email": email,
     }
