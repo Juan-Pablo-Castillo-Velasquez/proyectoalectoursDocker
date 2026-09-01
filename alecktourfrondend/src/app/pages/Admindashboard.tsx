@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
-  PlusCircle, Hotel, Package, Users, Building2, Bell,
-  ShieldCheck, Settings,
+  PlusCircle, Hotel, Package, Users,
+  ShieldCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";

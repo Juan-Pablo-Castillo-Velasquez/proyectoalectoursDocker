@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  Ban,
   CheckCircle,
   Clock,
   Filter,

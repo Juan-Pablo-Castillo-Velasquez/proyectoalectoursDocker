@@ -1,5 +1,5 @@
 import { CheckCircle } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { resenaService } from "../../../services/resena.service";
 import { ModalOverlay } from "../../ui/ModalBackdrop";

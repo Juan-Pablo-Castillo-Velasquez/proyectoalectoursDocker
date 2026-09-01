@@ -1,7 +1,6 @@
 import { AlertCircle, Calendar, CheckCircle, CreditCard, Eye, EyeOff, Lock, Mail, MapPin, Phone, Plane, User, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { apiFetch } from "../api/v1/api";
 import { authService } from "../services/auth.service";
@@ -112,7 +111,6 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: RegisterModalProps) {
-    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [verifying, setVerifying] = useState(false);
     const [success, setSuccess] = useState(false);

@@ -29,7 +29,6 @@ export default function Register() {
   const [verifying, setVerifying] = useState(false);
   const [success, setSuccess] = useState(false);
   const [verificationToken, setVerificationToken] = useState('');
-  const [userId, setUserId] = useState<number | null>(null);
   const [email, setEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -95,7 +94,6 @@ export default function Register() {
 
       setVerificationToken(res.verification_token);
       setEmail(res.email);
-      setUserId(res.user_id);
       setSuccess(true);
     } catch (err: any) {
       toast.error(err.message || "Error al crear la cuenta");

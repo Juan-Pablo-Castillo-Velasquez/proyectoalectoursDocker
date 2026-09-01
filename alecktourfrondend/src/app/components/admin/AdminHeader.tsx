@@ -60,7 +60,11 @@ export default function AdminHeader({
   usuarioNombre,
   usuarioFoto,
   onLogout,
-  pendingCancelaciones,
+  // No se usa aquí: notificacionesNoLeidas (Admindashboard.tsx) ya incluye
+  // cancelaciones/contacto/corporativo/pagos, así que sumar este contador
+  // a la campana duplicaría el conteo. Se mantiene en las props por si un
+  // futuro rediseño necesita mostrar cancelaciones pendientes por separado.
+  pendingCancelaciones: _pendingCancelaciones,
   notificacionesNoLeidas,
   quickActions,
   onNavigate,
