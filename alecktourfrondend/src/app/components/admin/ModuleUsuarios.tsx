@@ -6,6 +6,8 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import Avatar from "./ui/Avatar";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -47,6 +49,8 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
     const matchVerificado = verificadoFilter === "todos" || (verificadoFilter === "verificados" ? u.verificado : !u.verificado);
     return matchSearch && matchRol && matchEstado && matchVerificado;
   });
+
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
 
   const hasActiveFilters = search.trim() !== "" || rolFilter !== "todos" || estadoFilter !== "todos" || verificadoFilter !== "todos";
   function clearFilters() { setSearch(""); setRolFilter("todos"); setEstadoFilter("todos"); setVerificadoFilter("todos"); }
@@ -144,6 +148,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
       </div>
 
       {filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 border-b border-border">
@@ -156,7 +161,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.map(u => (
+              {slice.map(u => (
                 <tr key={u.id_usuario} className="hover:bg-accent transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -214,6 +219,8 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState
           icon={Search}

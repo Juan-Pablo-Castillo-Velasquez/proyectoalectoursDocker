@@ -8,6 +8,8 @@ import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import EmptyState from "./ui/EmptyState";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import { labelCls, type Cliente } from "./types";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -87,6 +89,8 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
       return new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime();
     });
 
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
+
   const hasActiveFilters = search.trim() !== "" || estadoFilter !== "todos" || clienteFilter !== "todos";
   function clearFilters() { setSearch(""); setEstadoFilter("todos"); setClienteFilter("todos"); }
 
@@ -164,6 +168,7 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
       </div>
 
       {filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 border-b border-border">
@@ -177,7 +182,7 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.map(s => (
+              {slice.map(s => (
                 <tr key={s.id_solicitud} className="hover:bg-accent transition-colors">
                   <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{s.nombre_empresa}</td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap">
@@ -205,6 +210,8 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState icon={Search} title="Sin solicitudes" description={solicitudes.length === 0 ? "Todavía no ha llegado ninguna solicitud corporativa." : "Prueba con otros filtros."} />
       )}

@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 import uuid
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from sqlalchemy import text
@@ -23,6 +24,7 @@ from app.core.exceptions import (
 from app.core.mail import send_reservation_confirmation
 from app.core.security import require_admin
 from app.models.hotel_model import Hotel, HotelCaracteristica
+from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 from app.models.reserva_model import HistorialReserva, MetodoPago, Pago, Paquete, PaqueteHotel, PaqueteServicio
 from app.models.servicio_model import Servicio
 from app.models.user_model import Usuario
@@ -573,6 +575,40 @@ def pagar_reserva(
     if not metodo:
         raise HTTPException(status_code=404, detail="Método de pago no encontrado")
 
+    # Pago con método guardado (billetera del cliente): el frontend envía
+    # id_metodo_guardado y NO se confía en los datos de pago que mande el
+    # navegador (ultimos4/celular/banco/documento). Se carga el método
+    # guardado real del cliente, se valida que es suyo y que su tipo
+    # coincide con el método de pago seleccionado, y la simulación usa los
+    # datos REALES guardados. Esto corrige el bug de que se pudiera pagar
+    # con un último-4 arbitrario sin corresponder al método guardado.
+    datos_simulacion = data
+    if data.id_metodo_guardado is not None:
+        metodo_guardado = (
+            db.query(MetodoPagoGuardado)
+            .filter(
+                MetodoPagoGuardado.id_metodo_guardado == data.id_metodo_guardado,
+                MetodoPagoGuardado.id_cliente == reserva.id_cliente,
+            )
+            .first()
+        )
+        if not metodo_guardado:
+            raise HTTPException(status_code=404, detail="Método de pago guardado no encontrado o no es de este cliente")
+        if metodo_guardado.tipo != metodo.codigo:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El método guardado es de tipo '{metodo_guardado.tipo}' pero elegiste '{metodo.codigo}'",
+            )
+        # Se construye un objeto de simulación con la info REAL del método
+        # guardado (últimos 4 de tarjeta, celular de Nequi, documento de
+        # PSE), ignorando lo que haya enviado el navegador.
+        datos_simulacion = SimpleNamespace(
+            ultimos4=metodo_guardado.ultimos4,
+            celular=None,
+            banco=None,
+            documento=None,
+        )
+
     total = reserva.precio_total
     if total <= 0:
         raise HTTPException(
@@ -581,7 +617,7 @@ def pagar_reserva(
         )
     monto = total if data.tipo_pago == "completo" else round(total * 0.5, 2)
 
-    rechazo_simulado = payment_service.debe_simular_rechazo(metodo.codigo, data)
+    rechazo_simulado = payment_service.debe_simular_rechazo(metodo.codigo, datos_simulacion)
     es_async = payment_service.es_pago_asincrono(metodo.codigo)
 
     if es_async:

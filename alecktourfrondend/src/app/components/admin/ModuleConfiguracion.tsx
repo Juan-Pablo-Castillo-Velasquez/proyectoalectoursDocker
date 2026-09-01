@@ -39,6 +39,33 @@ export default function ModuleConfiguracion() {
   };
   useEffect(() => { cargar(); }, []);
 
+  // Valor del call center (precio/honorario): se crea automáticamente la
+  // primera vez que se abre el módulo si aún no existe, como una clave/valor
+  // real de ConfiguracionSistema — así el honorario siempre está visible y
+  // editable por el admin, sin necesidad de un seed manual en la BD.
+  useEffect(() => {
+    if (loading) return;
+    const yaExiste = items.some((i) => i.clave === "call_center_honorario");
+    if (!yaExiste) {
+      configuracionService
+        .create({
+          clave: "call_center_honorario",
+          valor: "50000",
+          descripcion: "Valor del call center: precio/honorario por asesoría (COP).",
+        })
+        .then(() => cargar())
+        .catch(() => { /* no bloquea: el admin puede crearla a mano */ });
+    }
+  }, [loading, items]);
+
+  // Formatea el valor del call center como moneda cuando la clave existe.
+  function formatearValor(item: ConfiguracionItem): string {
+    if (item.clave !== "call_center_honorario" || !item.valor) return item.valor || "";
+    const numero = Number(String(item.valor).replace(/[^\d-]/g, ""));
+    if (Number.isNaN(numero)) return item.valor;
+    return `$${numero.toLocaleString("es-CO")} COP`;
+  }
+
   function openCreate() {
     setEditing(null);
     setForm({ clave: "", valor: "", descripcion: "" });
@@ -90,8 +117,7 @@ export default function ModuleConfiguracion() {
         <SectionHeader
           title="Configuración"
           subtitle={`${items.length} parámetro${items.length === 1 ? "" : "s"} guardado${items.length === 1 ? "" : "s"}`}
-        />
-        <button
+        />        <button
           onClick={openCreate}
           className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all
             bg-gradient-to-r from-primary to-[#A13B55] hover:shadow-lg hover:shadow-primary/20"
@@ -114,7 +140,16 @@ export default function ModuleConfiguracion() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground font-mono">{item.clave}</p>
-                <p className="text-sm text-foreground/80 mt-0.5 break-words">{item.valor || <span className="text-muted-foreground italic">sin valor</span>}</p>
+                <p className="text-sm text-foreground/80 mt-0.5 break-words">
+                  {item.clave === "call_center_honorario"
+                    ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="font-bold text-primary">{formatearValor(item) || <span className="text-muted-foreground italic font-normal">sin valor</span>}</span>
+                        {item.valor && <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Honorario call center</span>}
+                      </span>
+                    )
+                    : (item.valor || <span className="text-muted-foreground italic">sin valor</span>)}
+                </p>
                 {item.descripcion && <p className="text-xs text-muted-foreground mt-1">{item.descripcion}</p>}
                 <p className="text-[11px] text-muted-foreground/70 mt-1.5">Actualizado {formatFecha(item.actualizado_en)}</p>
               </div>

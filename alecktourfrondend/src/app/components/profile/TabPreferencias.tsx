@@ -1,5 +1,4 @@
 import {
-  Calendar,
   Clock,
   Coffee,
   Compass,
@@ -17,10 +16,9 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import {
-  PaqueteSugerido,
-  preferenciasService,
-} from "../../services/preferencias.service";
+import { preferenciasService } from "../../services/preferencias.service";
+import type { HotelDetailResponse } from "../../services/hotel.service";
+import HotelCard from "../HotelCard";
 
 // ── Mapeos de Negocio ──────────────────────────────────────────────────────
 const interesIcons: Record<string, any> = {
@@ -47,19 +45,19 @@ interface Props {
 }
 
 export default function TabPreferencias({ preferencias, idCliente }: Props) {
-  const [sugerencias, setSugerencias] = useState<PaqueteSugerido[]>([]);
+  const [hoteles, setHoteles] = useState<HotelDetailResponse[]>([]);
   const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
 
   useEffect(() => {
     if (!preferencias || !idCliente) {
-      setSugerencias([]);
+      setHoteles([]);
       return;
     }
     setCargandoSugerencias(true);
     preferenciasService
-      .getSugerencias(idCliente)
-      .then(setSugerencias)
-      .catch(() => setSugerencias([]))
+      .getSugerenciasHoteles(idCliente)
+      .then(setHoteles)
+      .catch(() => setHoteles([]))
       .finally(() => setCargandoSugerencias(false));
   }, [preferencias, idCliente]);
 
@@ -189,15 +187,15 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
               })}
           </div>
 
-          {/* Bloque: Paquetes sugeridos según preferencias */}
-          {(cargandoSugerencias || sugerencias.length > 0) && (
+          {/* Bloque: Hoteles sugeridos según preferencias */}
+          {(cargandoSugerencias || hoteles.length > 0) && (
             <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-primary" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground">
-                  Paquetes sugeridos para ti
+                  Hoteles sugeridos para ti
                 </h3>
               </div>
 
@@ -211,34 +209,9 @@ export default function TabPreferencias({ preferencias, idCliente }: Props) {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sugerencias.map((paquete) => (
-                    <Link
-                      key={paquete.id_paquete}
-                      to={`/package/${paquete.id_paquete}`}
-                      className="group bg-background border border-border hover:border-primary/40 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300"
-                    >
-                      <p className="font-bold text-foreground text-base group-hover:text-primary transition-colors truncate">
-                        {paquete.nombre_paquete}
-                      </p>
-                      {paquete.destinos.length > 0 && (
-                        <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5 truncate">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          {paquete.destinos.join(", ")}
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between mt-4">
-                        {paquete.duracion_dias && (
-                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <Calendar className="w-3 h-3" />
-                            {paquete.duracion_dias} días
-                          </span>
-                        )}
-                        <span className="text-sm font-bold text-primary">
-                          ${paquete.precio_base.toLocaleString("es-CO")}
-                        </span>
-                      </div>
-                    </Link>
+                <div className="flex flex-col gap-5">
+                  {hoteles.map((hotel, index) => (
+                    <HotelCard key={hotel.id_hotel} hotel={hotel} index={index} />
                   ))}
                 </div>
               )}

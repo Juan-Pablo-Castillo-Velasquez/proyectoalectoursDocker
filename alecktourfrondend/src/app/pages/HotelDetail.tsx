@@ -2,8 +2,11 @@ import {
   ArrowLeft,
   Baby,
   Bed,
+  CalendarDays,
   Car,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Clock,
   CreditCard,
   Dice5,
@@ -26,6 +29,7 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import CalendarioOcupacion from "../components/hotel/CalendarioOcupacion";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useFavoritos } from "../context/FavoritosContext";
@@ -141,6 +145,15 @@ export default function HotelDetail() {
   // estático "disponible/ocupada" de cada habitación, sin saber para qué
   // fechas concretas ya estaba reservada.
   const [fechasOcupadas, setFechasOcupadas] = useState<HabitacionFechasOcupadas[]>([]);
+  // Habitaciones cuyo calendario de ocupación está desplegado (por id).
+  const [calendariosAbiertos, setCalendariosAbiertos] = useState<Set<number>>(new Set());
+  const toggleCalendario = (idHabitacion: number) =>
+    setCalendariosAbiertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(idHabitacion)) next.delete(idHabitacion);
+      else next.add(idHabitacion);
+      return next;
+    });
 
   useEffect(() => {
     if (!id) return;
@@ -520,18 +533,34 @@ export default function HotelDetail() {
                               const rangos = fechasOcupadas.find(
                                 (f) => f.id_habitacion === hab.id_habitacion
                               )?.rangos;
+                              const abierto = calendariosAbiertos.has(hab.id_habitacion);
                               if (!rangos || rangos.length === 0) return null;
                               return (
-                                <p className="mt-3 text-xs text-muted-foreground">
-                                  <Clock className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5 text-destructive/70" />
-                                  Ocupada:{" "}
-                                  {rangos
-                                    .map(
-                                      (r) =>
-                                        `${formatFechaCorta(r.fecha_checkin)}–${formatFechaCorta(r.fecha_checkout)}`
-                                    )
-                                    .join(", ")}
-                                </p>
+                                <div className="mt-3">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleCalendario(hab.id_habitacion);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-destructive/80 hover:text-destructive transition-colors"
+                                  >
+                                    <CalendarDays className="w-3.5 h-3.5 text-destructive/70" />
+                                    {rangos.length === 1
+                                      ? `Ocupada: ${formatFechaCorta(rangos[0].fecha_checkin)}–${formatFechaCorta(rangos[0].fecha_checkout)}`
+                                      : `${rangos.length} rangos ocupados`}
+                                    {abierto ? (
+                                      <ChevronUp className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                  {abierto && (
+                                    <div onClick={(e) => e.stopPropagation()} className="mt-3">
+                                      <CalendarioOcupacion rangos={rangos} />
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })()}
                           </div>

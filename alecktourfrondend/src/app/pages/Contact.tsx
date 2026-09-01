@@ -1,11 +1,14 @@
-import { CheckCircle2, Clock, MapPin, MessageSquare, Send } from "lucide-react";
+import { CheckCircle2, Clock, MapPin, MessageSquare, Send, User } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { useAuth } from "../context/AuthContext";
+import { ClienteResponse, clienteService } from "../services/cliente.service";
 import { contactoService } from "../services/contacto.service";
 
 export default function Contact() {
+  const { usuario, isAuthenticated } = useAuth();
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [asunto, setAsunto] = useState("");
@@ -13,6 +16,42 @@ export default function Contact() {
   const [enviado, setEnviado] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Si el cliente está logueado, se autocompletan nombre/correo con los
+  // datos reales del perfil (GET /clientes/{id}) — nunca se inventan.
+  const [cliente, setCliente] = useState<ClienteResponse | null>(null);
+  const [autocompletando, setAutocompletando] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+    if (!isAuthenticated || !usuario?.id_cliente) {
+      setCliente(null);
+      return;
+    }
+    setAutocompletando(true);
+    clienteService
+      .getById(usuario.id_cliente)
+      .then((c) => {
+        if (!activo) return;
+        setCliente(c);
+        setNombre(`${c.nombre} ${c.apellido}`.trim());
+        setCorreo(c.correo);
+      })
+      .catch(() => {
+        // Si falla, solo dejamos que el usuario escriba a mano.
+      })
+      .finally(() => activo && setAutocompletando(false));
+    return () => {
+      activo = false;
+    };
+  }, [isAuthenticated, usuario?.id_cliente]);
+
+  const reenviarOtro = () => {
+    setEnviado(false);
+    if (cliente) {
+      setNombre(`${cliente.nombre} ${cliente.apellido}`.trim());
+      setCorreo(cliente.correo);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -143,8 +182,9 @@ export default function Contact() {
                             required
                             value={nombre}
                             onChange={(e) => setNombre(e.target.value)}
+                            disabled={!!cliente || autocompletando}
                             placeholder="Ej. Alejandro Pérez"
-                            className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/60"
+                            className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/60 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-muted/40"
                           />
                         </div>
 
@@ -157,11 +197,30 @@ export default function Contact() {
                             required
                             value={correo}
                             onChange={(e) => setCorreo(e.target.value)}
+                            disabled={!!cliente || autocompletando}
                             placeholder="ejemplo@correo.com"
-                            className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/60"
+                            className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/60 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-muted/40"
                           />
                         </div>
                       </div>
+
+                      {cliente && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 border border-border rounded-xl px-4 py-3">
+                          <User className="w-4 h-4 text-primary shrink-0" />
+                          <span>
+                            Usarás los datos de tu cuenta: enviaremos la
+                            respuesta a <strong className="text-foreground">{cliente.correo}</strong>. Si
+                            prefieres otro correo, cierra sesión o escríbenos
+                            desde el formulario de invitado.
+                          </span>
+                        </div>
+                      )}
+                      {autocompletando && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="inline-block h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          Cargando tus datos de cuenta...
+                        </div>
+                      )}
 
                       <div className="space-y-2">
                         <label className="text-sm font-semibold text-card-foreground">
@@ -246,7 +305,7 @@ export default function Contact() {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setEnviado(false)}
+                        onClick={reenviarOtro}
                         className="px-6 py-3 border border-border text-foreground rounded-xl font-semibold hover:bg-secondary/10 transition-colors cursor-pointer"
                       >
                         Enviar otro mensaje

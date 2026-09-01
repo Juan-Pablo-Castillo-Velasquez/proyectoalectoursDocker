@@ -8,6 +8,7 @@ import Navbar from "../components/Navbar";
 import Newsletter from "../components/Newsletter";
 import OffersHighlight from "../components/OffersHighlight";
 import PromoBar from "../components/PromoBar";
+import PromocionAccordeon from "../components/PromocionAccordeon";
 import Testimonials from "../components/Testimonials";
 import WhyChooseUs from "../components/WhyChooseUs";
 import { useSeoMeta } from "../hooks/useSeoMeta";
@@ -26,6 +27,7 @@ export default function Home() {
       <Navbar />
       <Hero />
       <BannersPromocionales />
+      <PromocionAccordeon />
       <Benefits />
       <DestinationsGrid />
       <OffersHighlight />

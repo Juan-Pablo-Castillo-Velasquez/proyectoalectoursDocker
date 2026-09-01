@@ -5,6 +5,8 @@ import {
 import type { NotificacionItem } from "../../services/notificacion.service";
 import SectionHeader from "./ui/SectionHeader";
 import EmptyState from "./ui/EmptyState";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
@@ -64,6 +66,8 @@ export default function ModuleNotificaciones({
     const matchLeido = leidoFilter === "todos" || (leidoFilter === "leidas" ? n.leido : !n.leido);
     return matchSearch && matchTipo && matchLeido;
   });
+
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
   const noLeidas = notificaciones.filter(n => !n.leido).length;
   const hasActiveFilters = search.trim() !== "" || tipoFilter !== "todos" || leidoFilter !== "todos";
   function clearFilters() { setSearch(""); setTipoFilter("todos"); setLeidoFilter("todos"); }
@@ -133,8 +137,9 @@ export default function ModuleNotificaciones({
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border divide-y divide-border/50">
-          {filtered.map(n => (
+          {slice.map(n => (
             <div
               key={n.id_notificacion}
               className={`flex items-start gap-3 p-4 transition-colors ${!n.leido ? "bg-primary/[0.03]" : ""}`}
@@ -163,6 +168,8 @@ export default function ModuleNotificaciones({
             </div>
           ))}
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState icon={Bell} title="Sin notificaciones" description="Todavía no hay ninguna notificación registrada." />
       )}

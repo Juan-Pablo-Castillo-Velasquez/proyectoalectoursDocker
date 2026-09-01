@@ -5,6 +5,8 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
@@ -80,6 +82,8 @@ export default function ModuleActividad({ actividad, loading, loadingMore, agota
   const hoyCount = actividad.filter(a => esHoy(a.fecha_cambio)).length;
   const reservasAfectadas = new Set(actividad.map(a => a.id_reserva)).size;
 
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
+
   const hasActiveFilters = estadoFilter !== "todos" || search.trim() !== "" || periodoFilter !== "todos";
   function clearFilters() { setSearch(""); setEstadoFilter("todos"); setPeriodoFilter("todos"); }
 
@@ -151,9 +155,10 @@ export default function ModuleActividad({ actividad, loading, loadingMore, agota
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border p-2">
           <div className="divide-y divide-border/50">
-            {filtered.map(item => (
+            {slice.map(item => (
               <div key={item.id_historial} className="flex items-start gap-3 p-3.5 hover:bg-accent transition-colors rounded-xl">
                 <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -176,6 +181,8 @@ export default function ModuleActividad({ actividad, loading, loadingMore, agota
             ))}
           </div>
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState
           icon={Search}

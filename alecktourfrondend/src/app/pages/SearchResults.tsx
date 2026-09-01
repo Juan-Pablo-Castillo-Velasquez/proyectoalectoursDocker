@@ -287,6 +287,43 @@ export default function SearchResults() {
   })();
 
   /*
+   * ALTERNATIVAS SIN DISPONIBILIDAD PARA LAS FECHAS EXACTAS.
+   *
+   * Cuando la búsqueda trae fechas válidas y NO hay ningún hotel disponible
+   * para ese rango exacto, en vez de mostrar el vacío genérico ("No
+   * encontramos hoteles") mostramos los hoteles del destino que sí existen
+   * (catálogo completo, sin filtro de fechas) marcados claramente como "sin
+   * disponibilidad para esas fechas" — son coincidencias / alternativas
+   * reales que ayudan al cliente a decidir (consultar otras fechas) en lugar
+   * de un callejón sin salida. La lista sale de `totalCatalogo`, que solo se
+   * pide cuando hay fechas; si no hay fechas este bloque queda vacío.
+   */
+  const alternativas = (() => {
+    if (!totalCatalogo) return [];
+    // Si hay filtros de cliente activos (calificación, precio, país, ciudad,
+    // servicios...), el cero de resultados puede deberse a esos filtros y NO a
+    // la disponibilidad por fechas. En ese caso no tratamos los descartados
+    // como "alternativas sin disponibilidad" (sería engañoso): solo mostramos
+    // las alternativas por fecha cuando la búsqueda está limpia de filtros y
+    // lo único que deja el resultado en cero es la disponibilidad real.
+    const hayFiltrosDeCliente =
+      calificacionFilter !== "all" ||
+      paisFilter !== "all" ||
+      ciudadFilter !== "all" ||
+      precioFilter !== "all" ||
+      caracteristicasFilter.length > 0;
+    if (hayFiltrosDeCliente) return [];
+    if (!destinationSearch) return [];
+    const destino = destinationSearch.toLowerCase();
+    const matchDestino = (h: HotelDetailResponse) =>
+      h.ciudad?.toLowerCase().includes(destino) ||
+      h.pais?.toLowerCase().includes(destino) ||
+      h.nombre_hotel?.toLowerCase().includes(destino);
+    const disponiblesIds = new Set(hoteles.map((h) => h.id_hotel));
+    return totalCatalogo.filter((h) => matchDestino(h) && !disponiblesIds.has(h.id_hotel));
+  })();
+
+  /*
    * DATOS PARA FILTROS
    */
   const paises = [
@@ -986,54 +1023,57 @@ export default function SearchResults() {
                     )
                   )}
                 </div>
-              ) : (
-                <motion.div
-                  initial={{
-                    opacity: 0,
-                    scale: 0.98,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                  }}
-                  className="bg-card rounded-2xl border border-border p-12 md:p-16 text-center"
-                >
-                  <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Building2 className="w-6 h-6 text-primary" />
+              ) : alternativas.length > 0 ? (
+                <div className="flex flex-col gap-5">
+                  {/* Aviso de que nada coincide con las fechas exactas */}
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5 text-amber-900 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                      <Building2 className="w-5 h-5 text-amber-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold">
+                        No hay disponibilidad en esas fechas exactas
+                      </p>
+                      <p className="text-xs text-amber-800/90 mt-0.5">
+                        Estos {alternativas.length} {alternativas.length === 1 ? "hotel es" : "hoteles son"} coincidencia
+                        {alternativas.length === 1 ? "" : "s"} para{" "}
+                        <strong>{destinationSearch}</strong> pero no tienen
+                        habitaciones libres entre {startDate} y {endDate}. Te los
+                        mostramos como alternativa: consulta otras fechas en su
+                        detalle.
+                      </p>
+                    </div>
                   </div>
 
-                  <h3 className="text-xl font-bold mb-2">
-                    No encontramos hoteles
+                  {alternativas.map((hotel, index) => (
+                    <HotelCard
+                      key={hotel.id_hotel}
+                      hotel={hotel}
+                      index={index}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-card rounded-2xl border border-border p-8 sm:p-12 text-center">
+                  <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mb-4">
+                    <Search className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    No encontramos alojamientos con esos criterios
                   </h3>
-
-                  <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
-                    No encontramos alojamientos
-                    para{" "}
-                    <strong>
-                      {destinationSearch ||
-                        "este destino"}
-                    </strong>
-                    . Prueba con otra ciudad,
-                    país o elimina algunos
-                    filtros.
+                  <p className="text-muted-foreground text-sm mt-2 max-w-md mx-auto">
+                    {destinationSearch ? (
+                      <>
+                        No hay resultados en{" "}
+                        <strong className="text-foreground">{destinationSearch}</strong>{" "}
+                        con las fechas y filtros seleccionados. Prueba ampliar las
+                        fechas, quitar filtros o buscar en otro destino.
+                      </>
+                    ) : (
+                      "Prueba modificar el destino, las fechas o quitar algunos filtros para ver más opciones."
+                    )}
                   </p>
-
-                  <motion.button
-                    whileHover={{
-                      scale: 1.02,
-                    }}
-                    whileTap={{
-                      scale: 0.98,
-                    }}
-                    type="button"
-                    onClick={
-                      limpiarFiltros
-                    }
-                    className="px-5 py-2.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-xl"
-                  >
-                    Restablecer filtros
-                  </motion.button>
-                </motion.div>
+                </div>
               )}
             </main>
           </div>

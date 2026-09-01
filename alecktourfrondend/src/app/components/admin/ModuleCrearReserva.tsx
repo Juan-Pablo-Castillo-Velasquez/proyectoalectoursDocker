@@ -4,10 +4,12 @@ import {
   Package, Search, Tag, User, Users, XCircle,
 } from "lucide-react";
 import { Cliente, HotelData, Paquete, inputCls, labelCls, resolveFotoUrl } from "./types";
-import { hotelService } from "../../services/hotel.service";
+import { hotelService, RangoOcupado } from "../../services/hotel.service";
+import CalendarioOcupacion from "../hotel/CalendarioOcupacion";
 import AdminModal from "./ui/AdminModal";
 import Avatar from "./ui/Avatar";
 import SectionHeader from "./ui/SectionHeader";
+import StepProgress from "../ui/StepProgress";
 
 interface Props {
   clientes: Cliente[];
@@ -152,6 +154,18 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
     return rangos.some((r) => r.fecha_checkin < form.fecha_fin && r.fecha_checkout > form.fecha_inicio);
   }
 
+  // Fechas ocupadas agregadas de las habitaciones ya elegidas en modo hotel.
+  // Se muestran en la sección "Fechas y huéspedes" reutilizando el mismo
+  // calendario de ocupación del detalle público (CalendarioOcupacion), como
+  // ayuda visual al admin al elegir las fechas — nunca inventa datos.
+  const rangosSeleccionados: RangoOcupado[] = habitaciones.flatMap(
+    (h) => fechasOcupadas[h.id_habitacion] ?? []
+  );
+
+  // ¿Alguna habitación elegida ya está ocupada entre las fechas del form?
+  const haySolapeEnSeleccionadas = fechasElegidasValidas &&
+    habitaciones.some((h) => haySolapeFechas(h.id_habitacion));
+
   const clienteSeleccionado = clientes.find((c) => c.id_cliente === parseInt(form.id_cliente));
   const paqueteSeleccionado = paquetes.find((p) => p.id_paquete === parseInt(form.id_paquete));
 
@@ -274,6 +288,22 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
           {msg.text}
         </div>
       )}
+
+      <StepProgress
+        title="Avance"
+        steps={[
+          { label: "Cliente", ok: !!clienteSeleccionado },
+          { label: "Tipo", ok: !!modo },
+          {
+            label: "Detalles",
+            ok:
+              modo === "paquete"
+                ? !!paqueteSeleccionado && !!form.fecha_inicio && !!form.fecha_fin
+                : habitaciones.length > 0 && !!form.fecha_inicio && !!form.fecha_fin,
+          },
+          { label: "Estado", ok: !!form.estado },
+        ]}
+      />
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
 
@@ -452,6 +482,28 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
                   className={inputCls} required />
               </div>
             </div>
+
+            {/* En modo hotel, con habitaciones elegidas, se reutiliza el
+                calendario de ocupación del detalle público (el mismo que
+                GET /hoteles/{id}/fechas-ocupadas alimenta en HotelDetail)
+                para que el admin vea de un vistazo qué días están ocupados
+                mientras elige las fechas. */}
+            {modo === "hotel" && habitaciones.length > 0 && (
+              <div className={`${card} mt-4`}>
+                {haySolapeEnSeleccionadas && (
+                  <p className="text-[11px] text-destructive flex items-center gap-1 mb-3">
+                    <XCircle className="w-3 h-3 shrink-0" /> Alguna de las habitaciones elegidas ya está ocupada entre las fechas seleccionadas. Ajusta las fechas o elige otra habitación.
+                  </p>
+                )}
+                <CalendarioOcupacion
+                  rangos={rangosSeleccionados}
+                  rangoSeleccionado={{
+                    fechaInicio: form.fecha_inicio || undefined,
+                    fechaFin: form.fecha_fin || undefined,
+                  }}
+                />
+              </div>
+            )}
           </section>
 
           {/* Estado inicial — mismo picker visual (ícono + color) que el

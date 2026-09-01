@@ -263,6 +263,13 @@ class PagarRequest(BaseModel):
     id_metodo_pago: int
     tipo_pago: str = "completo"
 
+    # Cuando se paga con un método GUARDADO en la billetera del cliente
+    # (MetodoPagoGuardado), el frontend envía su id. El backend entonces
+    # ignora los campos de pago que envíe el cliente y usa los datos REALES
+    # del método guardado (ver pagar_reserva) — así el backend no confía en
+    # un ultimos4/celular/documento arbitrario del navegador.
+    id_metodo_guardado: int | None = Field(None)
+
     # Campos especificos por metodo — nunca se envia el numero completo de
     # tarjeta ni datos sensibles reales, todo esto es simulado:
     ultimos4: str | None = Field(None, max_length=4, min_length=4)  # tarjeta

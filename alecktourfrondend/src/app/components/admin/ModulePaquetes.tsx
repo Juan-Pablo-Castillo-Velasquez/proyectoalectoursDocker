@@ -11,6 +11,8 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import { Switch } from "../ui/switch";
 
 interface HotelSeleccionado { id_hotel: number; noches_incluidas: string }
@@ -118,6 +120,8 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
     const matchSearch = p.nombre_paquete.toLowerCase().includes(search.toLowerCase());
     return matchEstado && matchSearch;
   });
+
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
 
   function openCreate() { setEditingId(null); setForm(EMPTY_FORM); setMsg(null); setModalOpen(true); }
 
@@ -289,6 +293,7 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
       </div>
 
       {filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 border-b border-border">
@@ -303,7 +308,7 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.map(p => (
+              {slice.map(p => (
                 <tr key={p.id_paquete} className="hover:bg-accent transition-colors">
                   <td className="px-4 py-3">
                     <p className="text-xs font-semibold text-foreground">{p.nombre_paquete}</p>
@@ -380,6 +385,8 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState
           icon={Search}

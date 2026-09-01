@@ -9,6 +9,7 @@ from app.repositories.metodo_pago_guardado_repository import MetodoPagoGuardadoR
 from app.schemas.metodo_pago_guardado_schema import (
     MetodoPagoGuardadoCreate,
     MetodoPagoGuardadoResponse,
+    MetodoPagoGuardadoUpdate,
     VerificarClaveRequest,
     VerificarClaveResponse,
 )
@@ -48,6 +49,34 @@ def guardar_metodo_pago(
         clave_hash=clave_hash,
         predeterminado=data.predeterminado,
     )
+
+
+@router.put("/{id_metodo_guardado}", response_model=MetodoPagoGuardadoResponse)
+def actualizar_metodo_guardado(
+    id_metodo_guardado: int,
+    data: MetodoPagoGuardadoUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_usuario),
+):
+    """
+    Edita un método guardado (lápiz en el perfil): alias, tipo, últimos 4,
+    y/o marcarlo como predeterminado. `clave` es opcional: si el cliente la
+    cambia, se re-hashea (nunca en texto plano); si no la envía, se conserva
+    la actual.
+    """
+    id_cliente = _require_cliente(usuario)
+    cambios = data.dict(exclude_unset=True)
+    if "clave" in cambios and cambios["clave"]:
+        cambios["clave_hash"] = hash_password(cambios.pop("clave"))
+    else:
+        cambios.pop("clave", None)
+
+    actualizado = MetodoPagoGuardadoRepository.update(
+        db, id_cliente, id_metodo_guardado, **cambios
+    )
+    if not actualizado:
+        raise HTTPException(status_code=404, detail="Método de pago guardado no encontrado")
+    return actualizado
 
 
 @router.post("/{id_metodo_guardado}/verificar", response_model=VerificarClaveResponse)

@@ -14,6 +14,8 @@ import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import Avatar from "./ui/Avatar";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -874,6 +876,8 @@ export default function ModuleReservas({
     return matchEstado && matchPago && matchCanal && matchAsesor && matchSearch;
   });
 
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 10);
+
   const counts = reservas.reduce((acc, r) => {
     acc[r.estado] = (acc[r.estado] ?? 0) + 1;
     return acc;
@@ -1034,6 +1038,7 @@ export default function ModuleReservas({
 
       {/* Table */}
       {filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 border-b border-border">
@@ -1054,7 +1059,7 @@ export default function ModuleReservas({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.map(r => {
+              {slice.map(r => {
                 const cl = clienteMap[r.id_cliente];
                 const pk = paqueteMap[r.id_paquete];
                 const pg = pagoMap[r.id_reserva];
@@ -1186,6 +1191,8 @@ export default function ModuleReservas({
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState
           icon={Search}

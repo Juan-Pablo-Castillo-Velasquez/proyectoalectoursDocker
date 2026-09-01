@@ -1,4 +1,5 @@
 import { apiFetch } from '../api/v1/api';
+import type { HotelDetailResponse } from './hotel.service';
 
 export interface PreferenciaResponse {
   id_preferencia: number;
@@ -28,6 +29,11 @@ export const preferenciasService = {
 
   getSugerencias: (id: number, limit = 6) =>
     apiFetch<PaqueteSugerido[]>(`/preferencias-cliente/${id}/sugerencias?limit=${limit}`),
+
+  // Hoteles sugeridos según las preferencias — el bloque del perfil muestra
+  // tarjetas de hotel (HotelCard → /hotel/{id}) en lugar de paquetes.
+  getSugerenciasHoteles: (id: number, limit = 6) =>
+    apiFetch<HotelDetailResponse[]>(`/preferencias-cliente/${id}/sugerencias-hoteles?limit=${limit}`),
 
   save: (id_cliente: number | string, data: any) =>
     apiFetch<PreferenciaResponse>('/preferencias-cliente/', { 

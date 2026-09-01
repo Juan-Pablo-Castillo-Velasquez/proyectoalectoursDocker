@@ -75,8 +75,36 @@ export async function apiFetch<T>(
   const response = await fetch(url, { ...options, headers });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || "Error en la petición al servidor");
+    let errorData: any = {};
+    try {
+      errorData = await response.json();
+    } catch {
+      /* sin cuerpo JSON */
+    }
+    const detail = errorData?.detail;
+    let msg: string;
+    if (typeof detail === "string") {
+      msg = detail;
+    } else if (Array.isArray(detail)) {
+      // Errores de validación de FastAPI (422): [ { loc, msg, type }, ... ].
+      // Antes esto se pasaba a new Error() tal cual y el detalle llegaba a la
+      // UI como "[object Object]" — aquí se convierte a texto legible.
+      msg = detail
+        .map((e: any) => {
+          const campo = Array.isArray(e?.loc)
+            ? e.loc.filter((s: unknown) => typeof s === "string").join(".")
+            : "";
+          const texto = e?.msg ?? "campo inválido";
+          return campo ? `${campo}: ${texto}` : texto;
+        })
+        .join("; ");
+      if (!msg) msg = "Datos inválidos en la solicitud";
+    } else if (detail && typeof detail === "object") {
+      msg = Object.values(detail).filter((v) => typeof v === "string").join("; ") || JSON.stringify(detail);
+    } else {
+      msg = "Error en la petición al servidor";
+    }
+    throw new Error(msg || "Error en la petición al servidor");
   }
 
   if (response.status === 204) return {} as T;

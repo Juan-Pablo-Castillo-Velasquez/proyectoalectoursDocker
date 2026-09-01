@@ -29,12 +29,25 @@ export interface MetodoPagoGuardadoCreate {
   predeterminado?: boolean;
 }
 
+// Edición vía lápiz del perfil: todos los campos son opcionales; `clave` solo
+// se re-hashea si el cliente decide cambiarla (si se omite, se conserva).
+export interface MetodoPagoGuardadoUpdate {
+  alias?: string;
+  tipo?: string;
+  ultimos4?: string;
+  clave?: string;
+  predeterminado?: boolean;
+}
+
 export const metodoPagoGuardadoService = {
   getAll: () =>
     apiFetch<MetodoPagoGuardado[]>('/metodos-pago-guardados'),
 
   create: (data: MetodoPagoGuardadoCreate) =>
     apiFetch<MetodoPagoGuardado>('/metodos-pago-guardados', { method: 'POST', body: data }),
+
+  update: (id: number, data: MetodoPagoGuardadoUpdate) =>
+    apiFetch<MetodoPagoGuardado>(`/metodos-pago-guardados/${id}`, { method: 'PUT', body: data }),
 
   verificarClave: (id: number, clave: string) =>
     apiFetch<{ valido: boolean }>(`/metodos-pago-guardados/${id}/verificar`, {

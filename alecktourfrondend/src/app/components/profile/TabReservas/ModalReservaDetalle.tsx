@@ -1,14 +1,18 @@
 import {
   Bed,
   Calendar,
+  CalendarCheck,
+  Clock,
   Compass,
   CreditCard,
   History,
+  Hotel,
   Loader2,
   MapPin,
   Package,
   Share2,
   Sparkles,
+  Star,
   Users,
   Wallet,
   X,
@@ -22,7 +26,7 @@ import {
   reservaService,
 } from "../../../services/reserva.service";
 import { estadoConfig } from "./constants";
-import { compartirReserva, fmt } from "./utils";
+import { compartirReserva, fmt, nights, parseFechaLocal } from "./utils";
 import { ModalOverlay } from "../../ui/ModalBackdrop";
 
 interface HabitacionDetalle {
@@ -65,6 +69,32 @@ interface Props {
 const money = (valor: number | null | undefined) =>
   `$${Number(valor ?? 0).toLocaleString("es-CO")} COP`;
 
+// Encabezado de sección reutilizable del modal.
+function SectionTitle({
+  icon: Icon,
+  children,
+}: {
+  icon: any;
+  children: React.ReactNode;
+}) {
+  return (
+    <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
+      <span className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+        <Icon className="w-3.5 h-3.5 text-primary" />
+      </span>
+      {children}
+    </h4>
+  );
+}
+
+function Tarjeta({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-muted/30 border border-border/50 rounded-xl p-4 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +133,8 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
     };
   }, [reservaId]);
 
-  const config = detalle ? estadoConfig[detalle.estado] ?? estadoConfig.pendiente : null;
+  const config = detalle ? (estadoConfig[detalle.estado] ?? estadoConfig.pendiente) : null;
+  const EstadoIcon = config?.icon;
 
   const tituloHeader =
     detalle?.paquete?.nombre_paquete ??
@@ -115,6 +146,17 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
     .reduce((acc, p) => acc + Number(p.monto ?? 0), 0);
   const saldoPendiente = Math.max(0, totalReserva - totalPagado);
   const porcentajePagado = totalReserva > 0 ? Math.min(100, Math.round((totalPagado / totalReserva) * 100)) : 0;
+
+  // Valor base estimado para detectar descuento: precio por persona × personas.
+  const precioPorPersona = Number(detalle?.paquete?.precio_por_persona ?? 0);
+  const baseEstimada =
+    precioPorPersona > 0 && detalle?.numero_personas
+      ? precioPorPersona * detalle.numero_personas
+      : 0;
+  const ahorro = baseEstimada > totalReserva ? baseEstimada - totalReserva : 0;
+
+  const noches = detalle ? nights(detalle.fecha_inicio, detalle.fecha_fin) : 0;
+  const hotel = detalle?.paquete?.hotel;
 
   const handleCompartir = async () => {
     if (!detalle) return;
@@ -130,46 +172,65 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="relative bg-card text-card-foreground border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col transition-colors duration-200"
+        className="relative bg-card text-card-foreground border border-border rounded-2xl shadow-xl w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col transition-colors duration-200"
       >
         {/* Header */}
-        <div className="bg-primary p-6 text-primary-foreground shrink-0 relative">
-          <div className="absolute top-4 right-4 flex items-center gap-2">
+        <div className="bg-gradient-to-br from-primary to-[#A13B55] p-6 text-primary-foreground shrink-0 relative overflow-hidden">
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
             <button
               onClick={handleCompartir}
               disabled={!detalle}
               aria-label="Compartir reserva"
-              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Share2 className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
               aria-label="Cerrar"
-              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
-          <h3 className="font-bold text-lg tracking-tight pr-14">
-            {tituloHeader}
-          </h3>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-primary-foreground/80 text-xs">
-              Reserva #ID-{reservaId}
-            </p>
+
+          <div className="flex items-center gap-3 pr-24">
+            <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+              <Package className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-bold text-lg tracking-tight leading-tight truncate">
+                {tituloHeader}
+              </h3>
+              <p className="text-primary-foreground/80 text-xs mt-0.5">
+                Reserva #ID-{reservaId}
+              </p>
+            </div>
+          </div>
+
+          {/* Badge de estado + canal de origen */}
+          <div className="flex flex-wrap items-center gap-2 mt-4">
             {config && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/15">
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-white/15 border border-white/20`}
+              >
+                {EstadoIcon && <EstadoIcon className="w-3.5 h-3.5" />}
                 {config.label}
+              </span>
+            )}
+            {detalle?.canal_origen && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-white/10">
+                <Clock className="w-3 h-3" />
+                {detalle.canal_origen}
               </span>
             )}
           </div>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-5 overflow-y-auto space-y-5">
           {cargando ? (
-            <div className="py-12 text-center">
+            <div className="py-14 text-center">
               <Loader2 className="w-7 h-7 text-primary animate-spin mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">Cargando especificaciones...</p>
             </div>
@@ -177,31 +238,94 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
             <p className="text-sm text-destructive text-center py-8">{error}</p>
           ) : (
             <>
-              {/* Resumen financiero */}
+              {/* Timeline de fechas y estancia */}
+              {detalle && (
+                <section>
+                  <SectionTitle icon={Calendar}>Fechas y estancia</SectionTitle>
+                  <Tarjeta>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-center flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                          Check-in
+                        </p>
+                        <p className="text-sm font-bold text-foreground mt-0.5">
+                          {parseFechaLocal(detalle.fecha_inicio).getDate()}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {parseFechaLocal(detalle.fecha_inicio).toLocaleDateString("es-CO", { month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-1 px-2">
+                        <div className="h-px flex-1 bg-border" />
+                        <CalendarCheck className="w-4 h-4 text-primary shrink-0" />
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <div className="text-center flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                          Check-out
+                        </p>
+                        <p className="text-sm font-bold text-foreground mt-0.5">
+                          {parseFechaLocal(detalle.fecha_fin).getDate()}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {parseFechaLocal(detalle.fecha_fin).toLocaleDateString("es-CO", { month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border/40 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5" />
+                        {detalle.numero_personas} pasajero{detalle.numero_personas !== 1 ? "s" : ""}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Bed className="w-3.5 h-3.5" />
+                        {noches} noche{noches !== 1 ? "s" : ""}
+                      </span>
+                      <span className="inline-flex items-center gap-1 ml-auto">
+                        <Clock className="w-3.5 h-3.5" />
+                        Reservado el {fmt(detalle.fecha_reserva)}
+                      </span>
+                    </div>
+                  </Tarjeta>
+                </section>
+              )}
+
+              {/* Resumen financiero con enfoque comercial */}
               {totalReserva > 0 && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <Wallet className="w-3.5 h-3.5 text-primary" />
-                    Resumen de pago
-                  </h4>
-                  <div className="bg-muted/30 border border-border/50 rounded-xl p-4">
-                    <div className="grid grid-cols-3 gap-3 mb-3">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Total reserva</p>
-                        <p className="text-sm font-bold text-foreground mt-0.5">{money(totalReserva)}</p>
-                      </div>
-                      <div>
+                  <SectionTitle icon={Wallet}>Resumen de pago</SectionTitle>
+                  <div className="bg-gradient-to-br from-primary/15 via-card to-card border border-primary/30 rounded-xl p-4">
+                    <div className="text-center mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
+                        Total de tu reserva
+                      </p>
+                      <p className="text-3xl font-extrabold text-primary mt-1 leading-none tracking-tight">
+                        {money(totalReserva)}
+                      </p>
+                      {baseEstimada > 0 && totalReserva < baseEstimada && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          <span className="line-through mr-1">{money(baseEstimada)}</span>
+                          <span className="text-green-600 dark:text-green-400 font-bold">
+                            Ahorras {money(baseEstimada - totalReserva)}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-card border border-border/60 rounded-lg p-2.5 text-center">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Pagado</p>
                         <p className="text-sm font-bold text-green-600 dark:text-green-400 mt-0.5">{money(totalPagado)}</p>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Saldo pendiente</p>
+                      <div className="bg-card border border-border/60 rounded-lg p-2.5 text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Saldo</p>
                         <p className={`text-sm font-bold mt-0.5 ${saldoPendiente > 0 ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}>
                           {money(saldoPendiente)}
                         </p>
                       </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-border/60 overflow-hidden">
+
+                    <div className="h-1.5 rounded-full bg-border/60 overflow-hidden mt-3">
                       <div
                         className={`h-full rounded-full transition-all ${saldoPendiente > 0 ? "bg-primary" : "bg-green-500"}`}
                         style={{ width: `${porcentajePagado}%` }}
@@ -216,68 +340,87 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                 </section>
               )}
 
+              {/* Promoción / descuento aplicado */}
+              {ahorro > 0 && (
+                <section>
+                  <SectionTitle icon={Sparkles}>Promoción aplicada</SectionTitle>
+                  <div className="bg-muted/30 border border-dashed border-primary/50 rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-foreground">Beneficio aprovechado</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Descuento de{" "}
+                        <span className="font-bold text-green-600 dark:text-green-400">{money(ahorro)}</span>{" "}
+                        sobre el valor inicial por persona
+                      </p>
+                    </div>
+                    <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary text-[11px] font-bold">
+                      <Sparkles className="w-3 h-3" />
+                      OFERTA
+                    </span>
+                  </div>
+                </section>
+              )}
+
               {/* Paquete */}
               {detalle?.paquete && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <Package className="w-3.5 h-3.5 text-primary" />
-                    Paquete contratado
-                  </h4>
-                  <div className="bg-muted/30 border border-border/50 rounded-xl p-4">
+                  <SectionTitle icon={Package}>Paquete contratado</SectionTitle>
+                  <Tarjeta>
+                    <p className="text-sm font-semibold text-foreground">{detalle.paquete.nombre_paquete}</p>
                     {detalle.paquete.descripcion && (
-                      <p className="text-sm text-foreground mb-2">{detalle.paquete.descripcion}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{detalle.paquete.descripcion}</p>
                     )}
-                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {fmt(detalle.fecha_inicio)} → {fmt(detalle.fecha_fin)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5" />
-                        {detalle.numero_personas} pasajero{detalle.numero_personas !== 1 ? "s" : ""}
-                      </span>
-                      {detalle.paquete.duracion_dias && (
-                        <span className="flex items-center gap-1">
-                          <Compass className="w-3.5 h-3.5" />
-                          {detalle.paquete.duracion_dias} días
+                    {hotel && (
+                      <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Hotel className="w-3.5 h-3.5 text-primary" />
+                          {hotel.nombre_hotel}
                         </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground/80 mt-2 pt-2 border-t border-border/40">
-                      <span>Reservado el {fmt(detalle.fecha_reserva)}</span>
-                      {detalle.canal_origen && (
-                        <span className="capitalize">Canal: {detalle.canal_origen}</span>
-                      )}
-                    </div>
-                  </div>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5" />
+                          {hotel.ciudad}, {hotel.pais}
+                        </span>
+                        {hotel.calificacion > 0 && (
+                          <span className="inline-flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-3 h-3 ${i < Math.round(hotel.calificacion ?? 0) ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`}
+                              />
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {precioPorPersona > 0 && (
+                      <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/40">
+                        Precio por persona:{" "}
+                        <span className="font-bold text-foreground">{money(precioPorPersona)}</span>
+                      </p>
+                    )}
+                  </Tarjeta>
                 </section>
               )}
 
               {/* Asesor asignado */}
               {detalle?.empleado && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <Users className="w-3.5 h-3.5 text-primary" />
-                    Tu asesor asignado
-                  </h4>
-                  <div className="bg-muted/30 border border-border/50 rounded-xl p-4">
+                  <SectionTitle icon={Users}>Tu asesor asignado</SectionTitle>
+                  <Tarjeta>
                     <p className="text-sm font-semibold text-foreground">
                       {detalle.empleado.nombre} {detalle.empleado.apellido}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {[detalle.empleado.correo_electronico, detalle.empleado.celular].filter(Boolean).join(" · ")}
                     </p>
-                  </div>
+                  </Tarjeta>
                 </section>
               )}
 
               {/* Hospedaje */}
               {habitaciones.length > 0 && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <Bed className="w-3.5 h-3.5 text-primary" />
-                    Alojamiento
-                  </h4>
+                  <SectionTitle icon={Bed}>Alojamiento</SectionTitle>
                   <div className="space-y-2">
                     {habitaciones.map((h) => (
                       <div
@@ -296,9 +439,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                             )}
                           </p>
                         </div>
-                        <p className="text-xs font-bold text-primary shrink-0">
-                          {money(h.precio_acordado ?? h.precio_noche)}
-                        </p>
+                        <p className="text-xs font-bold text-primary shrink-0">{money(h.precio_acordado ?? h.precio_noche)}</p>
                       </div>
                     ))}
                   </div>
@@ -308,10 +449,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
               {/* Servicios */}
               {servicios.length > 0 && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    Servicios incluidos
-                  </h4>
+                  <SectionTitle icon={Compass}>Servicios incluidos</SectionTitle>
                   <div className="space-y-2">
                     {servicios.map((s) => (
                       <div
@@ -327,9 +465,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                           </p>
                         </div>
                         {s.precio_acordado != null && (
-                          <p className="text-xs font-bold text-primary shrink-0">
-                            {money(s.precio_acordado)}
-                          </p>
+                          <p className="text-xs font-bold text-primary shrink-0">{money(s.precio_acordado)}</p>
                         )}
                       </div>
                     ))}
@@ -340,10 +476,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
               {/* Pagos */}
               {detalle?.pagos && detalle.pagos.length > 0 && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <CreditCard className="w-3.5 h-3.5 text-primary" />
-                    Pagos
-                  </h4>
+                  <SectionTitle icon={CreditCard}>Pagos realizados</SectionTitle>
                   <div className="space-y-2">
                     {detalle.pagos.map((p) => (
                       <div
@@ -368,10 +501,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
               {/* Historial */}
               {historial.length > 0 && (
                 <section>
-                  <h4 className="flex items-center gap-2 font-bold text-foreground text-xs uppercase tracking-wider text-muted-foreground/90 mb-2">
-                    <History className="w-3.5 h-3.5 text-primary" />
-                    Historial de estado
-                  </h4>
+                  <SectionTitle icon={History}>Historial de estado</SectionTitle>
                   <div className="space-y-2">
                     {historial.map((h) => (
                       <div key={h.id_historial} className="flex gap-3 text-xs">
@@ -381,9 +511,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                             {h.estado_anterior ? `${h.estado_anterior} → ${h.estado_nuevo}` : h.estado_nuevo}
                             <span className="text-muted-foreground font-normal"> · {fmt(h.fecha_cambio)}</span>
                           </p>
-                          {h.comentarios && (
-                            <p className="text-muted-foreground mt-0.5">{h.comentarios}</p>
-                          )}
+                          {h.comentarios && <p className="text-muted-foreground mt-0.5">{h.comentarios}</p>}
                         </div>
                       </div>
                     ))}

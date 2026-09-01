@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.deps import exigir_propietario_o_admin, get_current_usuario
 from app.models.cliente_model import PreferenciaCliente
+from app.models.hotel_model import Habitacion, Hotel, HotelCaracteristica
 from app.models.reserva_model import Paquete, PaqueteHotel, PaqueteServicio
 from app.models.servicio_model import Servicio
 from app.models.user_model import Usuario
+from app.schemas.hotel_schema import HotelDetailResponse
 from app.schemas.reserva_schema import PaqueteResponse
 
 router = APIRouter(prefix="/api/preferencias-cliente", tags=["Preferencias"])
@@ -220,4 +222,107 @@ def get_sugerencias(
                 hoteles=hoteles,
             )
         )
+    return resultado
+
+
+# ─── Sugerencias de HOTELES por preferencias ───────────────────────────────
+# El bloque "Paquetes sugeridos" del perfil apuntaba a /package/{id}; el
+# cliente prefiere que las sugerencias por preferencias lleven a HOTELES
+# (Hoteles → /hotel/{id}) en lugar de paquetes. Este endpoint puntúa los
+# hoteles con la misma idea simple y explicable que el de paquetes:
+# coincidencia de rango de precio por noche y de intereses contra la ciudad
+# y las características del hotel.
+
+# Mapa de interés -> palabras a buscar en la ciudad/características del hotel.
+_KEYWORDS_HOTEL_INTERES = {
+    "beach": ["playa", "mar", "isla", "caribe", "piscina", "buceo", "cartagena", "san andr"],
+    "nature": ["naturaleza", "ecoturismo", "senderismo", "valle", "desierto", "campo", "monta"],
+    "culture": ["cultura", "histór", "museo", "religios", "patrimonio", "bogotá", "cartagena"],
+    "food": ["gastronom", "restaurante", "buffet", "desayuno"],
+    "adventure": ["aventura", "deporte", "gimnasio", "extremo", "buceo"],
+    "wellness": ["spa", "relaj", "bienestar", "descanso", "masajes"],
+}
+
+
+def _min_precio_hotel(hotel: Hotel) -> float | None:
+    """Menor precio por noche de una habitación disponible del hotel."""
+    disponibles = [
+        h for h in hotel.habitaciones if h.estado and h.estado.lower() == "disponible"
+    ]
+    if not disponibles:
+        return None
+    return min(float(h.precio_noche) for h in disponibles)
+
+
+def _score_hotel(hotel: Hotel, preferencia: PreferenciaCliente) -> int:
+    score = 0
+    precio = _min_precio_hotel(hotel)
+
+    # Presupuesto: se cruza contra el precio por noche mínimo del hotel.
+    if precio is not None and preferencia.presupuesto in _RANGOS_PRESUPUESTO:
+        lo, hi = _RANGOS_PRESUPUESTO[preferencia.presupuesto]
+        if lo <= precio < hi:
+            score += 3
+        else:
+            score += 1
+
+    # Intereses: coincidencia de texto en ciudad y en características reales.
+    intereses = preferencia.intereses or []
+    textos = [hotel.ciudad or "", hotel.pais or "", hotel.nombre_hotel or ""]
+    for hc in hotel.hotel_caracteristicas:
+        if hc.disponible and hc.caracteristica:
+            textos.append(hc.caracteristica.nombre_caracteristica)
+    texto_completo = " ".join(textos).lower()
+
+    for interes in intereses:
+        for keyword in _KEYWORDS_HOTEL_INTERES.get(interes, []):
+            if keyword in texto_completo:
+                score += 2
+                break
+
+    return score
+
+
+@router.get("/{cliente_id}/sugerencias-hoteles", response_model=list[HotelDetailResponse])
+def get_sugerencias_hoteles(
+    cliente_id: int,
+    limit: int = Query(6, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_usuario),
+):
+    """Recomienda hoteles según las preferencias guardadas del cliente
+    (presupuesto e intereses), con la misma puntuación simple y explicable
+    que las sugerencias de paquetes. El perfil las muestra como tarjetas de
+    hotel (HotelCard → /hotel/{id}), no como paquetes."""
+    if current_user.id_cliente != cliente_id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver sugerencias de otro cliente")
+
+    preferencia = db.query(PreferenciaCliente).filter(PreferenciaCliente.id_cliente == cliente_id).first()
+    if not preferencia:
+        raise HTTPException(
+            status_code=404,
+            detail="Aún no has completado tus preferencias de viaje. Complétalas para recibir sugerencias.",
+        )
+
+    hoteles = (
+        db.query(Hotel)
+        .options(
+            joinedload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
+            joinedload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
+        )
+        .all()
+    )
+
+    puntuados = [(hotel, _score_hotel(hotel, preferencia)) for hotel in hoteles]
+    puntuados.sort(key=lambda par: (-par[1], (_min_precio_hotel(par[0]) or float("inf"))))
+
+    # Solo sugerimos hoteles con algo de coincidencia (score > 0) para no
+    # recomendar catálogo completo al azar; si ninguno puntúa, vacío.
+    resultado = []
+    for hotel, score in puntuados:
+        if score <= 0:
+            continue
+        resultado.append(HotelDetailResponse.model_validate(hotel))
+        if len(resultado) >= limit:
+            break
     return resultado

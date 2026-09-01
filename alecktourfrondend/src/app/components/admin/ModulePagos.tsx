@@ -11,6 +11,8 @@ import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import Pagination from "../ui/Pagination";
+import { usePagination } from "../../hooks/usePagination";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
@@ -137,6 +139,8 @@ export default function ModulePagos({
       || (cliente && `${cliente.nombre} ${cliente.apellido}`.toLowerCase().includes(q));
     return matchEstado && matchMetodo && matchSearch;
   });
+
+  const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
 
   const hasActiveFilters = estadoFilter !== "todos" || metodoFilter !== "todos" || search.trim() !== "";
   function clearFilters() { setSearch(""); setEstadoFilter("todos"); setMetodoFilter("todos"); }
@@ -267,6 +271,7 @@ export default function ModulePagos({
       </div>
 
       {filtered.length > 0 ? (
+        <>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 border-b border-border">
@@ -281,7 +286,7 @@ export default function ModulePagos({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.map(p => {
+              {slice.map(p => {
                 const reserva = reservaMap[p.id_reserva];
                 const cliente = reserva ? clienteMap[reserva.id_cliente] : undefined;
                 return (
@@ -339,13 +344,15 @@ export default function ModulePagos({
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                  </td>
+                </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
+        </>
       ) : (
         <EmptyState
           icon={Search}

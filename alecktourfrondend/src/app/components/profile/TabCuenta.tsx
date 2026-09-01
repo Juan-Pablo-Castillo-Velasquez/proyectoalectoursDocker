@@ -78,6 +78,7 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
   const [mostrarFormMetodo, setMostrarFormMetodo] = useState(false);
   const [guardandoMetodo, setGuardandoMetodo] = useState(false);
   const [eliminandoMetodoId, setEliminandoMetodoId] = useState<number | null>(null);
+  const [editandoMetodoId, setEditandoMetodoId] = useState<number | null>(null);
   const [formMetodo, setFormMetodo] = useState({
     alias: "",
     tipo: "tarjeta_credito",
@@ -95,7 +96,8 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
       .finally(() => setCargandoMetodos(false));
   }, []);
 
-  const resetFormMetodo = () =>
+  const resetFormMetodo = () => {
+    setEditandoMetodoId(null);
     setFormMetodo({
       alias: "",
       tipo: "tarjeta_credito",
@@ -104,8 +106,25 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
       confirmarClave: "",
       predeterminado: false,
     });
+  };
+
+  const iniciarEdicionMetodo = (metodo: MetodoPagoGuardado) => {
+    setEditandoMetodoId(metodo.id_metodo_guardado);
+    setMostrarFormMetodo(true);
+    setFormMetodo({
+      alias: metodo.alias,
+      tipo: metodo.tipo,
+      ultimos4: metodo.ultimos4 ?? "",
+      // La clave real está hasheada y no puede mostrarse: al editar se deja
+      // en blanco para CONSERVAR la actual; solo se re-emite si se escribe.
+      clave: "",
+      confirmarClave: "",
+      predeterminado: metodo.predeterminado,
+    });
+  };
 
   const handleGuardarMetodo = async () => {
+    const esEdicion = editandoMetodoId !== null;
     if (!formMetodo.alias.trim()) {
       toast.error("Ponle un alias a tu método de pago (ej. \"Visa personal\").");
       return;
@@ -114,31 +133,60 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
       toast.error("Los últimos 4 dígitos deben ser 4 números.");
       return;
     }
-    if (!/^\d{4,6}$/.test(formMetodo.clave)) {
+    // Al crear, la clave es obligatoria; al editar, opcional (si se deja en
+    // blanco se conserva la actual, que está hasheada y no puede mostrarse).
+    const claveIngresada = formMetodo.clave;
+    if (claveIngresada && !/^\d{4,6}$/.test(claveIngresada)) {
       toast.error("La clave de confirmación debe ser numérica, de 4 a 6 dígitos.");
       return;
     }
-    if (formMetodo.clave !== formMetodo.confirmarClave) {
+    if (claveIngresada && claveIngresada !== formMetodo.confirmarClave) {
       toast.error("Las claves no coinciden.");
+      return;
+    }
+    if (!esEdicion && !claveIngresada) {
+      toast.error("Ingresa una clave de confirmación (4 a 6 dígitos).");
       return;
     }
 
     setGuardandoMetodo(true);
     try {
-      const nuevo = await metodoPagoGuardadoService.create({
-        alias: formMetodo.alias.trim(),
-        tipo: formMetodo.tipo,
-        ultimos4: formMetodo.ultimos4 || undefined,
-        clave: formMetodo.clave,
-        predeterminado: formMetodo.predeterminado,
-      });
-      setMetodosGuardados((prev) => [
-        nuevo,
-        ...(nuevo.predeterminado ? prev.map((m) => ({ ...m, predeterminado: false })) : prev),
-      ]);
-      resetFormMetodo();
-      setMostrarFormMetodo(false);
-      toast.success("Método de pago guardado. Tu clave quedó protegida con hash, nunca en texto plano.");
+      if (esEdicion) {
+        const actualizado = await metodoPagoGuardadoService.update(editandoMetodoId, {
+          alias: formMetodo.alias.trim(),
+          tipo: formMetodo.tipo,
+          ultimos4: formMetodo.ultimos4 || undefined,
+          ...(claveIngresada ? { clave: claveIngresada } : {}),
+          predeterminado: formMetodo.predeterminado,
+        });
+        setMetodosGuardados((prev) =>
+          prev.map((m) =>
+            m.id_metodo_guardado === actualizado.id_metodo_guardado
+              ? actualizado
+              : actualizado.predeterminado
+                ? { ...m, predeterminado: false }
+                : m
+          )
+        );
+        resetFormMetodo();
+        setMostrarFormMetodo(false);
+        toast.success("Método de pago actualizado.");
+      } else {
+        const nuevo = await metodoPagoGuardadoService.create({
+          alias: formMetodo.alias.trim(),
+          tipo: formMetodo.tipo,
+          ultimos4: formMetodo.ultimos4 || undefined,
+          clave: formMetodo.clave,
+          predeterminado: formMetodo.predeterminado,
+        });
+        setMetodosGuardados((prev) => [
+          nuevo,
+          ...(nuevo.predeterminado ? prev.map((m) => ({ ...m, predeterminado: false })) : prev),
+        ]);
+        resetFormMetodo();
+        setMostrarFormMetodo(false);
+        toast.success("Método de pago guardado. Tu clave quedó protegida con hash, nunca en texto plano.");
+      }
     } catch (err: any) {
       toast.error(err?.message || "No pudimos guardar el método de pago.");
     } finally {
@@ -513,18 +561,27 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleEliminarMetodo(metodo.id_metodo_guardado)}
-                      disabled={eliminandoMetodoId === metodo.id_metodo_guardado}
-                      className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors disabled:opacity-50 shrink-0"
-                      title="Eliminar método de pago"
-                    >
-                      {eliminandoMetodoId === metodo.id_metodo_guardado ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => iniciarEdicionMetodo(metodo)}
+                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors shrink-0"
+                        title="Editar método de pago"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleEliminarMetodo(metodo.id_metodo_guardado)}
+                        disabled={eliminandoMetodoId === metodo.id_metodo_guardado}
+                        className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                        title="Eliminar método de pago"
+                      >
+                        {eliminandoMetodoId === metodo.id_metodo_guardado ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -539,6 +596,16 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
 
           {mostrarFormMetodo && (
             <div className="bg-background border border-primary/30 rounded-2xl p-5 mt-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">
+                  {editandoMetodoId !== null ? "Editar método de pago" : "Nuevo método de pago"}
+                </h3>
+              </div>
+              {editandoMetodoId !== null && (
+                <p className="text-xs text-muted-foreground">
+                  Deja la clave en blanco para conservar la actual (está protegida con hash, no podemos mostrarla).
+                </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Alias</label>
@@ -625,7 +692,7 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
                   className="text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 px-5 py-2.5 rounded-full transition-colors disabled:opacity-50"
                 >
                   {guardandoMetodo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  Guardar método
+                  {editandoMetodoId !== null ? "Guardar cambios" : "Guardar método"}
                 </button>
                 <button
                   onClick={() => {

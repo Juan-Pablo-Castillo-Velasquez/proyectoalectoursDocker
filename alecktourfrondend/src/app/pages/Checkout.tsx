@@ -119,9 +119,24 @@ export default function Checkout() {
   const esNequi = codigoMetodo === 'nequi';
   const esPayPal = codigoMetodo === 'paypal';
 
+  // Método guardado (billetera real del cliente, ver MetodoPagoGuardado en
+  // el backend) para el TIPO de pago actualmente elegido. Si existe, su
+  // PIN ya está hasheado en el backend y hay que verificarlo contra ese;
+  // si no, es el primer pago del cliente con este tipo y el PIN que
+  // ingrese ahora se guarda como el suyo real para la próxima vez.
+  const metodoGuardadoDelTipo = metodosGuardados.find((g) => g.tipo === codigoMetodo);
+
+  // Precargar del método guardado (preferencia del cliente): si ya tiene un
+  // método de este tipo en su billetera, NO hace falta que rellene todos los
+  // campos del formulario (número de tarjeta/PSE/Nequi) — solo confirma con
+  // su PIN y el backend usa la info REAL guardada. El número completo de la
+  // tarjeta nunca se guardó ni se muestra (solo los últimos 4).
+  const usandoMetodoGuardado = !!metodoGuardadoDelTipo;
+
   // PayPal y el resto de métodos (efectivo, transferencia, etc.) no piden
   // datos adicionales en este entorno simulado — se consideran válidos.
   const metodoValido =
+    usandoMetodoGuardado ||
     (esTarjeta && isCardValueValid(cardValue)) ||
     (esPSE && isPSEValueValid(pseValue)) ||
     (esNequi && isNequiValueValid(nequiValue)) ||
@@ -133,13 +148,6 @@ export default function Checkout() {
   // la primera vez que el cliente paga con este tipo de método) pasa por
   // el backend dentro de handleSubmit, contra metodoGuardadoDelTipo.
   const pinCompletado = securityPin.length >= 4;
-
-  // Método guardado (billetera real del cliente, ver MetodoPagoGuardado en
-  // el backend) para el TIPO de pago actualmente elegido. Si existe, su
-  // PIN ya está hasheado en el backend y hay que verificarlo contra ese;
-  // si no, es el primer pago del cliente con este tipo y el PIN que
-  // ingrese ahora se guarda como el suyo real para la próxima vez.
-  const metodoGuardadoDelTipo = metodosGuardados.find((g) => g.tipo === codigoMetodo);
 
   const construirDatosMetodo = () => {
     if (esTarjeta) return { ultimos4: cardLast4(cardValue) };
@@ -276,10 +284,14 @@ export default function Checkout() {
   // 'procesando' y se confirman aparte (simula la respuesta asíncrona del
   // banco/app); tarjeta/PayPal/otros resuelven al instante, como antes.
   const ejecutarPago = async (reservaId: number) => {
+    // Si el cliente ya tiene un método guardado de este tipo, se paga con él:
+    // el backend (pagar_reserva) carga su info real y NO confía en los campos
+    // de pago que se manden desde el navegador (ver PagarRequest.id_metodo_guardado).
+    const pagoConGuardado = metodoGuardadoDelTipo ? metodoGuardadoDelTipo.id_metodo_guardado : undefined;
     const { pago, reserva: reservaActualizada } = await reservaService.pagar(reservaId, {
       id_metodo_pago: metodoPago,
       tipo_pago: paymentOption === 'full' ? 'completo' : 'parcial',
-      ...construirDatosMetodo(),
+      ...(pagoConGuardado ? { id_metodo_guardado: pagoConGuardado } : construirDatosMetodo()),
     });
 
     if (pago.estado === 'procesando') {
@@ -931,7 +943,23 @@ export default function Checkout() {
                             </h2>
                           </div>
 
-                          {esTarjeta && (
+                          {esTarjeta && usarMetodoGuardado && metodoGuardadoDelTipo?.ultimos4 && (
+                            <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
+                              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                                <CreditCard className="w-5 h-5 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-foreground truncate">{metodoGuardadoDelTipo.alias}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {metodoSeleccionado?.nombre_metodo ?? 'Tarjeta'} ·•••• •••• {metodoGuardadoDelTipo.ultimos4}
+                                </p>
+                              </div>
+                              <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded-full shrink-0">
+                                Tarjeta guardada
+                              </span>
+                            </div>
+                          )}
+                          {esTarjeta && (!usandoMetodoGuardado || !metodoGuardadoDelTipo?.ultimos4) && (
                             <CardPayment value={cardValue} onChange={setCardValue} brand={metodoSeleccionado?.nombre_metodo} />
                           )}
                           {esPSE && <PSEPayment value={pseValue} onChange={setPseValue} />}

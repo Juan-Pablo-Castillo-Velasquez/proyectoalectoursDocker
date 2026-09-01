@@ -46,6 +46,40 @@ class MetodoPagoGuardadoRepository:
         return metodo
 
     @staticmethod
+    def update(
+        db: Session,
+        id_cliente: int,
+        id_metodo_guardado: int,
+        alias: str | None = None,
+        tipo: str | None = None,
+        ultimos4=None,
+        clave_hash: str | None = None,
+        predeterminado: bool | None = None,
+    ) -> MetodoPagoGuardado | None:
+        metodo = MetodoPagoGuardadoRepository.get_by_id(db, id_cliente, id_metodo_guardado)
+        if not metodo:
+            return None
+        if alias is not None:
+            metodo.alias = alias
+        if tipo is not None:
+            metodo.tipo = tipo
+        if ultimos4 is not None:
+            metodo.ultimos4 = ultimos4
+        if clave_hash is not None:
+            metodo.clave_hash = clave_hash
+        if predeterminado is not None:
+            if predeterminado:
+                # Al marcar uno como predeterminado, el resto deja de serlo.
+                db.query(MetodoPagoGuardado).filter(
+                    MetodoPagoGuardado.id_cliente == id_cliente,
+                    MetodoPagoGuardado.id_metodo_guardado != id_metodo_guardado,
+                ).update({MetodoPagoGuardado.predeterminado: False})
+            metodo.predeterminado = predeterminado
+        db.commit()
+        db.refresh(metodo)
+        return metodo
+
+    @staticmethod
     def delete(db: Session, id_cliente: int, id_metodo_guardado: int) -> bool:
         metodo = MetodoPagoGuardadoRepository.get_by_id(db, id_cliente, id_metodo_guardado)
         if not metodo:
