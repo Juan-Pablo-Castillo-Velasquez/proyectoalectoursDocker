@@ -15,6 +15,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d alektours_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
     networks:
       - alecktours_network
 
@@ -65,13 +72,27 @@ services:
     volumes:
       - ./backend:/app
 
+    # backend/.env.example ya trae valores por defecto seguros para
+    # desarrollo local (mismas credenciales que el servicio "postgres" de
+    # aquí arriba, Mailpit como SMTP, etc.) — así `docker compose up
+    # --build` funciona con un solo comando, sin crear ningún .env a mano.
+    # backend/.env es opcional (required: false) y, si existe, sus valores
+    # tienen prioridad sobre los de .env.example (Compose aplica los
+    # archivos de env_file en orden, el último gana) — úsalo para
+    # sobreescribir cualquier valor en tu máquina sin tocar archivos
+    # versionados.
     env_file:
-      - ./backend/.env
+      - ./backend/.env.example
+      - path: ./backend/.env
+        required: false
 
     depends_on:
-      - postgres
-      - mailpit
-      - redis
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      redis:
+        condition: service_started
 
     networks:
       - alecktours_network
