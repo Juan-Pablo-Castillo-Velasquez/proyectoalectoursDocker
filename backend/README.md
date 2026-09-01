@@ -45,7 +45,6 @@ backend/
 │   └── versions/                ← 16 migraciones
 │
 ├── Dockerfile                   ← 3 stages (base, dev, prod)
-├── Dockerfile_backend
 ├── entrypoint.sh                ← Ejecuta alembic upgrade head
 ├── requirements.txt             ← Dependencias
 ├── requirements-dev.txt         ← Dependencias de desarrollo
@@ -106,8 +105,12 @@ backend/
 
 ## Migraciones (Alembic)
 
+`entrypoint.sh` ejecuta `alembic upgrade head` automáticamente cada vez
+que arranca el contenedor del backend — no hace falta aplicarlas a mano.
+Los siguientes comandos son solo para consultar el estado o crear
+migraciones nuevas durante el desarrollo:
+
 ```bash
-docker compose exec backend alembic upgrade head    # Aplicar
 docker compose exec backend alembic current         # Ver actual
 docker compose exec backend alembic history          # Historial
 docker compose exec backend alembic revision --autogenerate -m "descripcion"  # Crear
@@ -163,27 +166,31 @@ Ver `backend/.env.example` para la lista completa.
 Mínimo necesario:
 
 ```env
-DATABASE_URL=postgresql+psycopg://admin:admin123@postgres:5432/alektours_db
+DATABASE_URL=postgresql+psycopg2://admin:admin123@postgres:5432/alektours_db
 SECRET_KEY=change_this_secret_key
 REDIS_URL=redis://redis:6379/0
 MAIL_SERVER=mailpit
 MAIL_PORT=1025
 ```
 
+`backend/.env.example` ya trae estos valores como default seguro para
+desarrollo local — no es necesario crear un `.env` para levantar el
+proyecto con Docker (ver "Inicio rápido" abajo). `backend/.env` es
+opcional y solo hace falta para sobreescribir algún valor.
+
 ---
 
 ## Inicio rápido
 
 ```bash
-# Con Docker (recomendado)
+# Con Docker (recomendado) — un solo comando, sin pasos manuales
 cd ..
-docker compose up -d
-docker compose exec backend alembic upgrade head
+docker compose up --build
 
 # Sin Docker
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # editar DATABASE_URL
+cp .env.example .env   # editar DATABASE_URL (usar localhost en vez de "postgres")
 alembic upgrade head
 uvicorn app.main:app --reload
 ```

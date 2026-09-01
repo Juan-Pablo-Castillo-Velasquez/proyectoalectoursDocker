@@ -972,3 +972,21 @@ LEFT JOIN pagos pa ON pa.id_reserva = r.id_reserva
 WHERE p.activo = TRUE
 GROUP BY p.id_paquete
 ORDER BY total_reservas DESC, calificacion_estimada DESC;
+
+CREATE TABLE IF NOT EXISTS banners_publicitarios (
+    id_banner SERIAL PRIMARY KEY,
+
+    titulo VARCHAR(150) NOT NULL,
+    descripcion_corta VARCHAR(300),
+    imagen_url VARCHAR(255) NOT NULL,
+    texto_boton VARCHAR(50),
+    link_destino VARCHAR(255),
+
+    fecha_inicio DATE,
+    fecha_fin DATE,
+
+    orden INTEGER NOT NULL DEFAULT 0,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -29,7 +29,7 @@
 | MétosPagoGuardados | `/api/metodos-pago-guardados` | CRUD métodos de pago guardados |
 | Configuración | `/api/configuracion` | CRUD configuración del sistema |
 | Notificaciones | `/api/notificaciones` | Lista, conteo no leídas, marcar leídas |
-| SolicitudesCancelación | `/api/solicitudes-cancelacion` | Crear, resolver solicitudes |
+| SolicitudesCancelación | `/api/reservas/*`, `/api/clientes/*`, `/api/solicitudes-cancelacion` | Crear (sobre una reserva), consultar (por cliente), listar y resolver (admin) |
 | SolicitudesCorporativas | `/api/solicitudes-corporativas` | Crear, gestionar solicitudes empresa |
 | Dashboard | `/api/dashboard` | Resumen KPIs, métricas, gráficas |
 | Banners | `/api/banners` | CRUD banners publicitarios |
@@ -213,7 +213,8 @@ Restablece contraseña con token.
 | `GET` | `/api/reservas/{id}/habitaciones` | Auth | Habitaciones de la reserva |
 | `GET` | `/api/reservas/{id}/servicios` | Auth | Servicios de la reserva |
 | `GET` | `/api/reservas/{id}/historial` | Auth | Historial de cambios |
-| `GET` | `/api/reservas/historial-reservas/recientes` | Admin | Historial reciente |
+| `POST` | `/api/reservas/{id}/notas` | Admin | Agregar nota interna al historial |
+| `GET` | `/api/historial-reservas/recientes` | Admin | Actividad reciente (no anidado bajo `/reservas`) |
 
 ---
 
@@ -221,10 +222,15 @@ Restablece contraseña con token.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `GET` | `/api/pagos/metodos-pago` | No | Métodos de pago disponibles |
-| `POST` | `/api/pagos/metodos-pago` | Admin | Crear método de pago |
+| `GET` | `/api/metodos-pago` | No | Métodos de pago disponibles (no anidado bajo `/pagos`) |
+| `POST` | `/api/metodos-pago` | Admin | Crear método de pago |
 | `GET` | `/api/pagos/` | Admin | Listar pagos |
+| `GET` | `/api/pagos/reserva/{reserva_id}` | Admin | Pagos de una reserva |
+| `GET` | `/api/pagos/estado/{estado}` | Admin | Filtrar pagos por estado |
 | `GET` | `/api/pagos/{id}` | Admin | Obtener pago |
+| `POST` | `/api/pagos/` | Admin | Crear pago |
+| `PUT` | `/api/pagos/{id}` | Admin | Actualizar pago |
+| `DELETE` | `/api/pagos/{id}` | Admin | Eliminar pago |
 | `POST` | `/api/pagos/{id}/confirmar` | Admin | Confirmar pago asíncrono (PSE/Nequi) |
 | `POST` | `/api/pagos/{id}/comprobante` | Auth | Subir comprobante (max 5MB) |
 | `DELETE` | `/api/pagos/{id}/comprobante` | Auth | Eliminar comprobante |
@@ -354,18 +360,19 @@ Restablece contraseña con token.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `GET` | `/api/configuracion/` | Admin | Listar configuración |
-| `GET` | `/api/configuracion/{clave}` | Admin | Obtener valor |
-| `POST` | `/api/configuracion/` | Admin | Crear configuración |
-| `PUT` | `/api/configuracion/{clave}` | Admin | Actualizar configuración |
-| `DELETE` | `/api/configuracion/{clave}` | Admin | Eliminar configuración |
+| `GET` | `/api/configuracion` | Admin | Listar configuración (cached 300s) |
+| `POST` | `/api/configuracion` | Admin | Crear parámetro (falla 409 si la `clave` ya existe) |
+| `PUT` | `/api/configuracion/{id_config}` | Admin | Actualizar parámetro por id |
+| `DELETE` | `/api/configuracion/{id_config}` | Admin | Eliminar parámetro por id |
 
-### Solicitudes de Cancelación — `/api/solicitudes-cancelacion`
+### Solicitudes de Cancelación
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `POST` | `/api/solicitudes-cancelacion/` | Cliente | Crear solicitud |
-| `GET` | `/api/solicitudes-cancelacion/` | Admin | Listar solicitudes |
+| `POST` | `/api/reservas/{reserva_id}/solicitud-cancelacion` | Cliente | Crear solicitud sobre una reserva propia |
+| `GET` | `/api/clientes/{cliente_id}/solicitudes-cancelacion` | Auth/Propietario | Historial de solicitudes del cliente autenticado |
+| `GET` | `/api/clientes/{cliente_id}/actividad` | Auth/Propietario | Feed de actividad del cliente (cambios de reserva + resoluciones) |
+| `GET` | `/api/solicitudes-cancelacion` | Admin | Listar todas las solicitudes |
 | `PUT` | `/api/solicitudes-cancelacion/{id}/resolver` | Admin | Aprobar/rechazar (email en background) |
 
 ### Solicitudes Corporativas — `/api/solicitudes-corporativas`
@@ -381,12 +388,13 @@ Restablece contraseña con token.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `GET` | `/api/banners/` | No | Banners activos |
-| `GET` | `/api/banners/todos` | Admin | Todos los banners |
-| `POST` | `/api/banners/` | Admin | Crear banner |
-| `PUT` | `/api/banners/{id}` | Admin | Actualizar banner |
+| `GET` | `/api/banners/activos` | No | Banners activos y vigentes, en orden (cached) — carrusel del home |
+| `GET` | `/api/banners/` | Admin | Listado completo, incluye inactivos/fuera de vigencia |
+| `POST` | `/api/banners/` | Admin | Crear banner (multipart, requiere imagen) |
+| `PUT` | `/api/banners/{id}` | Admin | Actualizar banner (imagen opcional) |
+| `PATCH` | `/api/banners/{id}/activo` | Admin | Activar/desactivar banner |
+| `PUT` | `/api/banners/reordenar` | Admin | Reordenar banners |
 | `DELETE` | `/api/banners/{id}` | Admin | Eliminar banner |
-| `PUT` | `/api/banners/orden` | Admin | Reordenar banners |
 
 ### Métodos de Pago Guardados — `/api/metodos-pago-guardados`
 
@@ -411,6 +419,7 @@ Implementado con Redis token-bucket middleware:
 | `POST /auth/forgot-password` | 3/60s | Prevenir spam de emails |
 | `POST /auth/reset-password` | 5/60s | Prevenir abuso |
 | `POST /api/reservas/*/pagar` | 10/60s | Prevenir fraude de pagos |
+| `POST /api/metodos-pago-guardados/*/verificar` | 5/60s | Prevenir fuerza bruta sobre el PIN (4-6 dígitos) de un método de pago guardado |
 
 ---
 

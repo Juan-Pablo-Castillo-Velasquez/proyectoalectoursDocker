@@ -27,8 +27,10 @@ Las contraseñas de los usuarios deben almacenarse mediante hashing con el algor
 
 ### RNF-001.2 — Tokens JWT
 La autenticación debe basarse en tokens JWT (JSON Web Tokens) firmados con algoritmo **HS256**:
-- **Access token**: duración de 15 minutos.
-- **Refresh token**: duración de 7 días.
+- **Access token**: duración configurable vía `ACCESS_TOKEN_EXPIRE_MINUTES` (30 minutos por defecto, ver `backend/.env.example`).
+- **Refresh token**: duración de 7 días (hardcodeado en `security.py`). Se emite en `/auth/login`, pero
+  actualmente no existe ningún endpoint que lo consuma para renovar el access token — ver la nota de
+  auditoría en [RF-003](../RFs/RF-003_renovacion_de_token.md).
 - La clave secreta debe tener mínimo 32 caracteres y almacenarse en variable de entorno.
 
 ### RNF-001.3 — Prevención de enumeración de usuarios

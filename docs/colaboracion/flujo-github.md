@@ -12,8 +12,9 @@
 
 > **Proyecto educativo** — SENA CGMLTI | Tecnólogo en ADSO
 
-Esta guía es de práctica obligatoria: la [Fase 6 de la bitácora](../../BITACORA.md) pide como
-evidencia un issue, un PR y un merge hechos por ti.
+Esta guía es de práctica obligatoria: la Fase 6 de la bitácora del programa pide como
+evidencia un issue, un PR y un merge hechos por ti. (La bitácora es un documento del
+proceso formativo, no un archivo de este repositorio — no confundir con `docs/`.)
 
 ---
 
@@ -58,49 +59,29 @@ cerrando un issue que cita un RF, sí.
 
 ---
 
-## 2. Dónde practicas: tu propio repo
+## 2. Dónde practicas: este mismo repositorio
 
-Este repositorio (`ergrato-dev/proyecto-be_fastapi-fe_react`) **no acepta pull requests
-externos**. Si abres uno, un bot lo cierra automáticamente en segundos — mira
-[`.github/workflows/close-prs.yml`](../../.github/workflows/close-prs.yml).
-
-No es un castigo: es un **repositorio de referencia**, el "libro de texto". Un libro de texto no
-cambia porque un estudiante escriba en el margen. Tú practicas en **tu copia**, donde eres
-dueño de todo: issues, ramas, PRs, revisiones y merges.
-
-### Preparar tu copia
+`Juan-Pablo-Castillo-Velasquez/proyectoalectoursDocker` es tu propio proyecto, no un repositorio
+de referencia compartido por varios estudiantes — así que no hace falta forkearlo. Practicas el
+flujo issue → rama → PR → merge directamente aquí, tal como describe
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md):
 
 ```bash
-# 1. Haz fork desde la web de GitHub (botón "Fork", arriba a la derecha).
+git clone https://github.com/Juan-Pablo-Castillo-Velasquez/proyectoalectoursDocker.git
+cd proyectoalectoursDocker
 
-# 2. Clona TU fork (ojo: tu usuario, no ergrato-dev).
-git clone git@github.com:TU-USUARIO/proyecto-be_fastapi-fe_react.git
-cd proyecto-be_fastapi-fe_react
-
-# 3. Guarda el repo original como "upstream" para poder traer sus actualizaciones.
-git remote add upstream git@github.com:ergrato-dev/proyecto-be_fastapi-fe_react.git
-
-# 4. Verifica que tienes dos remotos: origin (tuyo) y upstream (el original).
-git remote -v
+git checkout main
+git pull origin main
+git checkout -b feature/tu-rama
 ```
 
-Cuando el repo original reciba cambios y quieras traerlos a tu fork:
+El CI ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) corre automáticamente en
+cada push y cada PR contra `main` — no requiere ninguna activación manual, porque no estás
+trabajando desde un fork.
 
-```bash
-git fetch upstream
-git switch main
-git merge upstream/main
-git push origin main
-```
-
-### ⚠️ Activa las Actions de tu fork
-
-GitHub **deshabilita las Actions en los forks** por defecto. Sin activarlas, tu CI
-([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) nunca corre y tus PRs no tendrán
-checks.
-
-Ve a la pestaña **Actions** de tu fork → botón _"I understand my workflows, go ahead and enable
-them"_. Solo se hace una vez.
+> Si en algún momento sí trabajas sobre un fork de este repositorio (por ejemplo, para
+> proponer un cambio desde fuera), recordá que GitHub deshabilita las Actions en los forks
+> por defecto — hay que activarlas una vez desde la pestaña **Actions** del fork.
 
 ---
 
@@ -178,12 +159,11 @@ feat/agregar-campo-idioma       # ❌ los nombres de rama van en inglés
 ```
 
 Los **tipos** son los mismos de los commits:
-`feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `ci`, `perf`
-(ver [`.github/prompts/commit-message.prompt.md`](../../.github/prompts/commit-message.prompt.md)).
+`feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+(ver [`CONTRIBUTING.md`](../../CONTRIBUTING.md)).
 
 El nombre va en **inglés** porque en este proyecto todo lo técnico —código, endpoints, tablas,
-commits y ramas— es en inglés, y solo comentarios y documentación en español
-(regla §3.1 de [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md)).
+commits y ramas— es en inglés, y solo comentarios y documentación en español.
 
 Incluir el número de issue en la rama no es decorativo: cuando vuelvas a esa rama tres días
 después, o cuando un compañero vea `feat/12-...` en la lista, saben exactamente qué se está
@@ -194,7 +174,7 @@ haciendo y dónde está escrito el porqué.
 ## 5. Commits
 
 Este proyecto ya tiene su convención documentada y no se repite aquí:
-👉 [`.github/prompts/commit-message.prompt.md`](../../.github/prompts/commit-message.prompt.md)
+👉 [`CONTRIBUTING.md`](../../CONTRIBUTING.md)
 
 En resumen, el asunto va **en inglés**, máximo 72 caracteres, y el cuerpo explica motivo e
 impacto:
@@ -370,7 +350,7 @@ git push --force-with-lease   # el rebase reescribió tu historial: hay que rees
 | PR sin issue                                     | No hay requisito que lo justifique ni trazabilidad                            | Abre el issue primero, aunque tarde un minuto                  |
 | Rama vieja, sin actualizar                       | Conflictos gigantes al final, cuando ya no recuerdas el contexto              | `git fetch origin && git rebase origin/main` seguido           |
 | Mergear con la CI en rojo                        | `main` queda roto para todo el equipo                                         | Rojo = se corrige y se hace push otra vez                      |
-| `npm install`                                    | Genera `package-lock.json`, rompe el lock de `pnpm` y ensucia el PR           | **Siempre `pnpm`** (§4.2 de `copilot-instructions.md`)         |
+| `npm install`                                    | Genera `package-lock.json`, rompe el lock de `pnpm` y ensucia el PR           | **Siempre `pnpm`** (ver `CONTRIBUTING.md`)                     |
 | Commitear el `.env`                              | Filtra credenciales — y el historial de git no olvida                         | Solo `.env.example`; verifica el diff antes de commitear       |
 | Borrar la rama antes de mergear                  | Pierdes el trabajo que no estaba en `main`                                    | `--delete-branch` **después** del merge, no antes              |
 | Cerrar el issue a mano                           | Se pierde el vínculo issue ↔ PR                                               | `Closes #N` en el PR y deja que GitHub lo cierre               |
@@ -381,8 +361,6 @@ git push --force-with-lease   # el rebase reescribió tu historial: hay que rees
 
 | Documento                                                                             | Para qué                                          |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| [`BITACORA.md`](../../BITACORA.md)                                                    | Fase 6 — la evidencia que se te pide de este flujo |
-| [`.github/prompts/commit-message.prompt.md`](../../.github/prompts/commit-message.prompt.md) | Convención completa de mensajes de commit   |
-| [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md)             | Reglas de idioma, dependencias y calidad          |
+| [`CONTRIBUTING.md`](../../CONTRIBUTING.md)                                            | Convención completa de mensajes de commit y estilo de código |
 | [`docs/requisitos/`](../requisitos/)                                                  | Las HUs y RFs que tus issues deben referenciar     |
 | [`docs/setup/`](../setup/)                                                            | Levantar el proyecto antes de tocar código         |

@@ -60,6 +60,8 @@ El proyecto está construido bajo una arquitectura desacoplada entre frontend y 
 
 <img src="https://img.shields.io/badge/Alembic-1F2937?style=flat-square" alt="Alembic">
 
+<img src="https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis">
+
 <img src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
 
 </p>
@@ -81,6 +83,7 @@ El proyecto está construido bajo una arquitectura desacoplada entre frontend y 
 | API             | REST + OpenAPI                                 |
 | Infraestructura | Docker Compose                                 |
 | Base de datos   | PostgreSQL                                     |
+| Caché           | Redis                                          |
 | Administración  | pgAdmin                                        |
 | Email testing   | Mailpit                                        |
 
@@ -357,6 +360,8 @@ flowchart TB
 
         DB[("PostgreSQL")]
 
+        CACHE[("Redis")]
+
         PGADMIN["pgAdmin"]
 
         MAIL["Mailpit"]
@@ -368,6 +373,8 @@ flowchart TB
 
     BACK --> DB
 
+    BACK --> CACHE
+
     PGADMIN --> DB
 
     BACK --> MAIL
@@ -378,7 +385,7 @@ flowchart TB
 
     class DEV main;
     class FRONT,BACK,PGADMIN,MAIL service;
-    class DB database;
+    class DB,CACHE database;
 ```
 
 ---
@@ -429,12 +436,16 @@ proyectoalectoursDocker/
 
 ## Requisitos
 
+El único requisito real para levantar el proyecto es tener **Docker** y
+**Docker Compose** instalados. Git es necesario para clonar el
+repositorio. Node.js/pnpm y Python solo hacen falta si vas a trabajar en
+el frontend o el backend **fuera** de Docker (ver [Desarrollo
+local](#desarrollo-local) más abajo) — no son necesarios para levantar el
+proyecto con Docker.
+
 * Git
 * Docker
 * Docker Compose
-* Node.js
-* pnpm
-* Python 3.x
 
 ---
 
@@ -450,29 +461,37 @@ cd proyectoalectoursDocker
 
 # Variables de entorno
 
-Crear el archivo:
+**No es necesario crear ningún archivo `.env` para levantar el proyecto.**
+`backend/.env.example` ya está versionado en el repositorio y
+`docker-compose.yml` lo carga automáticamente como valores por defecto
+seguros para desarrollo local (mismas credenciales que el servicio
+`postgres` de este mismo archivo, Mailpit como SMTP, Redis local, etc.),
+así que `docker compose up --build` funciona con un solo comando en una
+copia recién clonada del repositorio.
 
-```text
-backend/.env
-```
-
-Ejemplo:
+Si querés sobreescribir algún valor sin tocar archivos versionados
+(por ejemplo, credenciales de un proveedor de correo real), creá
+`backend/.env` — es opcional y, si existe, sus valores tienen prioridad
+sobre los de `backend/.env.example`. Las variables mínimas que vas a
+querer revisar/sobreescribir en un entorno real son:
 
 ```env
-DATABASE_URL=postgresql+psycopg://admin:admin123@postgres:5432/alektours_db
+DATABASE_URL=postgresql+psycopg2://admin:admin123@postgres:5432/alektours_db
 
 SECRET_KEY=change_this_secret_key
 ALGORITHM=HS256
 
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
+REDIS_URL=redis://redis:6379/0
+
 MAIL_USERNAME=your_email@example.com
 MAIL_PASSWORD=your_password
-MAIL_FROM=noreply@alektours.com
+MAIL_FROM=noreply@alectours.com
 MAIL_PORT=1025
 MAIL_SERVER=mailpit
 
-MAIL_FROM_NAME=AlekTours
+MAIL_FROM_NAME=AlecTours
 MAIL_STARTTLS=False
 MAIL_SSL_TLS=False
 ```
@@ -483,10 +502,24 @@ Las credenciales reales nunca deben almacenarse en el repositorio.
 
 # Ejecutar con Docker
 
-Iniciar los servicios:
+**El único comando necesario para levantar todo el proyecto** (backend,
+frontend, base de datos, Redis, Mailpit y pgAdmin) en una copia recién
+clonada es:
 
 ```bash
-docker compose up -d
+docker compose up --build
+```
+
+Esto construye las imágenes, levanta los servicios en el orden correcto
+(el backend espera a que Postgres esté saludable antes de arrancar) y
+aplica automáticamente las migraciones de Alembic (incluyendo los datos
+semilla) al iniciar el contenedor del backend — no hace falta ningún
+paso manual adicional.
+
+Para levantarlo en segundo plano:
+
+```bash
+docker compose up --build -d
 ```
 
 Comprobar el estado:
@@ -511,11 +544,11 @@ docker compose logs -f backend
 
 # Migraciones
 
-Aplicar las migraciones:
-
-```bash
-docker compose exec backend alembic upgrade head
-```
+Las migraciones de Alembic se aplican **automáticamente** al iniciar el
+contenedor del backend (ver `backend/entrypoint.sh`) — no es necesario
+ejecutar `alembic upgrade head` a mano. Los siguientes comandos son solo
+para consultar el estado o crear nuevas migraciones durante el
+desarrollo:
 
 Consultar la migración actual:
 
@@ -583,12 +616,14 @@ http://localhost:8000/redoc
 
 | Servicio | URL                       | Propósito         |
 | -------- | ------------------------- | ----------------- |
+| Frontend | `localhost:5173`          | Aplicación web    |
 | Backend  | `localhost:8000`          | API REST          |
 | Swagger  | `localhost:8000/docs`     | Documentación     |
 | ReDoc    | `localhost:8000/redoc`    | Documentación     |
+| PostgreSQL | `localhost:5432`        | Base de datos     |
+| Redis    | `localhost:6379`         | Caché             |
 | pgAdmin  | `localhost:5050`          | Administración DB |
-| Mailpit  | `localhost:8025`          | Pruebas de correo |
-| Frontend | Configuración Vite/Docker | Aplicación web    |
+| Mailpit  | `localhost:8025`          | Pruebas de correo (bandeja web) |
 
 ---
 

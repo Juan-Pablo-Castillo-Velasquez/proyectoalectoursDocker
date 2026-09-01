@@ -16,8 +16,23 @@
 | **Nombre**        | Renovación de token (Refresh)                          |
 | **Módulo**        | Autenticación                                          |
 | **Prioridad**     | Alta                                                   |
-| **Estado**        | Implementado                                           |
+| **Estado**        | Pendiente — ver nota abajo                             |
 | **Fecha**         | Febrero 2026                                           |
+
+> **Nota (auditoría, Septiembre 2026):** este requisito está documentado
+> como "Implementado" pero **no hay un endpoint de refresh en el
+> backend** (`backend/app/routes/auth_route.py` solo expone
+> `/auth/register`, `/auth/login`, `/auth/verify-email`,
+> `/auth/forgot-password` y `/auth/reset-password` — ninguna ruta
+> `refresh`). `/auth/login` sí genera y devuelve un `refresh_token`, y el
+> frontend lo recibe (`auth.service.ts`), pero nunca lo usa para pedir un
+> access token nuevo — no existe ningún endpoint al que enviarlo. En la
+> práctica, el usuario simplemente tiene que volver a iniciar sesión
+> cuando el access token expira (30 minutos). No se implementó el
+> endpoint faltante como parte de esta auditoría porque agregar un flujo
+> de autenticación nuevo es una decisión de producto (política de
+> expiración/rotación de sesiones), no un bug a corregir — queda como
+> hallazgo para que el equipo decida si lo prioriza.
 
 ---
 
@@ -58,9 +73,11 @@ El sistema debe permitir obtener un nuevo access token válido presentando un re
 
 ## Endpoint asociado
 
-| Método | Ruta                       | Auth requerida           |
-| ------ | -------------------------- | ------------------------ |
-| POST   | `/api/v1/auth/refresh`     | No (requiere refresh token en body) |
+**No existe actualmente** (ver nota de auditoría arriba). La ruta
+`/api/v1/auth/refresh` descrita originalmente aquí nunca se implementó
+ni en ese prefijo (`/api/v1/...` no se usa en ningún otro endpoint del
+proyecto — el prefijo real es `/api/...` o `/auth/...`) ni en ningún
+otro.
 
 ---
 

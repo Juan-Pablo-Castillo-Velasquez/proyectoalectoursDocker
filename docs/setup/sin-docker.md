@@ -107,7 +107,7 @@ cp .env.example .env
 Editar `backend/.env` — cambiar `postgres` por `localhost` en DATABASE_URL:
 
 ```env
-DATABASE_URL=postgresql+psycopg://admin:admin123@localhost:5432/alektours_db
+DATABASE_URL=postgresql+psycopg2://admin:admin123@localhost:5432/alektours_db
 SECRET_KEY=change_this_secret_key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30

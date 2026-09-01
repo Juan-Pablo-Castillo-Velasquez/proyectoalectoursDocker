@@ -22,13 +22,13 @@ proyectoalectoursDocker/
    git clone https://github.com/Juan-Pablo-Castillo-Velasquez/proyectoalectoursDocker.git
    cd proyectoalectoursDocker
 ```
-2. Copy the environment example and fill in your own values:
-```bash
-   cp backend/.env.example backend/.env
-```
-3. Start the full stack with Docker:
+2. Start the full stack with Docker — no manual setup needed, `backend/.env.example` already ships safe local defaults and is loaded automatically:
 ```bash
    docker compose up --build
+```
+3. (Optional) To override any default value locally without touching a tracked file, copy it to `backend/.env` — anything in there takes priority over `.env.example`:
+```bash
+   cp backend/.env.example backend/.env
 ```
 4. Frontend: http://localhost:5173 · Backend docs: http://localhost:8000/docs
 
