@@ -207,6 +207,19 @@ class ReservaRepository:
         return db.query(Reserva).filter(Reserva.id_reserva == reserva_id).first()
 
     @staticmethod
+    def get_by_id_for_update(db: Session, reserva_id: int):
+        """Igual que get_by_id pero con SELECT ... FOR UPDATE: usar solo en
+        rutas que van a decidir si cobrar/crear un Pago a partir del estado
+        de la reserva (pagar_reserva, confirmar_pago). Sin este lock, dos
+        requests concurrentes para la misma reserva (doble clic, reintento
+        del frontend tras un timeout) podían leer estado='pendiente' y
+        pasar el chequeo de existe_pago_en_proceso() los dos antes de que
+        cualquiera hiciera commit, creando dos Pago para una sola reserva.
+        No se usa en get_by_id genérico para no bloquear lecturas normales
+        (listados, detalle) sin necesidad."""
+        return db.query(Reserva).filter(Reserva.id_reserva == reserva_id).with_for_update().first()
+
+    @staticmethod
     def get_by_cliente(db: Session, cliente_id: int, skip: int = 0, limit: int = 10):
         # joinedload evita N+1 al resolver Reserva.nombre_paquete / Reserva.destino
         # / Reserva.hotel_nombre (propiedades usadas por ReservaResponse) para

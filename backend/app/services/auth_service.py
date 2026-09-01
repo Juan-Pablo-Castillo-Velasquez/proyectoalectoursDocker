@@ -72,6 +72,13 @@ def login_user(db: Session, correo_electronico: str, password: str):
     if not user.verificado:
         return {"error": "Por favor verifica tu email antes de continuar"}
 
+    # Antes no se revisaba: un admin podía "desactivar" un usuario
+    # (activo=False, ver PUT /api/usuarios/{id}) y ese usuario podía seguir
+    # iniciando sesión con normalidad, porque login_user solo validaba
+    # contraseña y verificado. La desactivación quedaba sin efecto real.
+    if not user.activo:
+        return {"error": "Esta cuenta está desactivada. Contacta al administrador."}
+
     # Obtener roles con SQL directo (sin modelos ORM para roles/usuarios_roles)
     rows = db.execute(
         text("""

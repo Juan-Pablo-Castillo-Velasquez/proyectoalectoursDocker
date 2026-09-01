@@ -545,7 +545,14 @@ def pagar_reserva(
       POST /api/pagos/{id}/confirmar (simula la confirmacion del banco o
       la app, que en la vida real llega despues, de forma asincrona).
     """
-    reserva = ReservaRepository.get_by_id(db, reserva_id)
+    # get_by_id_for_update (SELECT ... FOR UPDATE) en vez de get_by_id: sin
+    # el lock, dos requests concurrentes para la misma reserva (doble clic,
+    # reintento del frontend tras un timeout) podían leer estado='pendiente'
+    # y pasar los dos chequeos de abajo antes de que cualquiera hiciera
+    # commit, creando dos Pago para una sola reserva (cobro duplicado). Con
+    # el lock, la segunda request espera a que la primera confirme (commit)
+    # y entonces sí ve el nuevo estado/pago y es rechazada correctamente.
+    reserva = ReservaRepository.get_by_id_for_update(db, reserva_id)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
     exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
@@ -686,7 +693,12 @@ def confirmar_pago(
     fue decidido al iniciar el pago (ver `pagar_reserva`), aqui solo se
     aplica y se actualiza la reserva + el historial.
     """
-    pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
+    # with_for_update(): sin el lock, dos confirmaciones concurrentes del
+    # mismo pago_id (doble clic, reintento tras timeout) podían leer
+    # estado='procesando' las dos antes de que cualquiera hiciera commit,
+    # duplicando el HistorialReserva y el correo de confirmación. Mismo
+    # criterio que pagar_reserva (ver ReservaRepository.get_by_id_for_update).
+    pago = db.query(Pago).filter(Pago.id_pago == pago_id).with_for_update().first()
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
     if pago.estado != "procesando":

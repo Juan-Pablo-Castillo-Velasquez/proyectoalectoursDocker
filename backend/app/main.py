@@ -174,6 +174,13 @@ def _rate_limit_config_for(path: str):
     # una sola clave "/pagar" para que el límite sea real por IP, no por id.
     if path.startswith("/api/reservas/") and path.endswith("/pagar"):
         return "/pagar", 10, 60
+    # /api/metodos-pago-guardados/{id}/verificar valida un PIN de 4-6
+    # dígitos (solo 10,000-1,000,000 combinaciones) contra un hash bcrypt —
+    # sin límite de intentos, alguien con un token de sesión robado podía
+    # forzarlo por fuerza bruta para autorizar pagos con el método guardado
+    # de la víctima. Mismo agrupamiento por prefijo que "/pagar".
+    if path.startswith("/api/metodos-pago-guardados/") and path.endswith("/verificar"):
+        return "/verificar-metodo-pago", 5, 60
     return None
 
 
