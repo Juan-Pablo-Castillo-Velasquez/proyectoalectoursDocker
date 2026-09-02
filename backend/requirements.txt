@@ -31,3 +31,9 @@ redis==5.0.8
 # Sentry. Se activa solo si SENTRY_DSN está definido en el entorno (ver
 # app/core/config.py y app/main.py) — sin DSN la app arranca igual.
 sentry-sdk[fastapi]==2.18.0
+
+# Hosting externo OPCIONAL de imágenes (fotos de perfil, banners) en
+# Cloudinary — ver app/core/image_storage.py. Sin CLOUDINARY_URL definida
+# en el entorno, el proyecto sigue guardando en disco local exactamente
+# como antes de este paquete: no es un requisito para levantar la app.
+cloudinary==1.46.2

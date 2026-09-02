@@ -178,6 +178,14 @@ desarrollo local — no es necesario crear un `.env` para levantar el
 proyecto con Docker (ver "Inicio rápido" abajo). `backend/.env` es
 opcional y solo hace falta para sobreescribir algún valor.
 
+**Hosting de imágenes (opcional):** por defecto, las fotos de perfil y los
+banners se guardan en disco local (`static/uploads/`). Si se define
+`CLOUDINARY_URL` en `backend/.env`, se suben en su lugar a Cloudinary
+(plan gratuito, sin tarjeta) — ver `app/core/image_storage.py` y el
+comentario de esa variable en `.env.example`. Los comprobantes de pago
+(`reserva_route.py`) se dejan siempre en disco local a propósito, por
+tratarse de un dato sensible del área de pagos.
+
 ---
 
 ## Inicio rápido

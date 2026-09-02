@@ -6,8 +6,6 @@ app/models/banner_model.py. Prefijo /api/banners a propósito, para no
 chocar con esa ruta existente.
 """
 
-import os
-import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -18,13 +16,13 @@ from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.file_validation import validar_y_leer_archivo
+from app.core.image_storage import borrar_imagen, guardar_imagen
 from app.core.security import require_admin
 from app.repositories.banner_repository import BannerRepository
 from app.schemas.banner_schema import BannerReorderItem, BannerResponse
 
 router = APIRouter(prefix="/api/banners", tags=["Banners"])
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "banners")
 PUBLIC_PATH_PREFIX = "/uploads/banners"
 BANNER_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
@@ -42,12 +40,7 @@ class BannerActivoUpdate(BaseModel):
 
 
 def _borrar_archivo_si_existe(imagen_url: str | None) -> None:
-    if not imagen_url or not imagen_url.startswith(PUBLIC_PATH_PREFIX):
-        return
-    filename = imagen_url.rsplit("/", 1)[-1]
-    ruta = os.path.join(UPLOAD_DIR, filename)
-    if os.path.isfile(ruta):
-        os.remove(ruta)
+    borrar_imagen(imagen_url, carpeta="banners", public_path_prefix=PUBLIC_PATH_PREFIX)
 
 
 async def _guardar_imagen(file: UploadFile) -> str:
@@ -60,13 +53,7 @@ async def _guardar_imagen(file: UploadFile) -> str:
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         tamano_maximo_bytes=TAMANO_MAXIMO_BYTES,
     )
-
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
-    ruta_destino = os.path.join(UPLOAD_DIR, nombre_archivo)
-    with open(ruta_destino, "wb") as f:
-        f.write(contenido)
-    return f"{PUBLIC_PATH_PREFIX}/{nombre_archivo}"
+    return guardar_imagen(contenido, extension, carpeta="banners", public_path_prefix=PUBLIC_PATH_PREFIX)
 
 
 # ===================== PÚBLICO =====================

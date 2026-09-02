@@ -1,7 +1,3 @@
-import contextlib
-import os
-import uuid
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -10,6 +6,7 @@ from app.core.cache import delete_pattern
 from app.core.database import get_db
 from app.core.deps import get_current_usuario
 from app.core.file_validation import validar_y_leer_archivo
+from app.core.image_storage import borrar_imagen, guardar_imagen
 from app.core.security import hash_password, require_admin, verify_password
 from app.models.auth_model import Rol, UsuarioRol
 from app.models.user_model import Usuario
@@ -24,7 +21,6 @@ from app.schemas.usuario_admin_schema import (
 router = APIRouter(prefix="/api/usuarios", tags=["Usuarios"])
 roles_router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "perfiles")
 PUBLIC_PATH_PREFIX = "/uploads/perfiles"
 PERFILES_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
@@ -150,13 +146,7 @@ def get_roles(db: Session = Depends(get_db), _admin: int = Depends(require_admin
 
 
 def _borrar_archivo_si_existe(foto_perfil: str | None) -> None:
-    if not foto_perfil:
-        return
-    filename = os.path.basename(foto_perfil)
-    ruta = os.path.join(UPLOAD_DIR, filename)
-    if os.path.isfile(ruta):
-        with contextlib.suppress(OSError):
-            os.remove(ruta)
+    borrar_imagen(foto_perfil, carpeta="perfiles", public_path_prefix=PUBLIC_PATH_PREFIX)
 
 
 @router.get("/me", response_model=UsuarioResponse)
@@ -211,16 +201,12 @@ async def subir_foto_perfil(
         tamano_maximo_bytes=TAMANO_MAXIMO_BYTES,
     )
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-    nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
-    ruta_destino = os.path.join(UPLOAD_DIR, nombre_archivo)
-    with open(ruta_destino, "wb") as f:
-        f.write(contenido)
-
+    nueva_url = guardar_imagen(contenido, extension, carpeta="perfiles", public_path_prefix=PUBLIC_PATH_PREFIX)
+    # Igual que antes de esta integración: primero se guarda la foto nueva,
+    # y solo si eso funciona se borra la anterior — así una subida fallida
+    # nunca deja al usuario sin ninguna foto.
     _borrar_archivo_si_existe(usuario.foto_perfil)
-
-    usuario.foto_perfil = f"{PUBLIC_PATH_PREFIX}/{nombre_archivo}"
+    usuario.foto_perfil = nueva_url
     db.commit()
     db.refresh(usuario)
     _invalidar_cache_foto(usuario)

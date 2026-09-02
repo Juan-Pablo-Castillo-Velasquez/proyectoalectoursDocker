@@ -13,6 +13,15 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = "redis://redis:6379/0"
 
+    # URL de conexión de Cloudinary (formato
+    # cloudinary://API_KEY:API_SECRET@CLOUD_NAME, tal como la muestra el
+    # dashboard de Cloudinary en "API Environment variable"). Opcional: si
+    # se deja vacía, las fotos de perfil y los banners se guardan en disco
+    # local exactamente como antes (ver app/core/image_storage.py) — así
+    # `docker compose up --build` sigue funcionando de cero sin que nadie
+    # tenga que crear una cuenta externa.
+    CLOUDINARY_URL: str = ""
+
     # DSN de Sentry para monitoreo de errores. Vacío por defecto: si no se
     # define, el backend arranca igual pero sin reportar errores a Sentry
     # (ver app/main.py).  Formato: https://clave@ingest.sentry.io/12345
