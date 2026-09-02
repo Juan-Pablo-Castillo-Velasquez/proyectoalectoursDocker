@@ -1,7 +1,7 @@
 import { Banknote, Building2, Camera, CreditCard, Eye, EyeOff, KeyRound, Lock, Loader2, Pencil, Plus, Shield, Smartphone, Trash2, User, Wallet, X, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BASE_URL } from "../../api/v1/api";
+import { resolveFotoUrl } from "../admin/types";
 import { useAuth } from "../../context/AuthContext";
 import { ClienteResponse, clienteService } from "../../services/cliente.service";
 import {
@@ -264,7 +264,7 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
     }
   };
 
-  const fotoUrl = usuario?.foto_perfil ? `${BASE_URL}${usuario.foto_perfil}` : null;
+  const fotoUrl = resolveFotoUrl(usuario?.foto_perfil);
 
   const handleSeleccionArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -11,7 +11,7 @@ import {
   SlidersHorizontal,
   User,
 } from "lucide-react";
-import { BASE_URL } from "../../api/v1/api";
+import { resolveFotoUrl } from "../admin/types";
 const tabs = [
   { id: "reservas", label: "Mis Reservas", icon: Calendar },
   { id: "favoritos", label: "Favoritos", icon: Heart },
@@ -59,7 +59,7 @@ export default function ProfileSidebar({
           <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center ring-4 ring-background shadow-md border border-border overflow-hidden">
             {usuario?.foto_perfil ? (
               <img
-                src={`${BASE_URL}${usuario.foto_perfil}`}
+                src={resolveFotoUrl(usuario.foto_perfil)}
                 alt="Foto de perfil"
                 className="w-full h-full object-cover"
               />

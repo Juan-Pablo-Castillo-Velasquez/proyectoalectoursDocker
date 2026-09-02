@@ -15,7 +15,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { BASE_URL } from "../api/v1/api";
+import { resolveFotoUrl } from "./admin/types";
 import { useAuth } from "../context/AuthContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import LoginModal from "./LoginModal";
@@ -569,7 +569,7 @@ export default function Navbar() {
                     >
                       {usuario?.foto_perfil ? (
                         <img
-                          src={`${BASE_URL}${usuario.foto_perfil}`}
+                          src={resolveFotoUrl(usuario.foto_perfil)}
                           alt=""
                           className="w-full h-full object-cover"
                         />
@@ -871,7 +871,7 @@ export default function Navbar() {
                         >
                           {usuario?.foto_perfil ? (
                             <img
-                              src={`${BASE_URL}${usuario.foto_perfil}`}
+                              src={resolveFotoUrl(usuario.foto_perfil)}
                               alt=""
                               className="w-full h-full object-cover"
                             />
