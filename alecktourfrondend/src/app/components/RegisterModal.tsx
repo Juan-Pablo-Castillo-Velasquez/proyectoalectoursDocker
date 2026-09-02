@@ -239,6 +239,11 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
         }
     };
 
+    // Evita copiar/pegar la contraseña (obliga a escribirla realmente en
+    // ambos campos, en vez de copiar el mismo valor y quedar "confirmada"
+    // sin haberla tecleado dos veces).
+    const bloquearPortapapeles = (e: React.ClipboardEvent<HTMLInputElement>) => e.preventDefault();
+
     const inputBase = (name: string) =>
         `w-full pl-11 pr-4 py-3 text-sm rounded-lg border outline-none transition-all duration-200 bg-input-background text-foreground font-medium placeholder:text-muted-foreground/60 focus:bg-card ${fieldError(name)
             ? "border-destructive focus:border-destructive focus:ring-4 focus:ring-destructive/10"
@@ -389,6 +394,9 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                                 value={formData.password}
                                                                 onChange={handleChange}
                                                                 onBlur={handleBlur}
+                                                                onCopy={bloquearPortapapeles}
+                                                                onPaste={bloquearPortapapeles}
+                                                                onCut={bloquearPortapapeles}
                                                                 placeholder="Contraseña"
                                                                 autoComplete="new-password"
                                                                 required
@@ -412,6 +420,9 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                                 value={formData.confirmPassword}
                                                                 onChange={handleChange}
                                                                 onBlur={handleBlur}
+                                                                onCopy={bloquearPortapapeles}
+                                                                onPaste={bloquearPortapapeles}
+                                                                onCut={bloquearPortapapeles}
                                                                 placeholder="Confirmar"
                                                                 autoComplete="new-password"
                                                                 required

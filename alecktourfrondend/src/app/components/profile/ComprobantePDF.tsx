@@ -348,7 +348,7 @@ export default function ComprobantePDF({ reservaId, clienteData }: Props) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.text(
-      "¡Gracias por confiar en AlecTours para descubrir el mundo!",
+      "¡Gracias por confiar en AlekTours para descubrir el mundo!",
       W / 2,
       281,
       { align: "center" },

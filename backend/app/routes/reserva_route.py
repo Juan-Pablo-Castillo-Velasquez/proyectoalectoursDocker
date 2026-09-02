@@ -952,7 +952,7 @@ async def subir_comprobante_pago(
             detail="Formato no soportado. Usa JPG, PNG, WEBP o PDF.",
         )
 
-    contenido, extension = validar_y_leer_archivo(
+    contenido, extension = await validar_y_leer_archivo(
         file,
         tipos_permitidos=COMPROBANTES_TIPOS_PERMITIDOS,
         mensaje_tipo="Formato no soportado. Usa JPG, PNG, WEBP o PDF.",

@@ -29,7 +29,7 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     categoria: "Soporte",
-    pregunta: "¿Cómo me comunico con AlecTours si tengo una emergencia durante el viaje?",
+    pregunta: "¿Cómo me comunico con AlekTours si tengo una emergencia durante el viaje?",
     respuesta: "Contamos con una línea de asistencia telefónica y soporte vía WhatsApp disponible las 24 horas del día, los 7 días de la semana, exclusiva para clientes con reservas activas. Encontrarás este número en tu voucher de confirmación.",
   },
 ];
@@ -189,7 +189,7 @@ export default function FAQ() {
               </div>
               <div>
                 <h3 className="text-xl font-bold">¿Aún tienes dudas?</h3>
-                <p className="text-primary-foreground/90 text-sm mt-1">Nuestro equipo de soporte técnico de AlecTours está listo para ayudarte.</p>
+                <p className="text-primary-foreground/90 text-sm mt-1">Nuestro equipo de soporte técnico de AlekTours está listo para ayudarte.</p>
               </div>
             </div>
             <motion.button

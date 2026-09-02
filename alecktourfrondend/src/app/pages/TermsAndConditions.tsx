@@ -33,7 +33,7 @@ const SECCIONES = [
     icon: XCircle,
     titulo: "4. Cancelaciones",
     parrafos: [
-      "Puedes solicitar la cancelación de una reserva confirmada o pendiente desde tu perfil, indicando el motivo. Esa solicitud queda pendiente hasta que un asesor de AlecTours la revise y apruebe o rechace; te avisaremos la resolución por los mismos canales de contacto registrados en tu cuenta.",
+      "Puedes solicitar la cancelación de una reserva confirmada o pendiente desde tu perfil, indicando el motivo. Esa solicitud queda pendiente hasta que un asesor de AlekTours la revise y apruebe o rechace; te avisaremos la resolución por los mismos canales de contacto registrados en tu cuenta.",
       "Las condiciones de reembolso (si aplica) dependen de las políticas particulares de cada hotel o paquete y del tiempo restante hasta la fecha de viaje, y se te informarán al resolver tu solicitud.",
     ],
   },
@@ -41,14 +41,14 @@ const SECCIONES = [
     icon: AlertTriangle,
     titulo: "5. Uso aceptable",
     parrafos: [
-      "No está permitido usar la plataforma para fines fraudulentos, suplantar la identidad de otra persona, intentar vulnerar la seguridad del sitio, ni registrar reservas con datos falsos. AlecTours puede suspender cuentas que incumplan esta política.",
+      "No está permitido usar la plataforma para fines fraudulentos, suplantar la identidad de otra persona, intentar vulnerar la seguridad del sitio, ni registrar reservas con datos falsos. AlekTours puede suspender cuentas que incumplan esta política.",
     ],
   },
   {
     icon: Scale,
     titulo: "6. Responsabilidad y ley aplicable",
     parrafos: [
-      "AlecTours actúa como intermediario entre viajeros y los hoteles/proveedores de cada paquete; la prestación final del servicio de hospedaje corresponde al hotel correspondiente, sujeta a su propia disponibilidad y condiciones.",
+      "AlekTours actúa como intermediario entre viajeros y los hoteles/proveedores de cada paquete; la prestación final del servicio de hospedaje corresponde al hotel correspondiente, sujeta a su propia disponibilidad y condiciones.",
       "Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se resolverá conforme a la legislación colombiana vigente.",
     ],
   },
@@ -102,7 +102,7 @@ export default function TermsAndConditions() {
         </div>
 
         <p className="text-xs text-muted-foreground/70 mt-10 leading-relaxed">
-          Este documento describe en lenguaje claro cómo funciona AlecTours hoy. Antes de tratarlo como
+          Este documento describe en lenguaje claro cómo funciona AlekTours hoy. Antes de tratarlo como
           contrato definitivo frente a terceros, te recomendamos que lo revise un abogado para adaptarlo a
           la normativa específica de tu operación (registro mercantil, protección al consumidor, etc.).
         </p>

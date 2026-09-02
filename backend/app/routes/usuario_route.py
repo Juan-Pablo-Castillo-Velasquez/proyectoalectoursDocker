@@ -204,7 +204,7 @@ async def subir_foto_perfil(
             detail="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         )
 
-    contenido, extension = validar_y_leer_archivo(
+    contenido, extension = await validar_y_leer_archivo(
         file,
         tipos_permitidos=PERFILES_TIPOS_PERMITIDOS,
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",

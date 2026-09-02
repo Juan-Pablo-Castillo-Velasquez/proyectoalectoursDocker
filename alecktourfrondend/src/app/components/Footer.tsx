@@ -6,7 +6,7 @@ export default function Footer() {
     empresa: [
       { name: "Inicio", href: "/" },
       { name: "Viajes Corporativos", href: "/corporate" },
-      { name: "AlecTours Rewards", href: "/benefits" },
+      { name: "AlekTours Rewards", href: "/benefits" },
       { name: "Contacto", href: "/contact" },
     ],
     soporte: [
@@ -32,7 +32,7 @@ export default function Footer() {
               <div className="w-10 h-10 bg-gradient-to-br from-[var(--gold,#D9B25B)] to-[#B8912E] rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all">
                 <Plane className="w-5 h-5 text-[#2E2611]" />
               </div>
-              <span className="text-2xl font-bold text-white">AlecTours</span>
+              <span className="text-2xl font-bold text-white">AlekTours</span>
             </Link>
 
             <p

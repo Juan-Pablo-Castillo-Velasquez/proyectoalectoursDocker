@@ -24,6 +24,7 @@ import ModuleConfiguracion from "../components/admin/ModuleConfiguracion";
 import ModuleMiCuenta from "../components/admin/ModuleMiCuenta";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
+import AdminFooter from "../components/admin/AdminFooter";
 import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
 import EmptyState from "../components/admin/ui/EmptyState";
 import type { QuickAction } from "../components/admin/ui/QuickActions";
@@ -439,6 +440,9 @@ export default function AdminDashboard() {
       await apiFetch("/reservas", { method: "POST", body: data });
       await fetchReservas();
       toast.success("Reserva creada correctamente");
+      // Tras crear, llevar al admin al listado para que la vea de una vez
+      // en vez de dejarlo parado en el formulario de "Crear reserva".
+      setActiveModule("reservas");
     } catch (e: any) {
       toast.error(e?.message || "No se pudo crear la reserva");
       throw e;
@@ -667,6 +671,8 @@ export default function AdminDashboard() {
           </AnimatePresence>
         </main>
       </div>
+
+      <AdminFooter />
 
       {/* DELETE /paquetes/{id} nunca borra de verdad — solo pone activo=false
           (ver PaqueteRepository.delete), así que para ese caso el diálogo

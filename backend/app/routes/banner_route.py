@@ -54,7 +54,7 @@ async def _guardar_imagen(file: UploadFile) -> str:
     # Mismas validaciones que usuario_route.py::subir_foto_perfil (formato
     # por magic bytes y tamaño máximo en chunks) — mismo criterio en todo el
     # proyecto para cualquier imagen subida por un usuario/admin.
-    contenido, extension = validar_y_leer_archivo(
+    contenido, extension = await validar_y_leer_archivo(
         file,
         tipos_permitidos=BANNER_TIPOS_PERMITIDOS,
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",

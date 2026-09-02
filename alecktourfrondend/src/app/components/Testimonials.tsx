@@ -303,7 +303,7 @@ export default function Testimonials() {
                 to="/testimonios"
                 className="group flex items-center justify-between w-full px-4 py-3.5 rounded-xl bg-white text-primary text-sm font-bold transition-all hover:bg-[#C9A227] hover:text-[#5E1730] shadow-md"
               >
-                <span>Quiero cotizar mi viaje</span>
+                <span>Dejar comentario sobre mi experiencia</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
