@@ -43,16 +43,16 @@ const CARACTERISTICA_ICONS: Record<string, React.ElementType> = {
 
 const CITY_IMAGES: Record<string, string> = {
   cartagena:
-    "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1000&q=85",
+    "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=1000&q=85",
 
   "santa marta":
-    "https://images.unsplash.com/photo-1596402184320-417e7178b2cd?w=1000&q=85",
+    "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=1000&q=85",
 
   medellín:
-    "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1000&q=85",
+    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1000&q=85",
 
   medellin:
-    "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1000&q=85",
+    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1000&q=85",
 
   bogotá:
     "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1000&q=85",
@@ -61,7 +61,7 @@ const CITY_IMAGES: Record<string, string> = {
     "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1000&q=85",
 
   cali:
-    "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=1000&q=85",
+    "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=1000&q=85",
 
   "san andrés":
     "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1000&q=85",

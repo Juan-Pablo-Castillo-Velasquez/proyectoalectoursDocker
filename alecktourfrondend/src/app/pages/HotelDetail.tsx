@@ -63,24 +63,24 @@ const CARACTERISTICA_ICONS: Record<
 
 const CITY_IMAGES: Record<string, string> = {
   cartagena:
-    "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&q=80",
+    "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=1200&q=80",
   "santa marta":
-    "https://images.unsplash.com/photo-1596402184320-417e7178b2cd?w=1200&q=80",
+    "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=1200&q=80",
   medellín:
-    "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1200&q=80",
+    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1200&q=80",
   medellin:
-    "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1200&q=80",
+    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1200&q=80",
   bogotá:
     "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1200&q=80",
   bogota:
     "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1200&q=80",
-  cali: "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=1200&q=80",
+  cali: "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=1200&q=80",
   salento:
-    "https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=1200&q=80",
+    "https://images.unsplash.com/photo-1749063240369-391a2e82dc04?w=1200&q=80",
   "villa de leyva":
-    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80",
+    "https://images.unsplash.com/photo-1788203816802-5fa9a5086f27?w=1200&q=80",
   barranquilla:
-    "https://images.unsplash.com/photo-1519451241324-20b4ea2c4220?w=1200&q=80",
+    "https://images.unsplash.com/photo-1564399331650-bbfe2aac0a04?w=1200&q=80",
   "san andrés":
     "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200&q=80",
   "san andres":
