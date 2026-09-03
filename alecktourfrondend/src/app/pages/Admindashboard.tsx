@@ -37,6 +37,7 @@ import ModuleEmpresas from "../components/admin/ModuleEmpresas";
 import { empresaService, type SolicitudCorporativa } from "../services/empresa.service";
 import ModuleBanners from "../components/admin/ModuleBanners";
 import { bannerService, type Banner, type BannerFormData } from "../services/banner.service";
+import { hotelService } from "../services/hotel.service";
 
 type PendingDelete =
   | { kind: "reserva"; id: number; label: string }
@@ -451,8 +452,20 @@ export default function AdminDashboard() {
   const submitHotel = async (data: any, id?: number) => {
     setLoading(true);
     try {
-      if (id) await apiFetch(`/hoteles/${id}`, { method: "PUT", body: data });
-      else await apiFetch("/hoteles/", { method: "POST", body: data });
+      // imagenFile viaja aparte del body JSON de creación/edición (el
+      // endpoint de imagen es multipart, ver hotel_route.py) — se sube
+      // después, ya con un id_hotel real en ambos casos (crear o editar).
+      const { imagenFile, ...hotelData } = data;
+      let hotelId = id;
+      if (id) {
+        await apiFetch(`/hoteles/${id}`, { method: "PUT", body: hotelData });
+      } else {
+        const creado = await apiFetch<{ id_hotel: number }>("/hoteles/", { method: "POST", body: hotelData });
+        hotelId = creado.id_hotel;
+      }
+      if (imagenFile && hotelId) {
+        await hotelService.subirImagen(hotelId, imagenFile);
+      }
       await fetchHoteles();
       toast.success(id ? "Hotel actualizado correctamente" : "Hotel creado correctamente");
     } catch (e: any) {

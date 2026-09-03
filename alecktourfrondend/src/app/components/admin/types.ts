@@ -107,6 +107,7 @@ export interface HotelData {
   total_resenas?: number;
   calificacion_promedio?: number | null;
   habitaciones?: HabitacionAdmin[];
+  imagen_url?: string | null;
 }
 
 export interface Paquete {

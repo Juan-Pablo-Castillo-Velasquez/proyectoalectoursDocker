@@ -33,6 +33,7 @@ import CalendarioOcupacion from "../components/hotel/CalendarioOcupacion";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useFavoritos } from "../context/FavoritosContext";
+import { resolveFotoUrl } from "../components/admin/types";
 import { useSeoMeta } from "../hooks/useSeoMeta";
 import {
   HabitacionResponse,
@@ -220,7 +221,9 @@ export default function HotelDetail() {
       </div>
     );
 
-  const imagen = getImage(hotel.ciudad ?? "");
+  // Foto real del hotel si el admin ya subió una, si no la imagen
+  // genérica por ciudad de siempre (ver HotelCard.tsx, mismo criterio).
+  const imagen = (hotel.imagen_url && resolveFotoUrl(hotel.imagen_url)) || getImage(hotel.ciudad ?? "");
   const habitacionesDisponibles =
     hotel.habitaciones?.filter((h) => h.estado === "disponible") ?? [];
   const precioMin = habitacionesDisponibles.length

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Star, MapPin, Bed, Hotel, AlertTriangle,
-  Eye, Plus, X, Clock, Loader2, DoorOpen,
+  Eye, Plus, X, Clock, Loader2, DoorOpen, ImageIcon,
 } from "lucide-react";
-import { HotelData, inputCls, labelCls } from "./types";
+import { HotelData, inputCls, labelCls, resolveFotoUrl } from "./types";
 import { hotelService, TipoHabitacionResponse, HabitacionResponse } from "../../services/hotel.service";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
@@ -40,6 +40,10 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
   const [editingId, setEditingId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  // Foto principal del hotel (opcional) — antes Hotel no tenía ningún
+  // campo de imagen real, ver POST /hoteles/{id}/imagen en hotel_route.py.
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
 
   // KPIs reales: ciudades/países cubiertos y calificación promedio real de
   // reseñas (calificacion_promedio) con respaldo en la calificación fija
@@ -79,6 +83,8 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
     setEditingId(null);
     setForm(EMPTY_FORM);
     setMsg(null);
+    setImagenFile(null);
+    setImagenPreview(null);
     setModalOpen(true);
   }
 
@@ -89,6 +95,8 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
       pais: h.pais, correo_electronico: h.correo_electronico ?? "", telefono: h.telefono ?? ""
     });
     setMsg(null);
+    setImagenFile(null);
+    setImagenPreview(resolveFotoUrl(h.imagen_url) ?? null);
     setModalOpen(true);
   }
 
@@ -97,13 +105,23 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
     setEditingId(null);
     setForm(EMPTY_FORM);
     setMsg(null);
+    setImagenFile(null);
+    setImagenPreview(null);
   }
+
+  const onSeleccionarImagenHotel = (file: File | undefined) => {
+    if (!file) return;
+    setImagenFile(file);
+    // Preview local vía createObjectURL — nunca se sube nada hasta el
+    // submit real del formulario.
+    setImagenPreview(URL.createObjectURL(file));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
     try {
-      await onSubmit({ ...form, calificacion: parseInt(form.calificacion) }, editingId ?? undefined);
+      await onSubmit({ ...form, calificacion: parseInt(form.calificacion), imagenFile }, editingId ?? undefined);
       closeModal();
     } catch (err: any) {
       setMsg({ type: "err", text: err.message || "Error al guardar hotel" });
@@ -417,6 +435,24 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
             <label className={labelCls}>Nombre</label>
             <input value={form.nombre_hotel} onChange={e => setForm({ ...form, nombre_hotel: e.target.value })}
               className={inputCls} required placeholder="Hotel Paraíso" />
+          </div>
+
+          <div>
+            <label className={labelCls}>Foto principal (opcional)</label>
+            <label className="mt-1.5 flex items-center justify-center h-32 rounded-xl border-2 border-dashed border-border bg-muted/40 cursor-pointer overflow-hidden hover:border-primary/40 transition-colors">
+              {imagenPreview ? (
+                <img src={imagenPreview} alt="Vista previa" className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                  <ImageIcon className="w-6 h-6" />
+                  <span className="text-xs">Sin foto — se usa una imagen genérica por ciudad</span>
+                </div>
+              )}
+              <input
+                type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={e => onSeleccionarImagenHotel(e.target.files?.[0])}
+              />
+            </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

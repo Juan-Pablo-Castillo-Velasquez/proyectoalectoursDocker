@@ -39,6 +39,7 @@ export interface HotelResponse {
   codigo_postal?: string;
   correo_electronico: string;
   telefono: string;
+  imagen_url?: string | null;
   // Reseñas reales de clientes (calculadas en el backend desde la tabla
   // `resenas`) — total_resenas siempre viene, calificacion_promedio es
   // null si el hotel todavía no tiene ninguna reseña real.
@@ -97,6 +98,14 @@ export const hotelService = {
 
   delete: (id: number) =>
     apiFetch<{ message: string }>(`/hoteles/${id}`, { method: 'DELETE' }),
+
+  // Sube/reemplaza la foto principal del hotel (POST /hoteles/{id}/imagen,
+  // ver hotel_route.py) — antes Hotel no tenía ningún campo de imagen real.
+  subirImagen: (id: number, imagen: File) => {
+    const fd = new FormData();
+    fd.append('imagen', imagen);
+    return apiFetch<HotelResponse>(`/hoteles/${id}/imagen`, { method: 'POST', body: fd });
+  },
 
   // Catálogo de tipos de habitación (Individual, Doble, Suite, etc.) — el
   // backend ya tenía el modelo/schema pero ningún endpoint para leerlo.

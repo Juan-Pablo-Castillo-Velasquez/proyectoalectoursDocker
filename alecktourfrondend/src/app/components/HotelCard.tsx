@@ -21,6 +21,7 @@ import { motion } from "motion/react";
 import { Link, useSearchParams } from "react-router";
 import { HotelDetailResponse } from "../services/hotel.service";
 import { useFavoritos } from "../context/FavoritosContext";
+import { resolveFotoUrl } from "./admin/types";
 
 interface HotelCardProps {
   hotel?: HotelDetailResponse;
@@ -131,7 +132,10 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
     );
   }
 
-  const imagen = getHotelImage(hotel.ciudad);
+  // Foto real del hotel si el admin ya subió una (ver POST
+  // /hoteles/{id}/imagen) — si no, se sigue usando la imagen genérica
+  // por ciudad como respaldo, igual que antes.
+  const imagen = (hotel.imagen_url && resolveFotoUrl(hotel.imagen_url)) || getHotelImage(hotel.ciudad);
 
   const precioMin = getPrecioMinimo(hotel);
 
