@@ -1,5 +1,7 @@
 import {
   Building2,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   HeadphonesIcon,
   MapPin,
@@ -22,6 +24,11 @@ export default function SearchResults() {
 
   const [hoteles, setHoteles] = useState<HotelDetailResponse[]>([]);
   const [filtrados, setFiltrados] = useState<HotelDetailResponse[]>([]);
+  // Paginación client-side: los resultados ya vienen completos del
+  // backend (hotelService.getAll con limit=300) y se filtran/ordenan acá
+  // mismo, así que paginar es solo cortar `filtrados` -- antes se
+  // renderizaba la lista entera de una sola vez, sin límite.
+  const [pagina, setPagina] = useState(1);
   const [loading, setLoading] = useState(true);
   // Catálogo completo SIN filtrar por fechas — solo se pide cuando sí hay
   // fechas de búsqueda, para poder decir "X de Y hoteles disponibles" con un
@@ -242,6 +249,7 @@ export default function SearchResults() {
     });
 
     setFiltrados(ordenado);
+    setPagina(1);
   }, [
     hoteles,
     destinationSearch,
@@ -322,6 +330,20 @@ export default function SearchResults() {
     const disponiblesIds = new Set(hoteles.map((h) => h.id_hotel));
     return totalCatalogo.filter((h) => matchDestino(h) && !disponiblesIds.has(h.id_hotel));
   })();
+
+  /*
+   * PAGINACIÓN — 10 alojamientos por página sobre `filtrados` (ya
+   * filtrado/ordenado arriba). `paginaActual` se recalcula por si el total
+   * de páginas bajó (p. ej. se quitó un filtro) y `pagina` quedó apuntando
+   * más allá del final.
+   */
+  const RESULTADOS_POR_PAGINA = 10;
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / RESULTADOS_POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const resultadosPagina = filtrados.slice(
+    (paginaActual - 1) * RESULTADOS_POR_PAGINA,
+    paginaActual * RESULTADOS_POR_PAGINA
+  );
 
   /*
    * DATOS PARA FILTROS
@@ -1013,7 +1035,7 @@ export default function SearchResults() {
                 </div>
               ) : filtrados.length > 0 ? (
                 <div className="flex flex-col gap-5">
-                  {filtrados.map(
+                  {resultadosPagina.map(
                     (hotel, index) => (
                       <HotelCard
                         key={hotel.id_hotel}
@@ -1021,6 +1043,69 @@ export default function SearchResults() {
                         index={index}
                       />
                     )
+                  )}
+
+                  {totalPaginas > 1 && (
+                    <nav
+                      aria-label="Paginación de resultados"
+                      className="flex items-center justify-center gap-1.5 mt-4"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPagina((n) => Math.max(1, n - 1));
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        disabled={paginaActual === 1}
+                        aria-label="Página anterior"
+                        className="h-9 w-9 flex items-center justify-center rounded-lg border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary/40 transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                        .filter(
+                          (n) =>
+                            n === 1 ||
+                            n === totalPaginas ||
+                            Math.abs(n - paginaActual) <= 1
+                        )
+                        .map((n, i, arr) => (
+                          <span key={n} className="flex items-center gap-1.5">
+                            {i > 0 && arr[i - 1] !== n - 1 && (
+                              <span className="text-muted-foreground text-sm px-1">…</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPagina(n);
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }}
+                              aria-current={n === paginaActual ? "page" : undefined}
+                              className={`h-9 min-w-9 px-2.5 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${
+                                n === paginaActual
+                                  ? "bg-primary text-primary-foreground"
+                                  : "border border-border bg-card text-foreground hover:border-primary/40"
+                              }`}
+                            >
+                              {n}
+                            </button>
+                          </span>
+                        ))}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPagina((n) => Math.min(totalPaginas, n + 1));
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        disabled={paginaActual === totalPaginas}
+                        aria-label="Página siguiente"
+                        className="h-9 w-9 flex items-center justify-center rounded-lg border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary/40 transition-colors"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </nav>
                   )}
                 </div>
               ) : alternativas.length > 0 ? (
