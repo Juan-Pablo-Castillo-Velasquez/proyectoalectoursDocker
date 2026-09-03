@@ -14,6 +14,7 @@ import Home from "./pages/Home";
 import HotelDetail from "./pages/HotelDetail";
 import NotFound from "./pages/NotFound";
 import PackageDetail from "./pages/PackageDetail";
+import Packages from "./pages/Packages";
 import Personalization from "./pages/Personalization";
 import PreferencesForm from "./pages/PreferencesForm";
 import Profile from "./pages/Profile";
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: "/", Component: Home },
       { path: "/search", Component: SearchResults },
       { path: "/package/:id", Component: PackageDetail },
+      { path: "/packages", Component: Packages },
       { path: "/login", Component: LoginRedirect },
       { path: "/register", Component: RegisterRedirect },
       { path: "/checkout/:id", Component: Checkout },

@@ -244,7 +244,7 @@ export default function Navbar() {
 
               {/* HOTELES */}
               <Link
-                to="/search?type=hotel"
+                to="/search"
                 className={`
                   group
                   relative
@@ -287,7 +287,7 @@ export default function Navbar() {
 
               {/* PAQUETES - CTA COMERCIAL */}
               <Link
-                to="/search"
+                to="/packages"
                 className="
                   group
                   flex items-center gap-1.5
@@ -722,7 +722,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link
-                    to="/search"
+                    to="/packages"
                     className="
                       flex items-center justify-between
                       px-4 py-3
@@ -744,7 +744,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link
-                    to="/search?type=hotel"
+                    to="/search"
                     className="
                       flex items-center gap-3
                       px-4 py-3

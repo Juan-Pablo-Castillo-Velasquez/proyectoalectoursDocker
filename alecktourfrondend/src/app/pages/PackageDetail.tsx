@@ -85,7 +85,7 @@ export default function PackageDetail() {
           <h1 className="text-3xl font-bold text-foreground mb-4">
             Paquete no encontrado
           </h1>
-          <Link to="/search" className="text-primary hover:underline font-medium">
+          <Link to="/packages" className="text-primary hover:underline font-medium">
             ← Volver a explorar paquetes
           </Link>
         </div>
