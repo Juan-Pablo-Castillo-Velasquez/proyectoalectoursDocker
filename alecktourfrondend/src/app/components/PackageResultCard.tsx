@@ -2,6 +2,7 @@ import { ArrowRight, Clock, MapPin, Package as PackageIcon } from "lucide-react"
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { PaqueteResponse } from "../services/paquete.service";
+import { getCityImage, getDefaultImage } from "../utils/cityImages";
 
 interface PackageResultCardProps {
   pkg: PaqueteResponse;
@@ -9,28 +10,13 @@ interface PackageResultCardProps {
 }
 
 // La API no guarda foto para paquetes, así que usamos el mismo pool de fotos
-// reales por ciudad que ya usa PackageDetail.tsx (nunca inventamos una URL
-// de imagen que "parezca" pertenecer al paquete).
-const CITY_IMAGES: Record<string, string> = {
-  cartagena: "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=800&q=80",
-  "santa marta": "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=800&q=80",
-  medellín: "https://images.unsplash.com/photo-1570793005386-840846445fed?w=800&q=80",
-  medellin: "https://images.unsplash.com/photo-1570793005386-840846445fed?w=800&q=80",
-  bogotá: "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=800&q=80",
-  bogota: "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=800&q=80",
-  cali: "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=800&q=80",
-  salento: "https://images.unsplash.com/photo-1749063240369-391a2e82dc04?w=800&q=80",
-  "villa de leyva": "https://images.unsplash.com/photo-1788203816802-5fa9a5086f27?w=800&q=80",
-  barranquilla: "https://images.unsplash.com/photo-1564399331650-bbfe2aac0a04?w=800&q=80",
-  "san andrés": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80",
-  "san andres": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80",
-};
-const DEFAULT_IMAGE =
-  "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80";
+// reales por ciudad centralizado en utils/cityImages.ts (nunca inventamos una
+// URL de imagen que "parezca" pertenecer al paquete).
+const DEFAULT_IMAGE = getDefaultImage({ width: 800 });
 
 function getImage(ciudad?: string | null) {
   if (!ciudad) return DEFAULT_IMAGE;
-  return CITY_IMAGES[ciudad.toLowerCase().trim()] ?? DEFAULT_IMAGE;
+  return getCityImage(ciudad, { width: 800 });
 }
 
 export default function PackageResultCard({ pkg, index = 0 }: PackageResultCardProps) {

@@ -33,34 +33,18 @@ import {
   PaqueteServicioDetalle,
   paqueteService,
 } from "../services/paquete.service";
+import { getCityImage, getDefaultImage } from "../utils/cityImages";
 
 // Fotos reales por ciudad, solo como respaldo cuando ningún hotel del
 // paquete tiene foto propia todavía (ver getHotelImage) -- nunca inventamos
 // datos, solo elegimos una foto ilustrativa del destino real del paquete.
-// Mismas fotos ya verificadas visualmente una por una que usan
-// HotelCard.tsx/HotelDetail.tsx (antes esta lista tenía varias equivocadas,
-// heredadas de la misma tanda sin verificar que causó el bug de fotos de
-// hoteles: ver alembic/versions/7972baf77f44_corregir_fotos_hoteles_demo.py).
-const CITY_IMAGES: Record<string, string> = {
-  cartagena: "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=1400&q=80",
-  "santa marta": "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=1400&q=80",
-  medellín: "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1400&q=80",
-  medellin: "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1400&q=80",
-  bogotá: "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1400&q=80",
-  bogota: "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1400&q=80",
-  cali: "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=1400&q=80",
-  salento: "https://images.unsplash.com/photo-1749063240369-391a2e82dc04?w=1400&q=80",
-  "villa de leyva": "https://images.unsplash.com/photo-1788203816802-5fa9a5086f27?w=1400&q=80",
-  barranquilla: "https://images.unsplash.com/photo-1564399331650-bbfe2aac0a04?w=1400&q=80",
-  "san andrés": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1400&q=80",
-  "san andres": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1400&q=80",
-};
-const DEFAULT_IMAGE =
-  "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1400&q=80";
+// Mapa centralizado en utils/cityImages.ts (antes esta página tenía su
+// propia copia -- ver el comentario de ese archivo).
+const DEFAULT_IMAGE = getDefaultImage({ width: 1400 });
 
 function getImage(ciudad?: string | null) {
   if (!ciudad) return DEFAULT_IMAGE;
-  return CITY_IMAGES[ciudad.toLowerCase().trim()] ?? DEFAULT_IMAGE;
+  return getCityImage(ciudad, { width: 1400 });
 }
 
 // Antes esta página siempre mostraba una foto genérica por ciudad, incluso

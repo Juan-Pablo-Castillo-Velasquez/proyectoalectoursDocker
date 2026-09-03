@@ -43,6 +43,7 @@ import {
   hotelService,
 } from "../services/hotel.service";
 import { resenaService, ResenaResponse } from "../services/resena.service";
+import { getCityImage, getDefaultImage } from "../utils/cityImages";
 
 // ── Mapa de íconos de características con colores semánticos basados en tu tema ──
 const CARACTERISTICA_ICONS: Record<
@@ -61,33 +62,9 @@ const CARACTERISTICA_ICONS: Record<
   "Bar en la azotea": { icon: Wine, color: "text-destructive" },
 };
 
-const CITY_IMAGES: Record<string, string> = {
-  cartagena:
-    "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=1200&q=80",
-  "santa marta":
-    "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=1200&q=80",
-  medellín:
-    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1200&q=80",
-  medellin:
-    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1200&q=80",
-  bogotá:
-    "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1200&q=80",
-  bogota:
-    "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1200&q=80",
-  cali: "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=1200&q=80",
-  salento:
-    "https://images.unsplash.com/photo-1749063240369-391a2e82dc04?w=1200&q=80",
-  "villa de leyva":
-    "https://images.unsplash.com/photo-1788203816802-5fa9a5086f27?w=1200&q=80",
-  barranquilla:
-    "https://images.unsplash.com/photo-1564399331650-bbfe2aac0a04?w=1200&q=80",
-  "san andrés":
-    "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200&q=80",
-  "san andres":
-    "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200&q=80",
-};
-const DEFAULT_IMAGE =
-  "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&q=80";
+// Mapa de fotos por ciudad centralizado en utils/cityImages.ts (antes
+// cada página tenía su propia copia -- ver el comentario de ese archivo).
+const DEFAULT_IMAGE = getDefaultImage({ width: 1200 });
 
 // Galería de la ficha del hotel: antes eran 4 URLs genéricas IDÉNTICAS para
 // TODOS los hoteles (GALLERY_FILLERS) -- una de ellas apuntaba a un ID de
@@ -161,7 +138,7 @@ function getRoomImage(idHabitacion: number) {
 }
 
 function getImage(ciudad: string) {
-  return CITY_IMAGES[ciudad?.toLowerCase().trim()] ?? DEFAULT_IMAGE;
+  return getCityImage(ciudad, { width: 1200 });
 }
 
 // Estados mapeados usando opacidades de tus tokens globales o semánticos
