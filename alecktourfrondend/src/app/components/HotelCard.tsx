@@ -120,7 +120,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
   if (!hotel) {
     return (
       <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:flex-row">
-        <div className="h-[200px] w-full animate-pulse bg-gray-100 md:h-auto md:w-[260px]" />
+        <div className="h-[180px] w-full animate-pulse bg-gray-100 md:h-[188px] md:w-[224px]" />
 
         <div className="flex-1 space-y-3 p-5">
           <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
@@ -154,7 +154,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
   const caracteristicas =
     hotel.hotel_caracteristicas
       ?.filter((hc) => hc.disponible && hc.caracteristica)
-      .slice(0, 4) ?? [];
+      .slice(0, 3) ?? [];
 
   // Desayuno incluido: derivado de una característica real del hotel (no un
   // badge fijo) — solo aparece si el hotel realmente la tiene registrada.
@@ -232,7 +232,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
       {/* ============================================ */}
       <Link
         to={`/hotel/${hotel.id_hotel}${searchQuery}`}
-        className="relative block h-[200px] w-full shrink-0 overflow-hidden bg-gray-100 md:h-auto md:w-[260px]"
+        className="relative block h-[180px] w-full shrink-0 overflow-hidden bg-gray-100 md:h-[188px] md:w-[224px]"
       >
         <motion.img
           src={imagen}
@@ -293,16 +293,16 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
       {/* ============================================ */}
       {/* INFO + PRECIO */}
       {/* ============================================ */}
-      <div className="flex flex-1 flex-col gap-4 p-5 md:flex-row md:items-stretch">
+      <div className="flex flex-1 flex-col gap-3 p-4 md:flex-row md:items-stretch">
         {/* -------- INFO COMERCIAL -------- */}
         <div className="min-w-0 flex-1">
           <Link to={`/hotel/${hotel.id_hotel}${searchQuery}`} className="block">
-            <h3 className="text-lg font-bold leading-tight text-gray-900 group-hover:text-[#8B1E3F] transition-colors">
+            <h3 className="text-base font-bold leading-tight text-gray-900 group-hover:text-[#8B1E3F] transition-colors">
               {hotel.nombre_hotel}
             </h3>
           </Link>
 
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-1.5 flex items-center gap-2">
             <span className="rounded-md bg-[#8B1E3F] px-2 py-1 text-xs font-bold text-white">
               {rating.toFixed(1)}
             </span>
@@ -320,7 +320,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500">
             <MapPin className="h-3.5 w-3.5 shrink-0 text-[#8B1E3F]" />
             <span>
               {hotel.direccion ? `${hotel.direccion} · ` : ""}
@@ -342,7 +342,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
             </button>
           </div>
 
-          <div className="mt-3">
+          <div className="mt-2">
             <span
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold ${disponibilidad.clase}`}
             >
@@ -359,7 +359,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
           </div>
 
           {caracteristicas.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {caracteristicas.map((hc) => {
                 const nombre = hc.caracteristica!.nombre_caracteristica;
                 const Icon = CARACTERISTICA_ICONS[nombre];
@@ -383,14 +383,14 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
         </div>
 
         {/* -------- PRECIO / CTA -------- */}
-        <div className="flex shrink-0 flex-row items-end justify-between gap-3 border-t border-gray-100 pt-4 md:w-[170px] md:flex-col md:items-end md:justify-between md:border-l md:border-t-0 md:pl-4 md:pt-0">
+        <div className="flex shrink-0 flex-row items-end justify-between gap-3 border-t border-gray-100 pt-3 md:w-[152px] md:flex-col md:items-end md:justify-start md:gap-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
           {precioMin ? (
             <div className="md:text-right">
               <p className="text-[10px] text-gray-400">Desde · por noche</p>
 
               <div className="flex items-baseline gap-1 md:justify-end">
                 <span className="text-sm font-medium text-gray-700">$</span>
-                <span className="text-xl font-extrabold tracking-tight text-[#8B1E3F]">
+                <span className="text-lg font-extrabold tracking-tight text-[#8B1E3F]">
                   {precioMin.toLocaleString("es-CO")}
                 </span>
               </div>
@@ -407,7 +407,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
 
           <Link
             to={`/hotel/${hotel.id_hotel}${searchQuery}`}
-            className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-[#8B1E3F] px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#71182F]"
+            className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-[#8B1E3F] px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-[#71182F]"
           >
             Ver hotel
             <ChevronRight className="h-4 w-4" />
