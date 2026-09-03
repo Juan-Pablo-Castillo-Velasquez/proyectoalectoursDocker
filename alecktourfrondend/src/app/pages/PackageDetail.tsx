@@ -2,15 +2,27 @@ import {
   Bus,
   CalendarDays,
   CheckCircle2,
+  ChevronRight,
   Clock,
+  CreditCard,
   Hotel as HotelIcon,
   MapPin,
   Plane,
+  ShieldCheck,
   Sparkles,
   Star,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../components/ui/accordion";
+import { Badge } from "../components/ui/badge";
+import Footer from "../components/Footer";
 import HotelCard from "../components/HotelCard";
 import Navbar from "../components/Navbar";
 import { resolveFotoUrl } from "../components/admin/types";
@@ -95,6 +107,54 @@ function esTransporte(servicio: PaqueteServicioDetalle): boolean {
 function getTransporteIcon(nombreServicio: string) {
   const esAereo = /vuelo|aére|aere|avioneta/i.test(nombreServicio);
   return esAereo ? Plane : Bus;
+}
+
+// Franja de resumen ("este paquete incluye") justo debajo de la foto
+// principal -- antes había que leer las tres secciones completas para
+// enterarte de qué trae el paquete. Un solo chip reutilizable para no
+// repetir el mismo marcado icono+etiqueta+valor cuatro veces.
+function ResumenChip({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 min-w-0">
+      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <p className="text-sm font-semibold text-foreground truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// Ícono dentro de un círculo de marca para el encabezado de cada sección
+// del contenido principal -- mismo lenguaje visual que ResumenChip y que
+// cada fila de "Transporte incluido", en vez del ícono suelto de antes.
+function EncabezadoSeccion({
+  icon: Icon,
+  titulo,
+}: {
+  icon: React.ElementType;
+  titulo: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <Icon className="w-5 h-5 text-primary" />
+      </div>
+      <h2 className="text-2xl font-bold text-foreground">{titulo}</h2>
+    </div>
+  );
 }
 
 export default function PackageDetail() {
@@ -182,15 +242,33 @@ export default function PackageDetail() {
   const actividades = pkg.servicios.filter((s) => !esTransporte(s));
   const itinerario = agruparPorDia(actividades);
 
+  const rutaLabel =
+    pkg.ciudad_salida && pkg.ciudad_destino && pkg.ciudad_salida !== pkg.ciudad_destino
+      ? `${pkg.ciudad_salida} → ${pkg.ciudad_destino}`
+      : null;
+
   return (
     <div className="min-h-screen bg-background transition-colors duration-200">
       <Navbar />
+
+      {/* Breadcrumb — antes esta página no tenía ninguna forma de saber
+          "dónde estás" ni de volver al catálogo salvo el botón atrás del
+          navegador. */}
+      <div className="border-b border-border bg-card">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground overflow-x-auto whitespace-nowrap">
+          <Link to="/packages" className="hover:text-primary transition-colors shrink-0">
+            Paquetes
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-foreground font-semibold truncate">{pkg.nombre_paquete}</span>
+        </div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header Image — ahora la foto real del hotel incluido en el
             paquete (Hotel.imagen_url) en vez de una foto genérica por
             ciudad, la misma que ya se corrigió en el detalle del hotel. */}
-        <div className="relative h-96 md:h-[500px] rounded-3xl overflow-hidden mb-8">
+        <div className="relative h-96 md:h-[500px] rounded-3xl overflow-hidden mb-4">
           <img
             src={heroImage}
             alt={destinoPrincipal ?? pkg.nombre_paquete}
@@ -205,6 +283,12 @@ export default function PackageDetail() {
               <MapPin className="w-5 h-5" />
               <span className="text-lg">{heroPais}</span>
             </div>
+            <Badge
+              variant="outline"
+              className="bg-white/15 text-white border-white/30 backdrop-blur-sm mb-3"
+            >
+              Paquete turístico
+            </Badge>
             <h1 className="text-4xl md:text-5xl font-bold mb-4">{pkg.nombre_paquete}</h1>
             <div className="flex flex-wrap items-center gap-6">
               {pkg.hoteles[0]?.calificacion && (
@@ -230,16 +314,53 @@ export default function PackageDetail() {
           </div>
         </div>
 
+        {/* Resumen — "este paquete incluye" de un vistazo, sin tener que
+            leer las tres secciones completas para saber qué trae. */}
+        <div className="bg-card border border-border rounded-2xl shadow-sm mb-8 flex flex-wrap divide-x divide-border/70">
+          {rutaLabel && <ResumenChip icon={MapPin} label="Ruta" value={rutaLabel} />}
+          {pkg.duracion_dias > 0 && (
+            <ResumenChip
+              icon={Clock}
+              label="Duración"
+              value={`${pkg.duracion_dias} ${pkg.duracion_dias === 1 ? "día" : "días"}`}
+            />
+          )}
+          {pkg.hoteles.length > 0 && (
+            <ResumenChip
+              icon={HotelIcon}
+              label="Hospedaje"
+              value={
+                pkg.hoteles.length === 1
+                  ? pkg.hoteles[0].noches_incluidas
+                    ? `${pkg.hoteles[0].noches_incluidas} noches`
+                    : pkg.hoteles[0].nombre_hotel
+                  : `${pkg.hoteles.length} hoteles`
+              }
+            />
+          )}
+          {transportes.length > 0 && (
+            <ResumenChip
+              icon={Bus}
+              label="Transporte"
+              value={
+                transportes.length === 1
+                  ? transportes[0].nombre_servicio
+                  : `${transportes.length} tramos`
+              }
+            />
+          )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
             {/* Description */}
             {pkg.descripcion && (
               <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-                <h2 className="text-2xl font-bold text-foreground mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-3">
                   Descripción del viaje
                 </h2>
-                <p className="text-muted-foreground leading-relaxed text-lg">
+                <p className="text-muted-foreground leading-relaxed">
                   {pkg.descripcion}
                 </p>
               </section>
@@ -251,10 +372,7 @@ export default function PackageDetail() {
                 itinerario de viaje, no como el listado de amenidades de un
                 hotel. */}
             <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <CalendarDays className="w-6 h-6 text-primary" />
-                <h2 className="text-2xl font-bold text-foreground">Itinerario del viaje</h2>
-              </div>
+              <EncabezadoSeccion icon={CalendarDays} titulo="Itinerario del viaje" />
               {itinerario.length > 0 ? (
                 <div className="space-y-6">
                   {itinerario.map(([dia, items], idx) => (
@@ -311,10 +429,7 @@ export default function PackageDetail() {
                 tienen su propia sección, igual de visible que Hospedaje. */}
             {transportes.length > 0 && (
               <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-                <div className="flex items-center gap-3 mb-6">
-                  <Bus className="w-6 h-6 text-primary" />
-                  <h2 className="text-2xl font-bold text-foreground">Transporte incluido</h2>
-                </div>
+                <EncabezadoSeccion icon={Bus} titulo="Transporte incluido" />
                 <div className="space-y-4">
                   {transportes.map((transporte) => {
                     const IconoTransporte = getTransporteIcon(transporte.nombre_servicio);
@@ -364,10 +479,7 @@ export default function PackageDetail() {
                 normal, como pidió el usuario. */}
             {pkg.hoteles.length > 0 && (
               <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-                <div className="flex items-center gap-3 mb-6">
-                  <HotelIcon className="w-6 h-6 text-primary" />
-                  <h2 className="text-2xl font-bold text-foreground">Hospedaje</h2>
-                </div>
+                <EncabezadoSeccion icon={HotelIcon} titulo="Hospedaje" />
                 <div className="space-y-6">
                   {pkg.hoteles.map((hotel, index) => (
                     <div
@@ -390,10 +502,7 @@ export default function PackageDetail() {
 
             {/* Personalización */}
             <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-              <div className="flex items-center gap-3 mb-4">
-                <Sparkles className="w-6 h-6 text-primary" />
-                <h2 className="text-2xl font-bold text-foreground">Personaliza tu experiencia</h2>
-              </div>
+              <EncabezadoSeccion icon={Sparkles} titulo="Personaliza tu experiencia" />
               <p className="text-muted-foreground mb-6">
                 Después de reservar puedes agregar actividades y servicios adicionales a tu paquete.
               </p>
@@ -402,6 +511,51 @@ export default function PackageDetail() {
                 className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-colors font-semibold"
               >
                 Ver opciones de personalización
+              </Link>
+            </section>
+
+            {/* Antes de reservar — el equivalente real de "Términos y
+                condiciones" / "Políticas de cancelación" de cualquier OTA,
+                pero con la política real de AlekTours (ver
+                TermsAndConditions.tsx): acá no hay una cancelación con
+                100% de penalidad fija por fecha, es una solicitud que un
+                asesor revisa y resuelve caso por caso. */}
+            <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
+              <EncabezadoSeccion icon={ShieldCheck} titulo="Antes de reservar" />
+              <Accordion type="single" collapsible className="-mt-2">
+                <AccordionItem value="pago">
+                  <AccordionTrigger>
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-primary shrink-0" />
+                      Pago y confirmación
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    El precio se congela solo cuando el pago queda aprobado — total o el
+                    anticipo que elijas. Aceptamos tarjeta de crédito o débito, PSE, Nequi y
+                    PayPal.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="cancelacion">
+                  <AccordionTrigger>
+                    <span className="flex items-center gap-2">
+                      <XCircle className="w-4 h-4 text-primary shrink-0" />
+                      Cancelaciones
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    Puedes solicitar la cancelación desde tu perfil después de reservar. Un
+                    asesor de AlecTours revisa cada solicitud y te confirma las condiciones de
+                    reembolso según el hotel y el tiempo restante hasta el viaje.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+              <Link
+                to="/terms"
+                className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-primary hover:underline"
+              >
+                Ver términos y condiciones completos
+                <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </section>
           </div>
@@ -418,17 +572,23 @@ export default function PackageDetail() {
                 </div>
               </div>
 
-              <div className="space-y-4 mb-6 pb-6 border-b border-border">
+              <div className="space-y-3.5 mb-6 pb-6 border-b border-border">
                 {pkg.duracion_dias && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Duración</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="w-4 h-4" />
+                      Duración
+                    </span>
                     <span className="font-medium text-foreground">{pkg.duracion_dias} días</span>
                   </div>
                 )}
                 {pkg.hoteles.length > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Hospedaje</span>
-                    <span className="font-medium text-foreground">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <HotelIcon className="w-4 h-4" />
+                      Hospedaje
+                    </span>
+                    <span className="font-medium text-foreground text-right">
                       {pkg.hoteles.length === 1
                         ? (pkg.hoteles[0].calificacion
                             ? `${pkg.hoteles[0].calificacion} estrellas`
@@ -438,9 +598,12 @@ export default function PackageDetail() {
                   </div>
                 )}
                 {transportes.length > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Transporte</span>
-                    <span className="font-medium text-foreground">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Bus className="w-4 h-4" />
+                      Transporte
+                    </span>
+                    <span className="font-medium text-foreground text-right">
                       {transportes.length === 1
                         ? transportes[0].nombre_servicio
                         : `${transportes.length} tramos incluidos`}
@@ -448,8 +611,11 @@ export default function PackageDetail() {
                   </div>
                 )}
                 {destinoPrincipal && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Destino</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="w-4 h-4" />
+                      Destino
+                    </span>
                     <span className="font-medium text-foreground">{destinoPrincipal}</span>
                   </div>
                 )}
@@ -481,13 +647,16 @@ export default function PackageDetail() {
                 </div>
               )}
 
-              <p className="text-sm text-muted-foreground text-center">
+              <p className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground text-center">
+                <ShieldCheck className="w-4 h-4 text-primary" />
                 Pago 100% seguro
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }
