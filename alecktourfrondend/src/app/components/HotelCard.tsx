@@ -22,6 +22,7 @@ import { Link, useSearchParams } from "react-router";
 import { HotelDetailResponse } from "../services/hotel.service";
 import { useFavoritos } from "../context/FavoritosContext";
 import { resolveFotoUrl } from "./admin/types";
+import { getCityImage, getDefaultImage } from "../utils/cityImages";
 
 interface HotelCardProps {
   hotel?: HotelDetailResponse;
@@ -41,40 +42,14 @@ const CARACTERISTICA_ICONS: Record<string, React.ElementType> = {
   "Bar en la azotea": Wine,
 };
 
-const CITY_IMAGES: Record<string, string> = {
-  cartagena:
-    "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=1000&q=85",
-
-  "santa marta":
-    "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=1000&q=85",
-
-  medellín:
-    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1000&q=85",
-
-  medellin:
-    "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1000&q=85",
-
-  bogotá:
-    "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1000&q=85",
-
-  bogota:
-    "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1000&q=85",
-
-  cali:
-    "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=1000&q=85",
-
-  "san andrés":
-    "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1000&q=85",
-
-  "san andres":
-    "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1000&q=85",
-};
-
-const DEFAULT_IMAGE =
-  "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1000&q=85";
+// Mapa de fotos por ciudad centralizado en utils/cityImages.ts (antes esta
+// tarjeta tenía su propia copia incompleta, sin Salento/Villa de Leyva/
+// Barranquilla, pese a que ya hay hoteles reales sembrados en esas
+// ciudades -- ver el comentario de ese archivo).
+const DEFAULT_IMAGE = getDefaultImage({ width: 1000, quality: 85 });
 
 function getHotelImage(ciudad?: string): string {
-  return CITY_IMAGES[ciudad?.toLowerCase().trim() ?? ""] ?? DEFAULT_IMAGE;
+  return getCityImage(ciudad, { width: 1000, quality: 85 });
 }
 
 function getPrecioMinimo(hotel: HotelDetailResponse): number | null {
@@ -119,14 +94,14 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
    */
   if (!hotel) {
     return (
-      <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:flex-row">
-        <div className="h-[180px] w-full animate-pulse bg-gray-100 md:h-[188px] md:w-[224px]" />
+      <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm md:flex-row">
+        <div className="h-[180px] w-full animate-pulse bg-muted md:h-[188px] md:w-[224px]" />
 
         <div className="flex-1 space-y-3 p-5">
-          <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
-          <div className="h-6 w-3/4 animate-pulse rounded bg-gray-100" />
-          <div className="h-4 w-1/2 animate-pulse rounded bg-gray-100" />
-          <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
+          <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+          <div className="h-6 w-3/4 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+          <div className="h-16 animate-pulse rounded-xl bg-muted" />
         </div>
       </div>
     );
@@ -190,15 +165,18 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
   // del hotel, nunca un "-23%" o "mejor precio" fijo sin base real.
   const disponibilidad =
     habitacionesDisponibles.length === 0
-      ? { texto: "Sin disponibilidad", clase: "bg-gray-100 text-gray-500" }
+      ? { texto: "Sin disponibilidad", clase: "bg-muted text-muted-foreground" }
       : habitacionesDisponibles.length <= 3
         ? {
             texto: `Solo quedan ${habitacionesDisponibles.length} habitaci${
               habitacionesDisponibles.length === 1 ? "ón" : "ones"
             }`,
-            clase: "bg-orange-50 text-orange-700",
+            clase: "bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400",
           }
-        : { texto: "Disponible", clase: "bg-[#e8f7f1] text-[#008f6b]" };
+        : {
+            texto: "Disponible",
+            clase: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+          };
 
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${hotel.nombre_hotel} ${hotel.ciudad ?? ""} ${hotel.pais ?? ""}`
@@ -219,11 +197,11 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
         overflow-hidden
         rounded-2xl
         border
-        border-gray-200
-        bg-white
-        shadow-[0_4px_20px_rgba(0,0,0,0.06)]
+        border-border
+        bg-card
+        shadow-sm
         transition-shadow
-        hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]
+        hover:shadow-lg
         md:flex-row
       "
     >
@@ -232,7 +210,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
       {/* ============================================ */}
       <Link
         to={`/hotel/${hotel.id_hotel}${searchQuery}`}
-        className="relative block h-[180px] w-full shrink-0 overflow-hidden bg-gray-100 md:h-[188px] md:w-[224px]"
+        className="relative block h-[180px] w-full shrink-0 overflow-hidden bg-muted md:h-[188px] md:w-[224px]"
       >
         <motion.img
           src={imagen}
@@ -246,7 +224,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
         />
 
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#8B1E3F] shadow-sm backdrop-blur">
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary shadow-sm backdrop-blur">
             Hotel
           </span>
 
@@ -281,7 +259,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
             transition
             hover:bg-white
             disabled:opacity-60
-            ${isFavorito(hotel.id_hotel) ? "text-[#8B1E3F]" : "text-gray-600 hover:text-[#8B1E3F]"}
+            ${isFavorito(hotel.id_hotel) ? "text-primary" : "text-muted-foreground hover:text-primary"}
           `}
           aria-label={isFavorito(hotel.id_hotel) ? "Quitar de favoritos" : "Agregar a favoritos"}
           aria-pressed={isFavorito(hotel.id_hotel)}
@@ -297,31 +275,31 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
         {/* -------- INFO COMERCIAL -------- */}
         <div className="min-w-0 flex-1">
           <Link to={`/hotel/${hotel.id_hotel}${searchQuery}`} className="block">
-            <h3 className="text-base font-bold leading-tight text-gray-900 group-hover:text-[#8B1E3F] transition-colors">
+            <h3 className="text-base font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
               {hotel.nombre_hotel}
             </h3>
           </Link>
 
           <div className="mt-1.5 flex items-center gap-2">
-            <span className="rounded-md bg-[#8B1E3F] px-2 py-1 text-xs font-bold text-white">
+            <span className="rounded-md bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">
               {rating.toFixed(1)}
             </span>
 
-            <span className="text-xs font-semibold text-gray-700">{ratingLabel}</span>
+            <span className="text-xs font-semibold text-foreground">{ratingLabel}</span>
 
             {hotel.total_resenas > 0 && (
-              <span className="text-xs text-gray-400">({hotel.total_resenas})</span>
+              <span className="text-xs text-muted-foreground">({hotel.total_resenas})</span>
             )}
 
             <div className="ml-1 flex items-center gap-0.5">
               {Array.from({ length: estrellas }, (_, i) => (
-                <Star key={i} className="h-3 w-3 fill-[#C9A227] text-[#C9A227]" />
+                <Star key={i} className="h-3 w-3 fill-gold text-gold" />
               ))}
             </div>
           </div>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500">
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-[#8B1E3F]" />
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span>
               {hotel.direccion ? `${hotel.direccion} · ` : ""}
               {hotel.ciudad}
@@ -335,7 +313,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
                 e.stopPropagation();
                 window.open(mapsUrl, "_blank", "noopener,noreferrer");
               }}
-              className="inline-flex items-center gap-1 font-semibold text-[#8B1E3F] hover:underline"
+              className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
             >
               <ExternalLink className="h-3 w-3" />
               Ver en mapa
@@ -351,7 +329,7 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
             </span>
 
             {habitacionDestacada && (
-              <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-gray-500">
+              <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                 <Users className="h-3 w-3" />
                 Hasta {habitacionDestacada.tipo_habitacion?.capacidad_personas ?? 2} personas
               </span>
@@ -367,12 +345,12 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
                 return (
                   <span
                     key={hc.id_caracteristica}
-                    className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 text-[10px] font-medium text-gray-600"
+                    className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground"
                   >
                     {Icon ? (
-                      <Icon className="h-3 w-3 text-[#8B1E3F]" />
+                      <Icon className="h-3 w-3 text-primary" />
                     ) : (
-                      <Check className="h-3 w-3 text-[#008f6b]" />
+                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                     )}
                     {nombre}
                   </span>
@@ -383,31 +361,31 @@ export default function HotelCard({ hotel, index = 0 }: HotelCardProps) {
         </div>
 
         {/* -------- PRECIO / CTA -------- */}
-        <div className="flex shrink-0 flex-row items-end justify-between gap-3 border-t border-gray-100 pt-3 md:w-[152px] md:flex-col md:items-end md:justify-start md:gap-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
+        <div className="flex shrink-0 flex-row items-end justify-between gap-3 border-t border-border pt-3 md:w-[152px] md:flex-col md:items-end md:justify-start md:gap-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
           {precioMin ? (
             <div className="md:text-right">
-              <p className="text-[10px] text-gray-400">Desde · por noche</p>
+              <p className="text-[10px] text-muted-foreground">Desde · por noche</p>
 
               <div className="flex items-baseline gap-1 md:justify-end">
-                <span className="text-sm font-medium text-gray-700">$</span>
-                <span className="text-lg font-extrabold tracking-tight text-[#8B1E3F]">
+                <span className="text-sm font-medium text-foreground">$</span>
+                <span className="text-lg font-extrabold tracking-tight text-primary">
                   {precioMin.toLocaleString("es-CO")}
                 </span>
               </div>
 
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-muted-foreground">
                 {habitacionDestacada?.tipo_habitacion?.nombre_tipo ?? "Habitación estándar"}
               </p>
             </div>
           ) : (
-            <p className="text-xs font-medium text-gray-500 md:text-right">
+            <p className="text-xs font-medium text-muted-foreground md:text-right">
               Consulta otras fechas
             </p>
           )}
 
           <Link
             to={`/hotel/${hotel.id_hotel}${searchQuery}`}
-            className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-[#8B1E3F] px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-[#71182F]"
+            className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90"
           >
             Ver hotel
             <ChevronRight className="h-4 w-4" />
