@@ -16,6 +16,7 @@ import {
   MapPin,
   PawPrint,
   PlaneTakeoff,
+  Quote,
   Share,
   ShieldCheck,
   Sparkles,
@@ -41,6 +42,7 @@ import {
   HabitacionFechasOcupadas,
   hotelService,
 } from "../services/hotel.service";
+import { resenaService, ResenaResponse } from "../services/resena.service";
 
 // ── Mapa de íconos de características con colores semánticos basados en tu tema ──
 const CARACTERISTICA_ICONS: Record<
@@ -87,13 +89,63 @@ const CITY_IMAGES: Record<string, string> = {
 const DEFAULT_IMAGE =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&q=80";
 
-// Imágenes genéricas de lujo para la galería Bento Grid
-const GALLERY_FILLERS = [
-  "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80",
-  "https://images.unsplash.com/photo-1542314831-c6a4d140f6c2?w=800&q=80",
-  "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=800&q=80",
-  "https://images.unsplash.com/photo-1590490359683-658d34c8f90f?w=800&q=80",
+// Galería de la ficha del hotel: antes eran 4 URLs genéricas IDÉNTICAS para
+// TODOS los hoteles (GALLERY_FILLERS) -- una de ellas apuntaba a un ID de
+// Unsplash que ya ni existe (404), lo que se veía como el ícono roto de
+// "Instalaciones" que reportó el usuario. Ahora cada hotel arma su propia
+// galería de 4 fotos reales, verificadas una por una abriéndolas antes de
+// guardarlas (mismo criterio que las fotos principales, ver alembic/versions/
+// 7972baf77f44_corregir_fotos_hoteles_demo.py):
+//   1. Si ya se verificó una pareja de fotos propias de ese hotel
+//      (HOTEL_EXTRA_PHOTOS), se usan primero.
+//   2. El resto de la galería (o toda, si el hotel no tiene fotos propias)
+//      se completa con AMENITY_POOL -- fotos reales de instalaciones de
+//      hotel genéricas (piscina, restaurante, recepción, spa, gimnasio,
+//      terraza), elegidas de forma determinística según id_hotel para que
+//      cada hotel muestre siempre la misma combinación y hoteles distintos
+//      no luzcan idénticos entre sí.
+const AMENITY_POOL = [
+  "https://images.unsplash.com/photo-1743525922686-badbeac16a34?w=800&q=80", // piscina
+  "https://images.unsplash.com/photo-1695094411862-0e047fbddcb1?w=800&q=80", // restaurante
+  "https://images.unsplash.com/photo-1660557989695-14fac79c086d?w=800&q=80", // recepción
+  "https://images.unsplash.com/photo-1778331246390-2b91f56864e4?w=800&q=80", // spa
+  "https://images.unsplash.com/photo-1716367840407-f9414a84b325?w=800&q=80", // gimnasio
+  "https://images.unsplash.com/photo-1777113310184-140ff530f4dd?w=800&q=80", // terraza
 ];
+
+const HOTEL_EXTRA_PHOTOS: Record<string, string[]> = {
+  "Hotel Paraiso": [
+    "https://images.unsplash.com/photo-1777169794972-12095816073b?w=800&q=80",
+    "https://images.unsplash.com/photo-1777180249046-abf7d640e0d9?w=800&q=80",
+  ],
+  "Resort Sol y Arena": [
+    "https://images.unsplash.com/photo-1729605411476-defbdab14c54?w=800&q=80",
+    "https://images.unsplash.com/photo-1619329268107-5aba62ca4528?w=800&q=80",
+  ],
+  "Montana Magica": [
+    "https://images.unsplash.com/photo-1696860740767-f4211c9209f4?w=800&q=80",
+    "https://images.unsplash.com/photo-1783295541977-a3d9331e2378?w=800&q=80",
+  ],
+  "Gran Hotel Centro": [
+    "https://images.unsplash.com/photo-1758193783649-13371d7fb8dd?w=800&q=80",
+    "https://images.unsplash.com/photo-1744025098626-66c0b9cb1ba8?w=800&q=80",
+  ],
+  "Cabanas del Bosque": [
+    "https://images.unsplash.com/photo-1782846484501-d4b1c5b57953?w=800&q=80",
+  ],
+};
+
+function getGalleryImages(hotel: HotelDetailResponse): string[] {
+  const propias = HOTEL_EXTRA_PHOTOS[hotel.nombre_hotel] ?? [];
+  const faltan = 4 - propias.length;
+  if (faltan <= 0) return propias.slice(0, 4);
+  const inicio = hotel.id_hotel % AMENITY_POOL.length;
+  const relleno: string[] = [];
+  for (let i = 0; i < AMENITY_POOL.length && relleno.length < faltan; i++) {
+    relleno.push(AMENITY_POOL[(inicio + i) % AMENITY_POOL.length]);
+  }
+  return [...propias, ...relleno];
+}
 
 // La API no guarda foto por habitación individual, así que usamos un pool
 // determinístico de fotos de habitación reales (mismo id -> misma foto siempre).
@@ -133,6 +185,14 @@ function formatFechaCorta(iso: string): string {
   return `${m[3]} ${MESES_CORTOS[Number(m[2]) - 1] ?? m[2]}`;
 }
 
+// yyyy-mm-dd... → "10 jul 2026" -- para reseñas sí importa el año (pueden
+// ser de hace tiempo), a diferencia de las fechas de ocupación de arriba.
+function formatFechaResena(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  return `${m[3]} ${MESES_CORTOS[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
+}
+
 export default function HotelDetail() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -146,6 +206,9 @@ export default function HotelDetail() {
   // estático "disponible/ocupada" de cada habitación, sin saber para qué
   // fechas concretas ya estaba reservada.
   const [fechasOcupadas, setFechasOcupadas] = useState<HabitacionFechasOcupadas[]>([]);
+  // Reseñas reales de huéspedes (GET /resenas/hotel/{id}) -- antes esta
+  // página no mostraba ninguna, aunque el backend ya las tenía listas.
+  const [resenas, setResenas] = useState<ResenaResponse[]>([]);
   // Habitaciones cuyo calendario de ocupación está desplegado (por id).
   const [calendariosAbiertos, setCalendariosAbiertos] = useState<Set<number>>(new Set());
   const toggleCalendario = (idHabitacion: number) =>
@@ -167,6 +230,10 @@ export default function HotelDetail() {
       .getFechasOcupadas(parseInt(id))
       .then(setFechasOcupadas)
       .catch(() => setFechasOcupadas([]));
+    resenaService
+      .getByHotel(parseInt(id))
+      .then(setResenas)
+      .catch(() => setResenas([]));
   }, [id]);
 
   // Antes esta página (y todas las demás) compartían el mismo <title>
@@ -224,6 +291,7 @@ export default function HotelDetail() {
   // Foto real del hotel si el admin ya subió una, si no la imagen
   // genérica por ciudad de siempre (ver HotelCard.tsx, mismo criterio).
   const imagen = (hotel.imagen_url && resolveFotoUrl(hotel.imagen_url)) || getImage(hotel.ciudad ?? "");
+  const galeria = getGalleryImages(hotel);
   const habitacionesDisponibles =
     hotel.habitaciones?.filter((h) => h.estado === "disponible") ?? [];
   const precioMin = habitacionesDisponibles.length
@@ -344,7 +412,7 @@ export default function HotelDetail() {
           </div>
 
           {/* Galería de Imágenes (Estilo Bento Grid) */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-10 h-[45vh] md:h-[55vh] rounded-2xl overflow-hidden group">
+          <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 mb-10 h-[45vh] md:h-[55vh] rounded-2xl overflow-hidden group">
             <div className="md:col-span-2 md:row-span-2 relative overflow-hidden h-full">
               <img
                 src={imagen}
@@ -355,7 +423,7 @@ export default function HotelDetail() {
                 }}
               />
             </div>
-            {GALLERY_FILLERS.map((img, idx) => (
+            {galeria.map((img, idx) => (
               <div
                 key={idx}
                 className="hidden md:block relative overflow-hidden h-full"
@@ -603,6 +671,75 @@ export default function HotelDetail() {
                     })}
                   </div>
                 </section>
+              )}
+
+              {resenas.length > 0 && (
+                <>
+                  <hr className="border-border" />
+
+                  {/* Reseñas de huéspedes — dato real (GET
+                      /resenas/hotel/{id}), nunca inventado: si el hotel
+                      todavía no tiene reseñas, la sección completa no se
+                      muestra en vez de simularlas. */}
+                  <section>
+                    <div className="flex items-center gap-3 mb-6">
+                      <div>
+                        <h2 className="text-2xl font-semibold">
+                          Reseñas de huéspedes
+                        </h2>
+                        {hotel.calificacion_promedio != null && (
+                          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
+                            <Star className="w-4 h-4 fill-chart-2 text-chart-2" />
+                            <span className="font-semibold text-foreground">
+                              {hotel.calificacion_promedio.toFixed(1)}
+                            </span>
+                            · {hotel.total_resenas}{" "}
+                            {hotel.total_resenas === 1 ? "reseña" : "reseñas"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {resenas.slice(0, 6).map((r) => (
+                        <div
+                          key={r.id_resena}
+                          className="p-5 rounded-2xl border border-border bg-card"
+                        >
+                          <div className="flex items-center gap-3 mb-3">
+                            <img
+                              src={
+                                r.foto_url ||
+                                `https://ui-avatars.com/api/?background=random&name=${encodeURIComponent(r.nombre_cliente ?? "Huésped")}`
+                              }
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">
+                                {r.nombre_cliente ?? "Huésped AlecTours"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatFechaResena(r.fecha_creacion)}
+                              </p>
+                            </div>
+                            <div className="ml-auto flex gap-0.5 shrink-0">
+                              {Array.from({ length: 5 }, (_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-3.5 h-3.5 ${i < r.calificacion ? "fill-chart-2 text-chart-2" : "fill-muted text-muted"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            <Quote className="w-3.5 h-3.5 inline mr-1.5 text-primary/40 -mt-1" />
+                            {r.comentario}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </>
               )}
 
               <hr className="border-border" />
