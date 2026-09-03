@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   CheckCircle2,
   Clock,
   Hotel as HotelIcon,
@@ -9,25 +10,32 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import Navbar from "../components/Navbar";
+import { resolveFotoUrl } from "../components/admin/types";
 import {
   PaqueteDetalleResponse,
+  PaqueteHotelDetalle,
+  PaqueteServicioDetalle,
   paqueteService,
 } from "../services/paquete.service";
 
-// La API no guarda una foto para el paquete, así que usamos un pool de fotos
-// reales por ciudad (mismo patrón que HotelDetail.tsx) — nunca inventamos
+// Fotos reales por ciudad, solo como respaldo cuando ningún hotel del
+// paquete tiene foto propia todavía (ver getHotelImage) -- nunca inventamos
 // datos, solo elegimos una foto ilustrativa del destino real del paquete.
+// Mismas fotos ya verificadas visualmente una por una que usan
+// HotelCard.tsx/HotelDetail.tsx (antes esta lista tenía varias equivocadas,
+// heredadas de la misma tanda sin verificar que causó el bug de fotos de
+// hoteles: ver alembic/versions/7972baf77f44_corregir_fotos_hoteles_demo.py).
 const CITY_IMAGES: Record<string, string> = {
-  cartagena: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80",
-  "santa marta": "https://images.unsplash.com/photo-1596402184320-417e7178b2cd?w=1400&q=80",
-  medellín: "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1400&q=80",
-  medellin: "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1400&q=80",
+  cartagena: "https://images.unsplash.com/photo-1658591049748-4937f0a9051a?w=1400&q=80",
+  "santa marta": "https://images.unsplash.com/photo-1788184851263-f832bf6c76f3?w=1400&q=80",
+  medellín: "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1400&q=80",
+  medellin: "https://images.unsplash.com/photo-1570793005386-840846445fed?w=1400&q=80",
   bogotá: "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1400&q=80",
   bogota: "https://images.unsplash.com/photo-1605723517503-3cadb5818a0c?w=1400&q=80",
-  cali: "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=1400&q=80",
-  salento: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=1400&q=80",
-  "villa de leyva": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&q=80",
-  barranquilla: "https://images.unsplash.com/photo-1519451241324-20b4ea2c4220?w=1400&q=80",
+  cali: "https://images.unsplash.com/photo-1758165532022-a68f291317ba?w=1400&q=80",
+  salento: "https://images.unsplash.com/photo-1749063240369-391a2e82dc04?w=1400&q=80",
+  "villa de leyva": "https://images.unsplash.com/photo-1788203816802-5fa9a5086f27?w=1400&q=80",
+  barranquilla: "https://images.unsplash.com/photo-1564399331650-bbfe2aac0a04?w=1400&q=80",
   "san andrés": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1400&q=80",
   "san andres": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1400&q=80",
 };
@@ -37,6 +45,32 @@ const DEFAULT_IMAGE =
 function getImage(ciudad?: string | null) {
   if (!ciudad) return DEFAULT_IMAGE;
   return CITY_IMAGES[ciudad.toLowerCase().trim()] ?? DEFAULT_IMAGE;
+}
+
+// Antes esta página siempre mostraba una foto genérica por ciudad, incluso
+// para paquetes cuyo hotel real ya tiene una foto propia y correcta en la
+// base de datos (Hotel.imagen_url) -- la ruta /paquetes/{id}/detalle ya
+// carga el hotel completo, así que ahora se usa esa foto real primero.
+function getHotelImage(hotel?: PaqueteHotelDetalle): string {
+  return resolveFotoUrl(hotel?.imagen_url) ?? getImage(hotel?.ciudad);
+}
+
+// Agrupa los servicios reales del paquete por día (PaqueteServicio.dia_actividad)
+// para armar un itinerario día a día -- antes se mostraban todos en una sola
+// lista plana sin ningún orden temporal, indistinguible de un simple listado
+// de "servicios de hotel".
+function agruparPorDia(servicios: PaqueteServicioDetalle[]) {
+  const grupos = new Map<number | null, PaqueteServicioDetalle[]>();
+  for (const s of servicios) {
+    const key = s.dia_actividad ?? null;
+    if (!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key)!.push(s);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => {
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return a - b;
+  });
 }
 
 export default function PackageDetail() {
@@ -94,20 +128,27 @@ export default function PackageDetail() {
   }
 
   const destinoPrincipal = pkg.destinos[0] ?? pkg.hoteles[0]?.ciudad ?? pkg.nombre_paquete;
-  const heroImage = getImage(pkg.hoteles[0]?.ciudad ?? pkg.destinos[0]);
-  const heroPais = pkg.hoteles[0]?.pais ?? "Colombia";
+  const heroHotel = pkg.hoteles[0];
+  const heroImage = heroHotel ? getHotelImage(heroHotel) : getImage(pkg.destinos[0]);
+  const heroPais = heroHotel?.pais ?? "Colombia";
+  const itinerario = agruparPorDia(pkg.servicios);
 
   return (
     <div className="min-h-screen bg-background transition-colors duration-200">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header Image */}
+        {/* Header Image — ahora la foto real del hotel incluido en el
+            paquete (Hotel.imagen_url) en vez de una foto genérica por
+            ciudad, la misma que ya se corrigió en el detalle del hotel. */}
         <div className="relative h-96 md:h-[500px] rounded-3xl overflow-hidden mb-8">
           <img
             src={heroImage}
             alt={destinoPrincipal ?? pkg.nombre_paquete}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = DEFAULT_IMAGE;
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
@@ -155,21 +196,55 @@ export default function PackageDetail() {
               </section>
             )}
 
-            {/* What's Included — datos reales de servicios del paquete */}
+            {/* Itinerario — antes había un checklist plano de "¿Qué
+                incluye?" sin ningún orden; ahora se agrupa por día real
+                (PaqueteServicio.dia_actividad) para que se sienta como un
+                itinerario de viaje, no como el listado de amenidades de un
+                hotel. */}
             <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-              <h2 className="text-2xl font-bold text-foreground mb-6">
-                ¿Qué incluye?
-              </h2>
-              {pkg.servicios.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pkg.servicios.map((servicio, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                      <div>
-                        <span className="text-foreground font-medium">{servicio.nombre_servicio}</span>
-                        {servicio.categoria && (
-                          <span className="block text-xs text-muted-foreground">{servicio.categoria}</span>
-                        )}
+              <div className="flex items-center gap-3 mb-6">
+                <CalendarDays className="w-6 h-6 text-primary" />
+                <h2 className="text-2xl font-bold text-foreground">Itinerario del viaje</h2>
+              </div>
+              {itinerario.length > 0 ? (
+                <div className="space-y-6">
+                  {itinerario.map(([dia, items], idx) => (
+                    <div
+                      key={dia ?? "sin-dia"}
+                      className={`relative pl-7 ${idx < itinerario.length - 1 ? "pb-6 border-l-2 border-primary/15" : ""}`}
+                    >
+                      <span className="absolute -left-[7px] top-0 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/10" />
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-primary mb-3">
+                        {dia != null ? `Día ${dia}` : "Otros servicios incluidos"}
+                      </h3>
+                      <div className="space-y-3">
+                        {items.map((servicio) => (
+                          <div key={servicio.id_servicio} className="flex items-start gap-3">
+                            <CheckCircle2
+                              className={`w-5 h-5 flex-shrink-0 mt-0.5 ${servicio.incluido ? "text-primary" : "text-muted-foreground/50"}`}
+                            />
+                            <div>
+                              <span className="text-foreground font-medium">
+                                {servicio.nombre_servicio}
+                              </span>
+                              {!servicio.incluido && (
+                                <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                  Opcional
+                                </span>
+                              )}
+                              {servicio.categoria && (
+                                <span className="block text-xs text-muted-foreground">
+                                  {servicio.categoria}
+                                </span>
+                              )}
+                              {servicio.descripcion && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {servicio.descripcion}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -181,7 +256,9 @@ export default function PackageDetail() {
               )}
             </section>
 
-            {/* Accommodation — hoteles reales asociados al paquete */}
+            {/* Accommodation — hoteles reales asociados al paquete, ahora
+                con su foto real (antes solo texto: nombre, ciudad,
+                estrellas y características, sin ninguna imagen). */}
             {pkg.hoteles.length > 0 && (
               <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
                 <div className="flex items-center gap-3 mb-6">
@@ -190,40 +267,63 @@ export default function PackageDetail() {
                 </div>
                 <div className="space-y-6">
                   {pkg.hoteles.map((hotel, index) => (
-                    <div key={index} className={index > 0 ? "pt-6 border-t border-border/60" : ""}>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <h3 className="text-xl font-semibold text-foreground">{hotel.nombre_hotel}</h3>
-                        {hotel.noches_incluidas && (
-                          <span className="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
-                            {hotel.noches_incluidas} {hotel.noches_incluidas === 1 ? "noche incluida" : "noches incluidas"}
-                          </span>
+                    <div
+                      key={hotel.id_hotel}
+                      className={`flex gap-4 ${index > 0 ? "pt-6 border-t border-border/60" : ""}`}
+                    >
+                      <Link
+                        to={`/hotel/${hotel.id_hotel}`}
+                        className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 rounded-xl overflow-hidden bg-muted block"
+                      >
+                        <img
+                          src={getHotelImage(hotel)}
+                          alt={hotel.nombre_hotel}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = DEFAULT_IMAGE;
+                          }}
+                        />
+                      </Link>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                          <Link
+                            to={`/hotel/${hotel.id_hotel}`}
+                            className="text-xl font-semibold text-foreground hover:text-primary transition-colors"
+                          >
+                            {hotel.nombre_hotel}
+                          </Link>
+                          {hotel.noches_incluidas && (
+                            <span className="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
+                              {hotel.noches_incluidas} {hotel.noches_incluidas === 1 ? "noche incluida" : "noches incluidas"}
+                            </span>
+                          )}
+                        </div>
+                        {(hotel.ciudad || hotel.pais) && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mb-3">
+                            <MapPin className="w-3.5 h-3.5" />
+                            {[hotel.ciudad, hotel.pais].filter(Boolean).join(", ")}
+                          </p>
+                        )}
+                        {hotel.calificacion && (
+                          <div className="flex gap-1 mb-3">
+                            {Array.from({ length: hotel.calificacion }).map((_, i) => (
+                              <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                            ))}
+                          </div>
+                        )}
+                        {hotel.caracteristicas.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {hotel.caracteristicas.map((amenity, i) => (
+                              <span
+                                key={i}
+                                className="px-3 py-1.5 bg-muted text-muted-foreground rounded-full text-xs font-medium"
+                              >
+                                {amenity}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      {(hotel.ciudad || hotel.pais) && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mb-3">
-                          <MapPin className="w-3.5 h-3.5" />
-                          {[hotel.ciudad, hotel.pais].filter(Boolean).join(", ")}
-                        </p>
-                      )}
-                      {hotel.calificacion && (
-                        <div className="flex gap-1 mb-4">
-                          {Array.from({ length: hotel.calificacion }).map((_, i) => (
-                            <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                          ))}
-                        </div>
-                      )}
-                      {hotel.caracteristicas.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {hotel.caracteristicas.map((amenity, i) => (
-                            <span
-                              key={i}
-                              className="px-3 py-1.5 bg-muted text-muted-foreground rounded-full text-xs font-medium"
-                            >
-                              {amenity}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -267,11 +367,15 @@ export default function PackageDetail() {
                     <span className="font-medium text-foreground">{pkg.duracion_dias} días</span>
                   </div>
                 )}
-                {pkg.hoteles[0] && (
+                {pkg.hoteles.length > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Hotel</span>
+                    <span className="text-muted-foreground">Hospedaje</span>
                     <span className="font-medium text-foreground">
-                      {pkg.hoteles[0].calificacion ? `${pkg.hoteles[0].calificacion} estrellas` : pkg.hoteles[0].nombre_hotel}
+                      {pkg.hoteles.length === 1
+                        ? (pkg.hoteles[0].calificacion
+                            ? `${pkg.hoteles[0].calificacion} estrellas`
+                            : pkg.hoteles[0].nombre_hotel)
+                        : `${pkg.hoteles.length} hoteles incluidos`}
                     </span>
                   </div>
                 )}
@@ -283,22 +387,26 @@ export default function PackageDetail() {
                 )}
               </div>
 
-              {pkg.hoteles[0] ? (
+              {pkg.hoteles.length > 0 ? (
                 // El checkout real reserva una habitación específica de un
-                // hotel (ver Checkout.tsx: espera un id_hotel + ?habitacion=).
-                // Antes este botón enlazaba a `/checkout/${pkg.id_paquete}`
-                // — un id de PAQUETE tratado como si fuera un id de HOTEL —
-                // lo que hacía que, al no encontrar la habitación esperada,
-                // Checkout terminara redirigiendo a un /hotel/{id} que ni
-                // siquiera correspondía al hotel real del paquete. Ahora se
-                // manda al hotel real incluido en el paquete para elegir
-                // habitación y fecha por el flujo que sí funciona.
-                <Link
-                  to={`/hotel/${pkg.hoteles[0].id_hotel}`}
-                  className="block w-full py-4 bg-primary text-primary-foreground text-center font-semibold rounded-xl hover:opacity-90 transition-all duration-300 mb-4"
-                >
-                  Ver hotel y reservar
-                </Link>
+                // hotel (ver Checkout.tsx: espera un id_hotel + ?habitacion=)
+                // -- todavía no existe un checkout a nivel de PAQUETE, así
+                // que cada hotel incluido manda a su propio flujo real de
+                // elegir habitación y fecha en vez de simular una reserva
+                // de "paquete completo" que el backend no soporta.
+                <div className="space-y-2 mb-4">
+                  {pkg.hoteles.map((hotel) => (
+                    <Link
+                      key={hotel.id_hotel}
+                      to={`/hotel/${hotel.id_hotel}`}
+                      className="block w-full py-3.5 px-4 bg-primary text-primary-foreground text-center font-semibold rounded-xl hover:opacity-90 transition-all duration-300"
+                    >
+                      {pkg.hoteles.length > 1
+                        ? `Reservar en ${hotel.nombre_hotel}`
+                        : "Ver hotel y reservar"}
+                    </Link>
+                  ))}
+                </div>
               ) : (
                 <div className="w-full py-4 bg-muted text-muted-foreground text-center font-semibold rounded-xl mb-4">
                   Reserva disponible próximamente

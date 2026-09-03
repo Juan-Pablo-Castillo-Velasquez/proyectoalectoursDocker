@@ -35,6 +35,9 @@ export interface PaqueteHotelDetalle {
   calificacion: number | null;
   noches_incluidas: number | null;
   caracteristicas: string[];
+  // Foto real del hotel (Hotel.imagen_url) -- antes la ficha de paquete no
+  // la pedía y usaba una foto genérica por ciudad en su lugar.
+  imagen_url: string | null;
 }
 
 export interface PaqueteServicioDetalle {
