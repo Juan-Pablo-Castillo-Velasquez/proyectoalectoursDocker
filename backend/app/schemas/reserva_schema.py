@@ -76,6 +76,11 @@ class PaqueteHotelDetalle(BaseModel):
     calificacion: int | None = None
     noches_incluidas: int | None = None
     caracteristicas: list[str] = []
+    # Antes la ficha de paquete usaba una foto genérica por ciudad
+    # (CITY_IMAGES en el frontend) en vez de la foto real del hotel incluido
+    # -- ya se cargaba el objeto Hotel completo acá mismo (ver
+    # get_paquete_detalle), así que exponerla es solo este campo.
+    imagen_url: str | None = None
 
 
 class PaqueteServicioDetalle(BaseModel):

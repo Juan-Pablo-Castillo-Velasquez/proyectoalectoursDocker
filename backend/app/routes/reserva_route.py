@@ -235,6 +235,7 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
             pais=ph.hotel.pais,
             calificacion=ph.hotel.calificacion,
             noches_incluidas=ph.noches_incluidas,
+            imagen_url=ph.hotel.imagen_url,
             caracteristicas=sorted(
                 {
                     hc.caracteristica.nombre_caracteristica
