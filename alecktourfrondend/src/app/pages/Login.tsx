@@ -33,6 +33,7 @@ export default function Login() {
         user_id: res.user_id,
         id_cliente: res.id_cliente,
         roles: res.roles ?? [],
+        foto_perfil: res.foto_perfil,
       });
       toast.success(`¡Bienvenido, ${res.username ?? formData.username}!`);
       const roles = res.roles ?? [];

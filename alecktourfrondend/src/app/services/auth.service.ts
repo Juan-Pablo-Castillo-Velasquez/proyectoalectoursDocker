@@ -31,6 +31,11 @@ export interface AuthResponse {
   username?: string;
   id_cliente?: number;
   roles?: string[];
+  // El backend ya lo devuelve (ver login_user en auth_service.py) — faltaba
+  // declararlo aquí, así que LoginModal.tsx/Login.tsx nunca lo leían y la
+  // foto de perfil desaparecía de la sesión con cada login nuevo, aunque
+  // siguiera guardada en la base de datos.
+  foto_perfil?: string | null;
 }
 
 async function authFetch<T>(endpoint: string, body: object): Promise<T> {
