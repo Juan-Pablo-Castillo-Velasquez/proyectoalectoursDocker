@@ -62,9 +62,17 @@ def guardar_imagen(contenido: bytes, extension: str, *, carpeta: str, public_pat
     identificador = uuid.uuid4().hex
 
     if CLOUDINARY_CONFIGURADO:
+        # "folder" (no un public_id con "/" a mano) es lo que de verdad
+        # crea la carpeta visible en el Media Library — las cuentas nuevas
+        # de Cloudinary usan "Dynamic Folder Mode" por defecto, donde un
+        # public_id con barras se guarda tal cual (un nombre largo con
+        # barras) pero NO arma ninguna carpeta real; hallazgo real de esta
+        # cuenta (ver conversación): la primera prueba subió la foto sin
+        # ninguna carpeta "alectours" en el Media Library.
         resultado = cloudinary.uploader.upload(
             contenido,
-            public_id=f"alectours/{carpeta}/{identificador}",
+            folder=f"alectours/{carpeta}",
+            public_id=identificador,
             resource_type="image",
             overwrite=False,
         )
@@ -111,6 +119,12 @@ def borrar_imagen(url: str | None, *, carpeta: str, public_path_prefix: str) -> 
             return
         public_id = _public_id_desde_url_cloudinary(url)
         if public_id:
+            # Nota: en cuentas con "Dynamic Folder Mode" (todas las nuevas,
+            # ver guardar_imagen arriba) Cloudinary puede esperar el
+            # public_id SIN el prefijo de carpeta para destroy(). Si esto
+            # no borra el archivo viejo, no falla nada (try/except lo
+            # traga) — solo queda una imagen huérfana en Cloudinary, sin
+            # impacto funcional para la app.
             with contextlib.suppress(Exception):
                 cloudinary.uploader.destroy(public_id, resource_type="image")
         return
