@@ -2,9 +2,11 @@ import { ChevronLeft, ChevronRight, MapPin, Package as PackageIcon, Search } fro
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import BannersPromocionales from "../components/BannersPromocionales";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import PackageResultCard from "../components/PackageResultCard";
+import PaquetesDestacadosCarousel from "../components/PaquetesDestacadosCarousel";
 import { useSeoMeta } from "../hooks/useSeoMeta";
 import { PaqueteResponse, paqueteService } from "../services/paquete.service";
 
@@ -46,6 +48,14 @@ export default function Packages() {
     return 0;
   });
 
+  // Paquetes destacados del carrusel superior: los de mayor precio base
+  // (suelen ser los planes más completos/largos), tope de 8 para que el
+  // carrusel no se sienta interminable -- son los mismos paquetes reales
+  // de abajo, no un contenido aparte.
+  const destacados = [...paquetes]
+    .sort((a, b) => b.precio_base - a.precio_base)
+    .slice(0, 8);
+
   const totalPaginas = Math.max(1, Math.ceil(ordenados.length / RESULTADOS_POR_PAGINA));
   const paginaActual = Math.min(pagina, totalPaginas);
   const paginados = ordenados.slice(
@@ -56,6 +66,7 @@ export default function Packages() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
+      <BannersPromocionales />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <motion.div
@@ -82,6 +93,8 @@ export default function Packages() {
               : `${ordenados.length} ${ordenados.length === 1 ? "paquete disponible" : "paquetes disponibles"}`}
           </p>
         </motion.div>
+
+        {!loading && destacados.length > 0 && <PaquetesDestacadosCarousel paquetes={destacados} />}
 
         {!loading && ordenados.length > 0 && (
           <div className="flex items-center justify-end gap-2 mb-4">
