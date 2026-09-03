@@ -1,16 +1,20 @@
 import {
+  Bus,
   CalendarDays,
   CheckCircle2,
   Clock,
   Hotel as HotelIcon,
   MapPin,
+  Plane,
   Sparkles,
   Star,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import HotelCard from "../components/HotelCard";
 import Navbar from "../components/Navbar";
 import { resolveFotoUrl } from "../components/admin/types";
+import { HotelDetailResponse, hotelService } from "../services/hotel.service";
 import {
   PaqueteDetalleResponse,
   PaqueteHotelDetalle,
@@ -73,22 +77,65 @@ function agruparPorDia(servicios: PaqueteServicioDetalle[]) {
   });
 }
 
+// El usuario reportó que un paquete con solo un hotel y una actividad se
+// sentía vacío/incompleto -- varios paquetes demo en efecto no tenían
+// ningún tramo de transporte real en la base de datos (ver migración
+// 4f7efe4c291c_agregar_transporte_a_paquetes.py, que agrega uno con
+// categoría "Transporte" a cada uno de esos paquetes). Estos separan esos
+// servicios del resto de la lista para darles su propia sección visible,
+// en vez de perderse mezclados entre tours y entradas.
+function esTransporte(servicio: PaqueteServicioDetalle): boolean {
+  return servicio.categoria?.toLowerCase() === "transporte";
+}
+
+// Ícono según el tipo real de transporte (a partir del nombre del
+// servicio, ej. "Vuelo Bogotá - San Andrés") -- nunca asumimos un solo
+// ícono para todos los tramos, ya que un paquete puede combinar vuelos con
+// traslados terrestres.
+function getTransporteIcon(nombreServicio: string) {
+  const esAereo = /vuelo|aére|aere|avioneta/i.test(nombreServicio);
+  return esAereo ? Plane : Bus;
+}
+
 export default function PackageDetail() {
   const { id } = useParams();
   const [pkg, setPkg] = useState<PaqueteDetalleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // Ficha completa de cada hotel del paquete (con habitaciones, reseñas y
+  // características reales) -- PaqueteHotelDetalle solo trae lo básico, y
+  // la sección "Hospedaje" reutiliza el mismo HotelCard.tsx de los
+  // resultados de búsqueda para que un hotel se vea IGUAL ahí que acá
+  // (pedido explícito: "quiero que reutilice componentes"). Se guarda por
+  // id_hotel porque el fetch es independiente del orden en que resuelvan.
+  const [hotelesDetalle, setHotelesDetalle] = useState<Record<number, HotelDetailResponse>>({});
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setNotFound(false);
+    setHotelesDetalle({});
     paqueteService
       .getDetalle(parseInt(id))
       .then(setPkg)
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!pkg) return;
+    pkg.hoteles.forEach((hotel) => {
+      hotelService
+        .getById(hotel.id_hotel)
+        .then((detalle) =>
+          setHotelesDetalle((prev) => ({ ...prev, [hotel.id_hotel]: detalle }))
+        )
+        .catch(() => {
+          // Si un hotel puntual falla, HotelCard sigue mostrando su
+          // skeleton de carga en vez de romper el resto de la página.
+        });
+    });
+  }, [pkg]);
 
   if (loading) {
     return (
@@ -131,7 +178,9 @@ export default function PackageDetail() {
   const heroHotel = pkg.hoteles[0];
   const heroImage = heroHotel ? getHotelImage(heroHotel) : getImage(pkg.destinos[0]);
   const heroPais = heroHotel?.pais ?? "Colombia";
-  const itinerario = agruparPorDia(pkg.servicios);
+  const transportes = pkg.servicios.filter(esTransporte);
+  const actividades = pkg.servicios.filter((s) => !esTransporte(s));
+  const itinerario = agruparPorDia(actividades);
 
   return (
     <div className="min-h-screen bg-background transition-colors duration-200">
@@ -256,9 +305,63 @@ export default function PackageDetail() {
               )}
             </section>
 
-            {/* Accommodation — hoteles reales asociados al paquete, ahora
-                con su foto real (antes solo texto: nombre, ciudad,
-                estrellas y características, sin ninguna imagen). */}
+            {/* Transporte incluido — antes los tramos de transporte (si
+                existían) se perdían mezclados en el checklist plano de
+                servicios, indistinguibles de un tour o una entrada. Ahora
+                tienen su propia sección, igual de visible que Hospedaje. */}
+            {transportes.length > 0 && (
+              <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <Bus className="w-6 h-6 text-primary" />
+                  <h2 className="text-2xl font-bold text-foreground">Transporte incluido</h2>
+                </div>
+                <div className="space-y-4">
+                  {transportes.map((transporte) => {
+                    const IconoTransporte = getTransporteIcon(transporte.nombre_servicio);
+                    return (
+                      <div
+                        key={transporte.id_servicio}
+                        className="flex items-start gap-4 p-4 rounded-xl bg-muted/40"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <IconoTransporte className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-foreground">
+                              {transporte.nombre_servicio}
+                            </span>
+                            {transporte.dia_actividad != null && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                Día {transporte.dia_actividad}
+                              </span>
+                            )}
+                            {!transporte.incluido && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                Opcional
+                              </span>
+                            )}
+                          </div>
+                          {transporte.descripcion && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {transporte.descripcion}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Accommodation — hoteles reales asociados al paquete. Ahora
+                reutiliza el mismo HotelCard.tsx de los resultados de
+                búsqueda (con su foto real, calificación de reseñas reales,
+                características y precio desde la habitación más barata)
+                en vez de una tarjeta propia y más pobre -- así un hotel
+                dentro de un paquete se ve y se siente igual que un hotel
+                normal, como pidió el usuario. */}
             {pkg.hoteles.length > 0 && (
               <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
                 <div className="flex items-center gap-3 mb-6">
@@ -269,61 +372,16 @@ export default function PackageDetail() {
                   {pkg.hoteles.map((hotel, index) => (
                     <div
                       key={hotel.id_hotel}
-                      className={`flex gap-4 ${index > 0 ? "pt-6 border-t border-border/60" : ""}`}
+                      className={index > 0 ? "pt-6 border-t border-border/60" : ""}
                     >
-                      <Link
-                        to={`/hotel/${hotel.id_hotel}`}
-                        className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 rounded-xl overflow-hidden bg-muted block"
-                      >
-                        <img
-                          src={getHotelImage(hotel)}
-                          alt={hotel.nombre_hotel}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = DEFAULT_IMAGE;
-                          }}
-                        />
-                      </Link>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                          <Link
-                            to={`/hotel/${hotel.id_hotel}`}
-                            className="text-xl font-semibold text-foreground hover:text-primary transition-colors"
-                          >
-                            {hotel.nombre_hotel}
-                          </Link>
-                          {hotel.noches_incluidas && (
-                            <span className="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
-                              {hotel.noches_incluidas} {hotel.noches_incluidas === 1 ? "noche incluida" : "noches incluidas"}
-                            </span>
-                          )}
-                        </div>
-                        {(hotel.ciudad || hotel.pais) && (
-                          <p className="text-sm text-muted-foreground flex items-center gap-1 mb-3">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {[hotel.ciudad, hotel.pais].filter(Boolean).join(", ")}
-                          </p>
-                        )}
-                        {hotel.calificacion && (
-                          <div className="flex gap-1 mb-3">
-                            {Array.from({ length: hotel.calificacion }).map((_, i) => (
-                              <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                            ))}
-                          </div>
-                        )}
-                        {hotel.caracteristicas.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {hotel.caracteristicas.map((amenity, i) => (
-                              <span
-                                key={i}
-                                className="px-3 py-1.5 bg-muted text-muted-foreground rounded-full text-xs font-medium"
-                              >
-                                {amenity}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      {hotel.noches_incluidas && (
+                        <p className="text-xs font-semibold text-primary bg-primary/10 inline-block px-3 py-1 rounded-full mb-3">
+                          {hotel.noches_incluidas}{" "}
+                          {hotel.noches_incluidas === 1 ? "noche incluida" : "noches incluidas"} en{" "}
+                          {hotel.nombre_hotel}
+                        </p>
+                      )}
+                      <HotelCard hotel={hotelesDetalle[hotel.id_hotel]} index={index} />
                     </div>
                   ))}
                 </div>
@@ -376,6 +434,16 @@ export default function PackageDetail() {
                             ? `${pkg.hoteles[0].calificacion} estrellas`
                             : pkg.hoteles[0].nombre_hotel)
                         : `${pkg.hoteles.length} hoteles incluidos`}
+                    </span>
+                  </div>
+                )}
+                {transportes.length > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Transporte</span>
+                    <span className="font-medium text-foreground">
+                      {transportes.length === 1
+                        ? transportes[0].nombre_servicio
+                        : `${transportes.length} tramos incluidos`}
                     </span>
                   </div>
                 )}
