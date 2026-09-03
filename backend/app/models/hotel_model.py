@@ -16,6 +16,13 @@ class Hotel(Base):
     codigo_postal = Column(String(20))
     correo_electronico = Column(String(100))
     telefono = Column(String(20))
+    # Antes no existía ningún campo de imagen real — el frontend mostraba
+    # la misma foto de stock por ciudad para todos los hoteles (ver
+    # CITY_IMAGES en HotelCard.tsx/HotelDetail.tsx, que sigue de respaldo
+    # para hoteles sin foto todavía). Nullable: hoteles existentes no
+    # tienen ninguna hasta que un admin suba una (ver
+    # POST /api/hoteles/{id}/imagen).
+    imagen_url = Column(String(255), nullable=True)
 
     habitaciones = relationship("Habitacion", back_populates="hotel", cascade="all, delete-orphan")
     hotel_caracteristicas = relationship("HotelCaracteristica", back_populates="hotel", cascade="all, delete-orphan")

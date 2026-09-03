@@ -1,12 +1,14 @@
 import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
 from app.core.exceptions import HotelDependencyError, NotFoundError
+from app.core.file_validation import validar_y_leer_archivo
+from app.core.image_storage import borrar_imagen, guardar_imagen
 from app.core.security import require_admin
 from app.repositories.hotel_repository import (
     CaracteristicaRepository,
@@ -35,6 +37,10 @@ router = APIRouter(prefix="/api/hoteles", tags=["Hoteles"])
 logger = logging.getLogger(__name__)
 
 HOTELES_CACHE_PATTERN = "hoteles:list:*"
+
+HOTEL_IMAGEN_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+HOTEL_IMAGEN_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
+HOTEL_IMAGEN_PUBLIC_PREFIX = "/uploads/hoteles"
 
 
 # ===================== HOTELES CRUD =====================
@@ -164,6 +170,42 @@ def update_hotel(
     actualizado = HotelRepository.update(db, hotel_id, hotel.dict(exclude_unset=True))
     delete_pattern(HOTELES_CACHE_PATTERN)
     return actualizado
+
+
+@router.post("/{hotel_id}/imagen", response_model=HotelResponse)
+async def subir_imagen_hotel(
+    hotel_id: int,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Sube/reemplaza la foto principal del hotel. Antes Hotel no tenía
+    ningún campo de imagen real: el frontend mostraba la misma foto de
+    stock por ciudad para todos sus hoteles (ver CITY_IMAGES en
+    HotelCard.tsx/HotelDetail.tsx, que se mantiene como respaldo para los
+    que todavía no tienen foto propia). Usa el mismo almacenamiento que
+    fotos de perfil/banners (Cloudinary si está configurado, disco local
+    si no — ver app/core/image_storage.py)."""
+    hotel = HotelRepository.get_by_id(db, hotel_id)
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel no encontrado")
+
+    contenido, extension = await validar_y_leer_archivo(
+        imagen,
+        tipos_permitidos=HOTEL_IMAGEN_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=HOTEL_IMAGEN_TAMANO_MAXIMO_BYTES,
+    )
+
+    nueva_url = guardar_imagen(contenido, extension, carpeta="hoteles", public_path_prefix=HOTEL_IMAGEN_PUBLIC_PREFIX)
+    # Igual que en usuario_route.py: primero se guarda la foto nueva, y
+    # solo si eso funciona se borra la anterior.
+    borrar_imagen(hotel.imagen_url, carpeta="hoteles", public_path_prefix=HOTEL_IMAGEN_PUBLIC_PREFIX)
+    hotel.imagen_url = nueva_url
+    db.commit()
+    db.refresh(hotel)
+    delete_pattern(HOTELES_CACHE_PATTERN)
+    return hotel
 
 
 @router.delete("/{hotel_id}")
