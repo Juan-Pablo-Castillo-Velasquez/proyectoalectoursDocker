@@ -485,7 +485,7 @@ export default function PackageDetail() {
             )}
 
             {/* Personalización */}
-            <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
+            {/* <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
               <EncabezadoSeccion icon={Sparkles} titulo="Personaliza tu experiencia" />
               <p className="text-muted-foreground mb-6">
                 Después de reservar puedes agregar actividades y servicios adicionales a tu paquete.
@@ -496,7 +496,7 @@ export default function PackageDetail() {
               >
                 Ver opciones de personalización
               </Link>
-            </section>
+            </section> */}
 
             {/* Antes de reservar — el equivalente real de "Términos y
                 condiciones" / "Políticas de cancelación" de cualquier OTA,
