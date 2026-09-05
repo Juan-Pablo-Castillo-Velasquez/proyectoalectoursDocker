@@ -176,10 +176,17 @@ export default function SearchBar() {
         />
       </div>
 
+      {/* rounded-2xl en vez del rounded-full de antes: el radio "píldora"
+          completa no es el que usa el resto del sitio (tarjetas, botones,
+          paginación -- todo en rounded-xl/2xl), así que se ajusta acá
+          también. Fondo con un leve tinte de marca (color-mix con
+          --primary) en vez de blanco puro, para que no compita "blanco
+          sobre blanco" con el resto de tarjetas de la página. */}
       <form
         onSubmit={handleSearch}
-        className="bg-white rounded-2xl sm:rounded-full w-full text-[#2E2E2E] relative border border-primary/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80"
+        className="rounded-2xl w-full text-[#2E2E2E] relative border border-primary/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80"
         style={{
+          background: "color-mix(in srgb, var(--primary) 4%, white)",
           boxShadow:
             "0 24px 60px -16px rgba(var(--primary-rgb), 0.32), 0 4px 16px rgba(0,0,0,0.04)",
         }}
@@ -257,14 +264,21 @@ export default function SearchBar() {
           </>
         )}
 
-        {/* BUSCAR */}
+        {/* BUSCAR — dorado/ámbar (--gold), no --primary: el resto de la
+            barra (borde, tabs activos, íconos) ya usa el color primario
+            de marca: si el botón también fuera ese mismo color, el CTA
+            más importante de la barra se mezclaría con su propio marco
+            en vez de resaltar. El acento secundario de marca es
+            justamente para esto. */}
         <motion.button
           whileHover={{ scale: 1.015 }}
           whileTap={{ scale: 0.98 }}
           type="submit"
-          className="m-1.5 sm:m-1.5 rounded-xl sm:rounded-full bg-primary text-primary-foreground text-[13px] font-bold flex items-center justify-center gap-2 py-3.5 sm:py-0 sm:px-7 shrink-0"
+          className="m-1.5 sm:m-1.5 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 py-3.5 sm:py-0 sm:px-7 shrink-0"
           style={{
-            boxShadow: "0 8px 20px -6px rgba(var(--primary-rgb), 0.45)",
+            background: "var(--gold)",
+            color: "var(--gold-foreground)",
+            boxShadow: "0 8px 20px -6px rgba(var(--gold-rgb), 0.5)",
           }}
         >
           <Search className="w-4 h-4" />

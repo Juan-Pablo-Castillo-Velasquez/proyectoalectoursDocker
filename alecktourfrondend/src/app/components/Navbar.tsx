@@ -94,11 +94,18 @@ export default function Navbar() {
         "
       >
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-[76px]">
+          {/* Grid de 3 columnas (no flex justify-between) a propósito: con
+              justify-between el grupo del centro no queda realmente
+              centrado en la barra si los dos extremos tienen ancho
+              distinto -- con grid-cols-[auto_1fr_auto] + justify-self-center
+              en la columna del medio, los links de navegación sí quedan
+              centrados de verdad sin importar cuánto ocupen el logo o las
+              acciones de usuario. */}
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 h-[76px]">
             {/* =========================================================
                 LOGO
             ========================================================= */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="col-start-1 flex items-center gap-3 shrink-0">
             <Link to="/" className="flex items-center gap-3 group">
               <motion.div
                 whileHover={{
@@ -195,7 +202,7 @@ export default function Navbar() {
             {/* =========================================================
                 DESKTOP NAVIGATION
             ========================================================= */}
-            <div className="hidden xl:flex items-center gap-0.5 2xl:gap-1 text-[12px] font-semibold whitespace-nowrap">
+            <div className="col-start-2 justify-self-center hidden xl:flex items-center gap-0.5 2xl:gap-1 text-[12px] font-semibold whitespace-nowrap">
               {/* OFERTAS */}
               <div className="relative shrink-0">
                 <button
@@ -555,7 +562,10 @@ export default function Navbar() {
             {/* =========================================================
                 RIGHT SIDE
             ========================================================= */}
-            <div className="hidden xl:flex items-center gap-2 2xl:gap-3 shrink-0">
+            {/* Separador visual (borde izquierdo) para que este grupo de
+                acciones de usuario se lea como un bloque aparte del menú
+                de navegación, no como más links sueltos. */}
+            <div className="col-start-3 hidden xl:flex items-center gap-2 2xl:gap-3 pl-4 border-l border-border/60 shrink-0">
               {/* CONTACT */}
               <div
                 className="
@@ -705,7 +715,7 @@ export default function Navbar() {
             {/* =========================================================
                 MOBILE
             ========================================================= */}
-            <div className="flex items-center gap-2 xl:hidden">
+            <div className="col-start-3 flex items-center gap-2 xl:hidden">
               {isAuthenticated && cliente && (
                 <NotificacionesBell idCliente={cliente.id_cliente} />
               )}

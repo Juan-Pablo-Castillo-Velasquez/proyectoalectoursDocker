@@ -519,14 +519,20 @@
 /* ---------- 13. Superficie del navbar con acento de marca ----------
    Reemplaza "bg-background/95 backdrop-blur-xl" del <nav> por esto.
    Necesita el <nav> con position: relative (o overflow-visible)
-   para que el ::before (línea superior) se vea. */
+   para que el ::before (línea superior) se vea.
+
+   Antes el fondo llevaba un degradado teñido con --primary-rgb (y con
+   un tema de temporada activo, ver más abajo, ese tinte se intensificaba
+   todavía más) -- contra el Hero, que ahora usa un scrim oscuro sobre la
+   foto (ver Hero.tsx), un navbar del mismo tono de marca se leía como
+   "el mismo morado pegado al fondo" en vez de una barra propia. Ahora la
+   superficie es un vidrio prácticamente neutro (blanco/negro sólido),
+   sin importar el tema activo; la identidad de marca/temporada sigue
+   estando clara en la franja superior (::before) y en el badge del logo,
+   no en toda la barra. */
 .navbar-surface {
   position: relative;
-  background: linear-gradient(
-    180deg,
-    rgba(var(--primary-rgb), 0.09) 0%,
-    rgba(255, 255, 255, 0.92) 75%
-  );
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid rgba(var(--primary-rgb), 0.14);
@@ -550,20 +556,16 @@
   box-shadow: 0 1px 8px rgba(var(--primary-rgb), 0.4);
 }
 .dark .navbar-surface {
-  background: linear-gradient(
-    180deg,
-    rgba(var(--primary-rgb), 0.16) 0%,
-    rgba(15, 15, 16, 0.94) 75%
-  );
+  background: rgba(15, 15, 16, 0.97);
   border-bottom-color: rgba(var(--primary-rgb), 0.22);
 }
 
-/* Cuando hay un tema de temporada activo (Navidad, Halloween...) el
-   navbar se tiñe más fuerte con el color de ese tema -- ver
-   TemaContext.tsx, que inyecta la regla [data-tema-temporada="x"]
-   .navbar-surface con una opacidad mayor que la de arriba, reutilizando
-   el mismo --primary-rgb que ya queda redefinido en ese scope. Así se
-   nota de un vistazo qué temporada está activa, sin tocar nada aquí. */
+/* Cuando hay un tema de temporada activo (Navidad, Halloween...) la
+   franja superior (::before) se hace un poco más gruesa y con más brillo
+   -- ver TemaContext.tsx, que inyecta la regla [data-tema-temporada="x"]
+   solo sobre esa franja, reutilizando el --primary-rgb que ya queda
+   redefinido en ese scope. El fondo de .navbar-surface en sí ya NO se
+   retiñe por temporada (ver comentario arriba). */
 
 /* ---------- 14. Footer con identidad real de marca ----------
    Fondo oscuro granate con textura de puntos (igual criterio

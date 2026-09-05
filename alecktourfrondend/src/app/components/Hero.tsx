@@ -2,7 +2,9 @@ import { Compass, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { apiGetResenasDestacadas } from "../api/v1/api";
+import { useTema } from "../context/TemaContext";
 import { HotelDetailResponse, hotelService } from "../services/hotel.service";
+import HalloweenAccents from "./HalloweenAccents";
 import SearchBar from "./SearchBar";
 
 // Clip aéreo de playa, libre de derechos (Mixkit — uso comercial y personal
@@ -12,6 +14,8 @@ const HERO_VIDEO_URL = "https://assets.mixkit.co/videos/5371/5371-360.mp4";
 
 export default function Hero() {
   const [videoFailed, setVideoFailed] = useState(false);
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
 
   // Estadísticas reales del catálogo (nunca inventadas): se calculan a
   // partir de los hoteles y reseñas que realmente existen en la base de
@@ -120,11 +124,27 @@ export default function Hero() {
           </motion.video>
         )}
 
-        {/* Degradado adaptable a tu tema (claro/oscuro) en lugar del estilo quemado */}
-        <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/30 backdrop-blur-[2px]" />
+        {/* Scrim oscuro sobre la foto/video, no el --background del tema.
+            Antes este degradado usaba --background (claro tipo "hueso"),
+            pensado para que el Hero se sintiera "adaptable a tu tema" --
+            pero un fondo casi blanco encima de una foto le resta
+            profundidad y separación real entre texto/buscador y la
+            imagen. Un hero con foto de fondo necesita su propio scrim
+            oscuro para que el texto siempre sea legible, sin importar si
+            el resto del sitio está en modo claro u oscuro -- por eso el
+            texto de este bloque pasa a blanco fijo más abajo, en vez de
+            los tokens text-foreground/text-muted-foreground de siempre. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/15" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--chart-2)]/40 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--gold)]/50 to-transparent" />
       </div>
+
+      {/* Acentos decorativos de Halloween (calabaza/murciélagos/telaraña
+          en las esquinas) -- solo cuando ese tema de temporada está
+          activo, ver TemaContext.tsx. Puramente decorativo y sin
+          interacción (pointer-events-none), sombras mínimas. */}
+      {esHalloween && <HalloweenAccents />}
 
       {/* Contenido principal */}
       <div
@@ -152,7 +172,9 @@ export default function Hero() {
             ease: [0.25, 1, 0.5, 1],
           }}
         >
-          {/* Badge */}
+          {/* Badge — antes usaba bg-background/border-border (tokens de
+              tema claro/oscuro); con el scrim oscuro de fondo se vuelve
+              vidrio blanco fijo, igual que el resto de este bloque. */}
           <div
             className="
                             inline-flex
@@ -163,16 +185,16 @@ export default function Hero() {
                             py-1.5
                             rounded-full
                             border
-                            border-border
-                            bg-background/50
+                            border-white/25
+                            bg-white/10
                             backdrop-blur-md
                         "
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--chart-2)]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--gold)]" />
 
             <span
               className="
-                                text-[var(--chart-2)]
+                                text-[var(--gold)]
                                 text-[10px]
                                 font-bold
                                 tracking-[0.2em]
@@ -186,7 +208,7 @@ export default function Hero() {
           {/* Título */}
           <h1
             className="
-                            text-foreground
+                            text-white
                             text-4xl
                             sm:text-5xl
                             md:text-[54px]
@@ -202,13 +224,13 @@ export default function Hero() {
           >
             Tu próximo viaje
             <br />
-            empieza <span className="italic text-[var(--chart-2)]">aquí.</span>
+            empieza <span className="italic text-[var(--gold)]">aquí.</span>
           </h1>
 
           {/* Descripción */}
           <p
             className="
-                            text-muted-foreground
+                            text-white/75
                             text-sm
                             sm:text-[15px]
                             max-w-md
@@ -238,8 +260,8 @@ export default function Hero() {
                                 font-bold
                                 hover:-translate-y-0.5
                                 transition-transform
-                                shadow-lg
-                                shadow-primary/30
+                                shadow-sm
+                                shadow-black/20
                             "
             >
               <Compass className="w-4 h-4" />
@@ -251,12 +273,12 @@ export default function Hero() {
               no una cifra de marketing ni fotos de "viajeros" inventados. */}
           {!statsLoading && totalHoteles > 0 && (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[var(--chart-2)]/15 border border-[var(--chart-2)]/30 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-[var(--chart-2)]" />
+              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-[var(--gold)]" />
               </div>
 
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                <b className="text-foreground">
+              <p className="text-[11px] text-white/70 leading-tight">
+                <b className="text-white">
                   +{totalHotelesLabel} hoteles verificados
                 </b>
                 <br />
@@ -301,30 +323,38 @@ export default function Hero() {
                     sm:right-6
                     lg:right-8
                     bottom-6
-                    gap-2
+                    gap-3
                     z-10
                 "
         >
+          {/* Antes: min-w-[76px]/rounded-[9px]/bg-background -- un radio
+              que no existe en ningún otro lado del sitio (todo lo demás
+              usa rounded-xl/2xl) y un número casi ilegible a text-sm.
+              Mismo criterio de vidrio blanco que el resto del Hero, más
+              aire y un número que realmente se lea desde lejos. */}
           {stats.map((s) => (
             <div
               key={s.label}
               className="
-                            min-w-[76px]
-                            px-3
-                            py-2.5
-                            rounded-[9px]
+                            min-w-[92px]
+                            px-4
+                            py-3.5
+                            rounded-xl
                             border
-                            border-border
-                            bg-background/60
+                            border-white/20
+                            bg-white/10
                             backdrop-blur-md
                         "
             >
-              <strong className="block text-foreground text-sm">{s.value}</strong>
+              <strong className="block text-white text-xl font-extrabold tabular-nums leading-tight">
+                {s.value}
+              </strong>
 
               <span
                 className="
-                                text-muted-foreground
-                                text-[8px]
+                                text-white/65
+                                text-[9px]
+                                font-semibold
                                 uppercase
                                 tracking-wide
                             "
