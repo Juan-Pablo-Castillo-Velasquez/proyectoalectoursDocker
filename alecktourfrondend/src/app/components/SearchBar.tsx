@@ -189,6 +189,21 @@ export default function SearchBar() {
           background: "color-mix(in srgb, var(--primary) 4%, white)",
           boxShadow:
             "0 24px 60px -16px rgba(var(--primary-rgb), 0.32), 0 4px 16px rgba(0,0,0,0.04)",
+          // Antes de esto, en modo oscuro (sitio en .dark o el SO con
+          // preferencia de tema oscuro) el navegador dibujaba el texto y
+          // el ícono del selector nativo de <input type="date"> / <select>
+          // en su variante clara del sistema -- porque nunca se declaraba
+          // ningún color-scheme, así que Chrome/Firefox usan la
+          // preferencia del sistema para pintarlos, no las clases .dark
+          // del sitio. El fondo de esta barra es SIEMPRE casi blanco
+          // (arriba, color-mix con blanco fijo), así que ese texto
+          // quedaba blanco sobre blanco -- ilegible. Fijar color-scheme a
+          // "light" acá fuerza que las fechas y el <select> de huéspedes
+          // siempre se pinten con su variante clara (texto oscuro),
+          // coherente con el fondo de esta barra sin importar el tema del
+          // sitio o del sistema operativo. Se hereda a todos los inputs
+          // de este <form>, así que basta con declararlo una vez acá.
+          colorScheme: "light",
         }}
       >
         {/* DESTINO — presente en ambos modos */}
