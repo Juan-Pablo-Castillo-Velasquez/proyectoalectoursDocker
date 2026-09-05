@@ -2,6 +2,7 @@ import { ArrowUpRight, Sparkles, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { useTema } from "../context/TemaContext";
 import { DestinoSeleccion, destinoService } from "../services/destino.service";
 
 const cardVariants = {
@@ -14,6 +15,8 @@ const cardVariants = {
 };
 
 export default function DestinationsGrid() {
+    const { temaActivo } = useTema();
+    const esHalloween = temaActivo?.clave === "halloween";
     const [destinations, setDestinations] = useState<DestinoSeleccion[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -78,31 +81,51 @@ export default function DestinationsGrid() {
                         transition={{ duration: 0.8, delay: 0.2 }}
                         className="relative mt-auto flex justify-center lg:justify-center"
                     >
-                        {/* Brillo decorativo de fondo */}
-                        <div className="absolute bottom-10 w-64 h-64 bg-[var(--chart-2)]/15 rounded-full blur-3xl -z-10" />
-
-                        {/* IMAGEN DE LA MUJER PROPORCIONADA */}
-                        <img
-                            src="/img/imagenpromocional-removebg-preview.png"
-                            alt="Viajera promocional"
-                            className="w-full h-full object-contain object-bottom drop-shadow-2xl [mask-image:linear-gradient(to_top,transparent_0%,black_15%)]"
-                            style={{ maxHeight: "450px" }}
-                        />
-
-                        {/* Badge Flotante Animado */}
-                        <motion.div
-                            animate={{ y: [0, -12, 0] }}
-                            transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                            className="absolute top-10 -right-2 lg:-right-6 bg-card border border-border shadow-xl rounded-2xl p-3.5 flex items-center gap-3 z-20"
-                        >
-                            <div className="bg-primary/10 p-2.5 rounded-full text-primary">
-                                <Sparkles className="w-5 h-5" />
+                        {esHalloween ? (
+                            /* Temporada de Halloween: reemplaza la ilustración
+                               por el póster de temporada (imagen cuadrada con
+                               fondo propio, no un recorte transparente) --
+                               mismo criterio de "un solo elemento decorativo
+                               por sección" del resto del sitio, así que el
+                               badge flotante de promo se retira mientras esta
+                               imagen está activa (ya trae su propio llamado a
+                               la acción) y vuelve solo en temporada normal. */
+                            <div className="relative w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl mx-auto lg:mx-0">
+                                <img
+                                    src="/img/imagenpromocional-halloween.png"
+                                    alt="Personajes de Halloween de AleckTours"
+                                    className="w-full h-full object-cover"
+                                />
                             </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Promo Especial</p>
-                                <p className="text-sm font-bold text-foreground">Hasta 30% OFF</p>
-                            </div>
-                        </motion.div>
+                        ) : (
+                            <>
+                                {/* Brillo decorativo de fondo */}
+                                <div className="absolute bottom-10 w-64 h-64 bg-[var(--chart-2)]/15 rounded-full blur-3xl -z-10" />
+
+                                {/* IMAGEN DE LA MUJER PROPORCIONADA */}
+                                <img
+                                    src="/img/imagenpromocional-removebg-preview.png"
+                                    alt="Viajera promocional"
+                                    className="w-full h-full object-contain object-bottom drop-shadow-2xl [mask-image:linear-gradient(to_top,transparent_0%,black_15%)]"
+                                    style={{ maxHeight: "450px" }}
+                                />
+
+                                {/* Badge Flotante Animado */}
+                                <motion.div
+                                    animate={{ y: [0, -12, 0] }}
+                                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                                    className="absolute top-10 -right-2 lg:-right-6 bg-card border border-border shadow-xl rounded-2xl p-3.5 flex items-center gap-3 z-20"
+                                >
+                                    <div className="bg-primary/10 p-2.5 rounded-full text-primary">
+                                        <Sparkles className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Promo Especial</p>
+                                        <p className="text-sm font-bold text-foreground">Hasta 30% OFF</p>
+                                    </div>
+                                </motion.div>
+                            </>
+                        )}
                     </motion.div>
                 </div>
 
