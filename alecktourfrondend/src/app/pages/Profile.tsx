@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import Footer from "../components/Footer";
+import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import Navbar from "../components/Navbar";
 import ProfileSidebar from "../components/profile/ProfileSidebar";
 import TabCuenta from "../components/profile/TabCuenta";
@@ -9,6 +10,7 @@ import TabFavoritos from "../components/profile/TabFavoritos";
 import TabPreferencias from "../components/profile/TabPreferencias";
 import TabReservas from "../components/profile/TabReservas";
 import { useAuth } from "../context/AuthContext";
+import { useTema } from "../context/TemaContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import {
   PreferenciaResponse,
@@ -19,6 +21,13 @@ export default function Profile() {
   const { usuario, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // El único lugar del perfil donde tiene sentido un acento de temporada:
+  // el banner superior es puramente decorativo (identidad de marca), a
+  // diferencia de TabCuenta (datos/seguridad de la cuenta) -- ahí nunca
+  // se agrega nada de esto, mismo criterio de "lejos de lo transaccional"
+  // que ya se aplicó en HotelDetail.tsx/PackageDetail.tsx.
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
   // Permite que otras pantallas (p.ej. el wizard de /preferences al
   // terminar) vuelvan directo a una pestaña específica en vez de caer
   // siempre en "reservas" — ver PreferencesForm.tsx handleFinish.
@@ -87,6 +96,15 @@ export default function Profile() {
         {/* Efectos sutiles de fondo para aportar dinamismo visual */}
         <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-white/5 blur-2xl pointer-events-none" />
         <div className="absolute top-8 left-1/4 w-32 h-32 rounded-full bg-white/5 blur-xl pointer-events-none" />
+        {/* Único acento de temporada de esta página. Variante "foto" (no
+            telaraña/murciélago/calabaza): esas se dibujan con
+            text-primary, que sobre este banner (ya en gradiente
+            --primary, ver .banner-textured en theme.css) casi no se
+            notaría -- el marco blanco tipo polaroid sí contrasta contra
+            cualquier fondo de color. */}
+        {esHalloween && (
+          <HalloweenAccentDiscreto variante="foto" posicion="bottom-right" tamano="sm" />
+        )}
       </div>
 
       {/* ── Contenedor Principal ── */}
