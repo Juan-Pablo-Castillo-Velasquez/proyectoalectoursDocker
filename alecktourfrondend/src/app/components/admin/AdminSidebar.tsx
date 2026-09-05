@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, CalendarDays, XCircle, PlusCircle, Users, Hotel,
   Package, Building2, Wallet, Bell, UserPlus, ShieldCheck, Activity,
-  Settings, Plane, ChevronLeft, ChevronRight, UserCircle, Megaphone,
+  Settings, Plane, ChevronLeft, ChevronRight, UserCircle, Megaphone, Palette,
 } from "lucide-react";
 import type { Module } from "./types";
 import {
@@ -58,6 +58,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "empresas", label: "Empresas y contactos", icon: Building2, ready: true },
       { id: "banners", label: "Promociones y banners", icon: Megaphone, ready: true },
+      { id: "temas", label: "Temas de temporada", icon: Palette, ready: true },
     ],
   },
   {

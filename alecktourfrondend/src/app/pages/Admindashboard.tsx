@@ -37,6 +37,9 @@ import ModuleEmpresas from "../components/admin/ModuleEmpresas";
 import { empresaService, type SolicitudCorporativa } from "../services/empresa.service";
 import ModuleBanners from "../components/admin/ModuleBanners";
 import { bannerService, type Banner, type BannerFormData } from "../services/banner.service";
+import ModuleTemas from "../components/admin/ModuleTemas";
+import { temaService, type Tema, type TemaFormData } from "../services/tema.service";
+import { useTema } from "../context/TemaContext";
 import { hotelService } from "../services/hotel.service";
 
 type PendingDelete =
@@ -47,10 +50,12 @@ type PendingDelete =
   | { kind: "usuario"; id: number; label: string }
   | { kind: "pago"; id: number; label: string }
   | { kind: "empresa"; id: number; label: string }
-  | { kind: "banner"; id: number; label: string };
+  | { kind: "banner"; id: number; label: string }
+  | { kind: "tema"; id: number; label: string };
 
 export default function AdminDashboard() {
   const { usuario, logout, isAdmin, updateUsuario } = useAuth();
+  const { refrescarTemaActivo } = useTema();
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState<Module>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -79,6 +84,7 @@ export default function AdminDashboard() {
   const [notificacionesLoading, setNotificacionesLoading] = useState(false);
   const [solicitudesCorporativas, setSolicitudesCorporativas] = useState<SolicitudCorporativa[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [temas, setTemas] = useState<Tema[]>([]);
 
   // Conteo real de notificaciones no leídas (cancelaciones, contacto,
   // corporativo, pagos — ver Notificacion en notificacion_model.py),
@@ -143,6 +149,7 @@ export default function AdminDashboard() {
     fetchNotificaciones();
     fetchEmpresas();
     fetchBanners();
+    fetchTemas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -300,6 +307,38 @@ export default function AdminDashboard() {
 
   const deleteBanner = (id: number) => setConfirmDelete({ kind: "banner", id, label: "este banner" });
 
+  // Temas de color de temporada -- ver ModuleTemas.tsx / TemaContext.tsx.
+  const fetchTemas = async () => {
+    try { setTemas(await temaService.getAll()); } catch { /* no crítico */ }
+  };
+
+  const submitTema = async (data: TemaFormData, id?: number) => {
+    setLoading(true);
+    try {
+      if (id) await temaService.update(id, data);
+      else await temaService.create(data);
+      await fetchTemas();
+      await refrescarTemaActivo();
+      toast.success(id ? "Tema actualizado correctamente" : "Tema creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo guardar el tema");
+      throw e;
+    } finally { setLoading(false); }
+  };
+
+  const activarTema = async (tema: Tema) => {
+    try {
+      await temaService.activar(tema.id_tema);
+      await fetchTemas();
+      await refrescarTemaActivo();
+      toast.success(`Tema "${tema.nombre}" activado`);
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo activar el tema");
+    }
+  };
+
+  const deleteTema = (tema: Tema) => setConfirmDelete({ kind: "tema", id: tema.id_tema, label: `el tema "${tema.nombre}"` });
+
   const updateEstadoEmpresa = async (id: number, estado: SolicitudCorporativa["estado"]) => {
     try {
       const actualizado = await empresaService.actualizarEstado(id, estado);
@@ -357,6 +396,10 @@ export default function AdminDashboard() {
         await bannerService.delete(id);
         await fetchBanners();
         toast.success("Banner eliminado correctamente");
+      } else if (kind === "tema") {
+        await temaService.delete(id);
+        await fetchTemas();
+        toast.success("Tema eliminado correctamente");
       }
     } catch (e: any) {
       toast.error(e?.message || "No se pudo completar la eliminación");
@@ -628,6 +671,15 @@ export default function AdminDashboard() {
         onDelete={deleteBanner}
         onToggleActivo={toggleActivoBanner}
         onReordenar={reordenarBanners}
+        loading={loading}
+      />
+    ),
+    temas: (
+      <ModuleTemas
+        temas={temas}
+        onSubmit={submitTema}
+        onDelete={deleteTema}
+        onActivar={activarTema}
         loading={loading}
       />
     ),

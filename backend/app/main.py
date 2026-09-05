@@ -23,6 +23,7 @@ from app.core.database import get_db
 # Routers
 from app.routes.auth_route import router as auth_router
 from app.routes.banner_route import router as banner_router
+from app.routes.tema_route import router as tema_router
 from app.routes.cliente_route import router as cliente_router
 from app.routes.configuracion_route import router as configuracion_router
 from app.routes.contacto_route import router as contacto_router
@@ -302,6 +303,7 @@ app.include_router(notificacion_router)
 app.include_router(empresa_router)
 app.include_router(dashboard_router)
 app.include_router(banner_router)
+app.include_router(tema_router)
 
 # ============================================================================
 # ARCHIVOS ESTATICOS (fotos de perfil, etc.)
