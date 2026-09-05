@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiGetResenasDestacadas } from "../api/v1/api";
 import { useTema } from "../context/TemaContext";
 import { HotelDetailResponse, hotelService } from "../services/hotel.service";
+import { resolveVideoTema } from "../services/tema.service";
 import HalloweenAccents from "./HalloweenAccents";
 import SearchBar from "./SearchBar";
 
@@ -16,6 +17,20 @@ export default function Hero() {
   const [videoFailed, setVideoFailed] = useState(false);
   const { temaActivo } = useTema();
   const esHalloween = temaActivo?.clave === "halloween";
+
+  // Si el tema activo tiene su propio video decorativo (subido por el
+  // admin, ver ModuleTemas.tsx), se usa ese para el fondo del Hero; si no
+  // tiene ninguno, se cae al clip genérico de por defecto -- el Hero
+  // nunca se queda sin video de fondo por un tema sin configurar.
+  const heroVideoUrl = temaActivo?.video_url ? resolveVideoTema(temaActivo.video_url) : HERO_VIDEO_URL;
+  const heroVideoTipo = heroVideoUrl.toLowerCase().endsWith(".webm") ? "video/webm" : "video/mp4";
+
+  // Si cambia el video (ej. el admin activa otro tema mientras el sitio
+  // está abierto), se le da otra oportunidad de cargar en vez de quedar
+  // escondido para siempre por el fallo de un video anterior distinto.
+  useEffect(() => {
+    setVideoFailed(false);
+  }, [heroVideoUrl]);
 
   // Estadísticas reales del catálogo (nunca inventadas): se calculan a
   // partir de los hoteles y reseñas que realmente existen en la base de
@@ -109,7 +124,7 @@ export default function Hero() {
         {/* Clip de fondo: capa opcional encima de la foto, se retira sola si no carga */}
         {!videoFailed && (
           <motion.video
-            key={HERO_VIDEO_URL}
+            key={heroVideoUrl}
             autoPlay
             muted
             loop
@@ -120,7 +135,7 @@ export default function Hero() {
             transition={{ duration: 1.2, delay: 0.4 }}
             className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
           >
-            <source src={HERO_VIDEO_URL} type="video/mp4" />
+            <source src={heroVideoUrl} type={heroVideoTipo} />
           </motion.video>
         )}
 

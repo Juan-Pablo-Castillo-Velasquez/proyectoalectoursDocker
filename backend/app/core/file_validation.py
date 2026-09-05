@@ -27,12 +27,20 @@ _CHUNK_SIZE = 64 * 1024
 # MIME type declarado -> (extensión segura, bytes de cabecera esperados).
 # Se comprueba que los primeros bytes del archivo coincidan con el magic
 # number de SU PROPIO content_type declarado.
+#
+# video/mp4 y video/webm se agregaron para el video decorativo del Hero
+# por tema (ver tema_route.py::subir_video_tema) -- ninguno de los dos usa
+# un prefijo fijo simple como los formatos de imagen de arriba, así que su
+# firma real se comprueba aparte en _cabecera_coincide() (el bytes vacío
+# acá es solo un placeholder, nunca se usa con startswith para estos dos).
 _TIPOS: dict[str, tuple[str, bytes]] = {
     "image/jpeg": ("jpg", b"\xff\xd8\xff"),
     "image/jpg": ("jpg", b"\xff\xd8\xff"),
     "image/png": ("png", b"\x89PNG\r\n\x1a\n"),
     "image/webp": ("webp", b"RIFF"),  # WebP real: RIFF....WEBP (ver abajo)
     "application/pdf": ("pdf", b"%PDF"),
+    "video/mp4": ("mp4", b""),
+    "video/webm": ("webm", b"\x1a\x45\xdf\xa3"),  # EBML header real de WebM/Matroska
 }
 
 
@@ -40,6 +48,12 @@ def _cabecera_coincide(cabecera: bytes, content_type: str) -> bool:
     """True si los bytes de cabecera corresponden al content_type declarado."""
     if content_type == "image/webp":
         return cabecera.startswith(b"RIFF") and cabecera[8:12] == b"WEBP"
+    if content_type == "video/mp4":
+        # Un MP4 real no empieza con un magic number fijo: los primeros 4
+        # bytes son el tamaño de la primera "box" (varía según el archivo),
+        # y recién los bytes 4-8 dicen "ftyp" (el tipo de box). Ver
+        # especificación ISO/IEC 14496-12.
+        return cabecera[4:8] == b"ftyp"
     if content_type in _TIPOS:
         return cabecera.startswith(_TIPOS[content_type][1])
     return False

@@ -18,6 +18,10 @@ export interface Tema {
   // URL real (Cloudinary o ruta relativa /uploads/temas/...) de una imagen
   // decorativa subida por el admin -- null si el tema solo usa su ícono.
   imagen_url: string | null;
+  // URL real (Cloudinary o ruta relativa /uploads/temas-video/...) de un
+  // video para el fondo del Hero cuando este tema está activo -- null si
+  // el tema usa el video genérico de por defecto (ver Hero.tsx).
+  video_url: string | null;
   fecha_creacion: string | null;
 }
 
@@ -34,6 +38,11 @@ export interface TemaFormData {
 // -- mismo criterio que resolveImagenBanner en banner.service.ts.
 export function resolveImagenTema(imagen_url: string): string {
   return imagen_url.startsWith("http") ? imagen_url : `${BASE_URL}${imagen_url}`;
+}
+
+// Mismo criterio que resolveImagenTema, para `Tema.video_url`.
+export function resolveVideoTema(video_url: string): string {
+  return video_url.startsWith("http") ? video_url : `${BASE_URL}${video_url}`;
 }
 
 export const temaService = {
@@ -64,4 +73,15 @@ export const temaService = {
 
   borrarImagen: (id: number) =>
     apiFetch<Tema>(`/temas/${id}/imagen`, { method: "DELETE" }),
+
+  // Video decorativo del Hero (opcional) -- mismo mecanismo que la imagen,
+  // Cloudinary si está configurado.
+  subirVideo: (id: number, video: File) => {
+    const fd = new FormData();
+    fd.append("video", video);
+    return apiFetch<Tema>(`/temas/${id}/video`, { method: "POST", body: fd });
+  },
+
+  borrarVideo: (id: number) =>
+    apiFetch<Tema>(`/temas/${id}/video`, { method: "DELETE" }),
 };

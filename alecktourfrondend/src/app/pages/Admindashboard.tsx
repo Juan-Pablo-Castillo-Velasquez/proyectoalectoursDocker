@@ -365,6 +365,31 @@ export default function AdminDashboard() {
     }
   };
 
+  // Video decorativo del fondo del Hero (opcional, ver tema_route.py) --
+  // mismo criterio que la imagen de arriba.
+  const subirVideoTema = async (id: number, video: File) => {
+    try {
+      await temaService.subirVideo(id, video);
+      await fetchTemas();
+      await refrescarTemaActivo();
+      toast.success("Video del tema actualizado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo subir el video del tema");
+      throw e;
+    }
+  };
+
+  const borrarVideoTema = async (id: number) => {
+    try {
+      await temaService.borrarVideo(id);
+      await fetchTemas();
+      await refrescarTemaActivo();
+      toast.success("Video del tema eliminado");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo quitar el video del tema");
+    }
+  };
+
   const updateEstadoEmpresa = async (id: number, estado: SolicitudCorporativa["estado"]) => {
     try {
       const actualizado = await empresaService.actualizarEstado(id, estado);
@@ -708,6 +733,8 @@ export default function AdminDashboard() {
         onActivar={activarTema}
         onSubirImagen={subirImagenTema}
         onBorrarImagen={borrarImagenTema}
+        onSubirVideo={subirVideoTema}
+        onBorrarVideo={borrarVideoTema}
         loading={loading}
       />
     ),

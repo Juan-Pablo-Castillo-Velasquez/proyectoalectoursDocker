@@ -47,17 +47,30 @@ def _directorio_local(carpeta: str) -> str:
     return os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", carpeta)
 
 
-def guardar_imagen(contenido: bytes, extension: str, *, carpeta: str, public_path_prefix: str) -> str:
-    """Guarda una imagen ya validada (bytes reales + extensión real, ver
+def guardar_imagen(
+    contenido: bytes,
+    extension: str,
+    *,
+    carpeta: str,
+    public_path_prefix: str,
+    resource_type: str = "image",
+) -> str:
+    """Guarda un archivo ya validado (bytes reales + extensión real, ver
     file_validation.py::validar_y_leer_archivo) y devuelve la URL a guardar
     en la base de datos.
 
-    - Con Cloudinary configurado: sube la imagen y devuelve la URL https://
+    - Con Cloudinary configurado: sube el archivo y devuelve la URL https://
       completa (el frontend ya sabe mostrar una URL absoluta tal cual, ver
       resolveFotoUrl en components/admin/types.ts y resolveImagenBanner en
       services/banner.service.ts).
     - Sin Cloudinary: guarda en disco local y devuelve la ruta relativa
       "/uploads/<carpeta>/archivo.ext", como siempre.
+
+    `resource_type` por defecto es "image" -- todos los llamadores
+    existentes (fotos de perfil, banners, imagen de tema) siguen igual sin
+    tocar nada. Se agregó para el video decorativo de temas (ver
+    tema_route.py::subir_video_tema), que necesita resource_type="video"
+    para que Cloudinary no intente procesarlo como imagen.
     """
     identificador = uuid.uuid4().hex
 
@@ -73,7 +86,7 @@ def guardar_imagen(contenido: bytes, extension: str, *, carpeta: str, public_pat
             contenido,
             folder=f"alectours/{carpeta}",
             public_id=identificador,
-            resource_type="image",
+            resource_type=resource_type,
             overwrite=False,
         )
         return resultado["secure_url"]
@@ -105,12 +118,22 @@ def _public_id_desde_url_cloudinary(url: str) -> str | None:
         return None
 
 
-def borrar_imagen(url: str | None, *, carpeta: str, public_path_prefix: str) -> None:
-    """Borra la imagen anterior al reemplazarla o eliminarla. Revisa la
+def borrar_imagen(
+    url: str | None,
+    *,
+    carpeta: str,
+    public_path_prefix: str,
+    resource_type: str = "image",
+) -> None:
+    """Borra el archivo anterior al reemplazarlo o eliminarlo. Revisa la
     FORMA de la url (http = Cloudinary, ruta relativa = disco local) en vez
     de asumir el modo activo ahora mismo — así una cuenta que ya tenía
     fotos guardadas en disco local antes de configurar Cloudinary no se
-    queda con archivos huérfanos sin poder borrarlos."""
+    queda con archivos huérfanos sin poder borrarlos.
+
+    `resource_type` debe coincidir con el que se usó al subirlo en
+    guardar_imagen() -- Cloudinary no encuentra un video si se le pide
+    destroy() con resource_type="image" (por defecto)."""
     if not url:
         return
 
@@ -126,7 +149,7 @@ def borrar_imagen(url: str | None, *, carpeta: str, public_path_prefix: str) -> 
             # traga) — solo queda una imagen huérfana en Cloudinary, sin
             # impacto funcional para la app.
             with contextlib.suppress(Exception):
-                cloudinary.uploader.destroy(public_id, resource_type="image")
+                cloudinary.uploader.destroy(public_id, resource_type=resource_type)
         return
 
     if not url.startswith(public_path_prefix):

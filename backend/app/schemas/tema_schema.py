@@ -79,6 +79,9 @@ class TemaResponse(TemaBase):
     # Se sube por separado (POST /api/temas/{id}/imagen, multipart) igual
     # que Banner.imagen_url -- nunca viaja en el body JSON de create/update.
     imagen_url: str | None = None
+    # Mismo criterio que imagen_url: se sube por separado
+    # (POST /api/temas/{id}/video, multipart), nunca en el body JSON.
+    video_url: str | None = None
     fecha_creacion: datetime | None = None
 
     class Config:

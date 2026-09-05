@@ -54,4 +54,10 @@ class Tema(Base):
     # tema puede quedarse solo con su ícono lucide si el admin no sube
     # ninguna imagen, nunca es obligatoria.
     imagen_url = Column(String(500), nullable=True)
+    # URL de un video decorativo real (Cloudinary si está configurado,
+    # disco local si no -- mismo mecanismo que imagen_url, ver
+    # app/core/image_storage.py) para el fondo del Hero cuando este tema
+    # está activo. Nullable: si el admin no sube ninguno, Hero.tsx cae al
+    # video genérico de por defecto (ver Hero.tsx), nunca queda sin video.
+    video_url = Column(String(500), nullable=True)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())

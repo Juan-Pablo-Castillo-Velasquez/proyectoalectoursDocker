@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Palette, Plus, Pencil, Trash2, CheckCircle2, ShieldCheck, ImagePlus, X, Loader2 } from "lucide-react";
-import { resolveImagenTema, Tema, TemaFormData } from "../../services/tema.service";
+import { Palette, Plus, Pencil, Trash2, CheckCircle2, ShieldCheck, ImagePlus, FileVideo, X, Loader2 } from "lucide-react";
+import { resolveImagenTema, resolveVideoTema, Tema, TemaFormData } from "../../services/tema.service";
 import { getTemaIcono, TEMA_ICONOS_OPCIONES } from "../../utils/temaIconos";
 import { PALETAS_PRESET } from "../../utils/temaPaletas";
 import AdminModal from "./ui/AdminModal";
@@ -20,6 +20,8 @@ interface Props {
   onActivar: (tema: Tema) => Promise<void>;
   onSubirImagen: (id: number, imagen: File) => Promise<void>;
   onBorrarImagen: (id: number) => Promise<void>;
+  onSubirVideo: (id: number, video: File) => Promise<void>;
+  onBorrarVideo: (id: number) => Promise<void>;
   loading: boolean;
 }
 
@@ -149,7 +151,7 @@ function SelectorIcono({
 // vez; el tema "Marca" (es_predeterminado) nunca se puede borrar, así
 // siempre queda un color de respaldo si el admin elimina el resto.
 export default function ModuleTemas({
-  temas, onSubmit, onDelete, onActivar, onSubirImagen, onBorrarImagen, loading,
+  temas, onSubmit, onDelete, onActivar, onSubirImagen, onBorrarImagen, onSubirVideo, onBorrarVideo, loading,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Tema | null>(null);
@@ -159,6 +161,8 @@ export default function ModuleTemas({
   const [error, setError] = useState("");
   const [subiendoImagen, setSubiendoImagen] = useState(false);
   const inputImagenRef = useRef<HTMLInputElement>(null);
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
+  const inputVideoRef = useRef<HTMLInputElement>(null);
 
   const abrirCrear = () => {
     setEditing(null);
@@ -252,6 +256,29 @@ export default function ModuleTemas({
       await onBorrarImagen(editing.id_tema);
     } finally {
       setSubiendoImagen(false);
+    }
+  };
+
+  // Video decorativo del fondo del Hero (opcional) -- mismo criterio que
+  // la imagen de arriba (ver tema_route.py::subir_video_tema).
+  const handleArchivoVideo = async (file: File) => {
+    if (!editing) return;
+    setSubiendoVideo(true);
+    try {
+      await onSubirVideo(editing.id_tema, file);
+    } finally {
+      setSubiendoVideo(false);
+      if (inputVideoRef.current) inputVideoRef.current.value = "";
+    }
+  };
+
+  const handleQuitarVideo = async () => {
+    if (!editing) return;
+    setSubiendoVideo(true);
+    try {
+      await onBorrarVideo(editing.id_tema);
+    } finally {
+      setSubiendoVideo(false);
     }
   };
 
@@ -536,6 +563,74 @@ export default function ModuleTemas({
                     >
                       <X className="w-3.5 h-3.5" />
                       Quitar imagen
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label>Video decorativo (opcional)</Label>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Un clip corto (MP4 o WEBM, máx. 15MB) para el fondo del Hero
+              cuando este tema está activo -- ej. nieve cayendo para
+              Navidad. Si no subes ninguno, el Hero usa el video genérico
+              de por defecto.
+            </p>
+            {!editing ? (
+              <p className="text-xs text-muted-foreground italic bg-muted/40 rounded-lg px-3 py-2">
+                Guarda el tema primero -- podrás subirle un video después, al editarlo.
+              </p>
+            ) : (
+              <div className="flex items-center gap-3">
+                {editingActual?.video_url ? (
+                  <video
+                    src={resolveVideoTema(editingActual.video_url)}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    className="h-16 w-16 rounded-xl object-cover border border-border shrink-0"
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-xl border border-dashed border-border flex items-center justify-center text-muted-foreground shrink-0">
+                    <FileVideo className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    ref={inputVideoRef}
+                    type="file"
+                    accept="video/mp4,video/webm"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleArchivoVideo(file);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={subiendoVideo}
+                    onClick={() => inputVideoRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 transition-all"
+                  >
+                    {subiendoVideo ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <FileVideo className="w-3.5 h-3.5" />
+                    )}
+                    {editingActual?.video_url ? "Reemplazar" : "Subir video"}
+                  </button>
+                  {editingActual?.video_url && (
+                    <button
+                      type="button"
+                      disabled={subiendoVideo}
+                      onClick={handleQuitarVideo}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive/70 hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-all"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Quitar video
                     </button>
                   )}
                 </div>
