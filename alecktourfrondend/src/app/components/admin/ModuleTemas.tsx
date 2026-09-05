@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Palette, Plus, Pencil, Trash2, CheckCircle2, ShieldCheck } from "lucide-react";
 import { Tema, TemaFormData } from "../../services/tema.service";
+import { getTemaIcono, TEMA_ICONOS_OPCIONES } from "../../utils/temaIconos";
 import AdminModal from "./ui/AdminModal";
 import SectionHeader from "./ui/SectionHeader";
 import EmptyState from "./ui/EmptyState";
@@ -25,6 +26,7 @@ const FORM_VACIO: TemaFormData = {
   color_primario_oscuro: "#c24d6e",
   color_secundario_claro: "#b8912e",
   color_secundario_oscuro: "#e8c77a",
+  icono: "sparkles",
 };
 
 // ── Contraste WCAG 2.1 AA (Resolución MinTIC 1519 de 2020 exige este mismo
@@ -101,6 +103,43 @@ function CampoColor({
   );
 }
 
+// Selector del ícono decorativo (Halloween, Navidad, Amor y Amistad...) que
+// se muestra en el navbar y la barra de ofertas cuando este tema está
+// activo -- ver PromoBar.tsx / Navbar.tsx. Catálogo cerrado (no texto
+// libre) para que nunca llegue un nombre que lucide-react no reconozca.
+function SelectorIcono({
+  value, onChange,
+}: { value: string | null; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <Label>Ícono decorativo</Label>
+      <p className="text-[11px] text-muted-foreground mb-2">
+        Se muestra en el navbar y la barra de ofertas cuando este tema está activo.
+      </p>
+      <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
+        {TEMA_ICONOS_OPCIONES.map(({ valor, etiqueta, Icono }) => {
+          const seleccionado = value === valor;
+          return (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => onChange(valor)}
+              title={etiqueta}
+              className={`h-10 flex items-center justify-center rounded-xl border transition-all ${
+                seleccionado
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              }`}
+            >
+              <Icono className="w-4 h-4" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Temas de color de temporada (Navidad, Halloween, etc.) que el admin
 // crea y activa para recolorear el acento de marca en TODO el sitio --
 // ver TemaContext.tsx / theme.css. Solo un tema puede estar activo a la
@@ -129,6 +168,7 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
       color_primario_oscuro: tema.color_primario_oscuro,
       color_secundario_claro: tema.color_secundario_claro,
       color_secundario_oscuro: tema.color_secundario_oscuro,
+      icono: tema.icono ?? "sparkles",
     });
     setError("");
     setModalOpen(true);
@@ -140,8 +180,8 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
       return;
     }
     for (const [campo, valor] of Object.entries(form)) {
-      if (campo === "nombre") continue;
-      if (!/^#[0-9a-fA-F]{6}$/.test(valor)) {
+      if (campo === "nombre" || campo === "icono") continue;
+      if (!/^#[0-9a-fA-F]{6}$/.test(valor as string)) {
         setError(`Color inválido en "${campo}" — usa un hex de 6 dígitos, ej. #6e1832.`);
         return;
       }
@@ -203,6 +243,10 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
                 <div className="p-4 flex-1 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-semibold text-foreground text-sm truncate flex items-center gap-1.5">
+                      {(() => {
+                        const IconoTema = getTemaIcono(tema.icono);
+                        return <IconoTema className="w-3.5 h-3.5 text-primary flex-shrink-0" />;
+                      })()}
                       {tema.nombre}
                       {tema.es_predeterminado && (
                         <Tooltip>
@@ -342,6 +386,11 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
               <BadgeContraste hex={form.color_secundario_oscuro} contra="#1f1a12" etiqueta="oscuro vs texto oscuro" />
             </div>
           </div>
+
+          <SelectorIcono
+            value={form.icono}
+            onChange={(v) => setForm(prev => ({ ...prev, icono: v }))}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Verificación de contraste según WCAG 2.1 AA (mínimo 4.5:1) -- el

@@ -1,9 +1,11 @@
-import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTema } from "../context/TemaContext";
+import { getTemaIcono } from "../utils/temaIconos";
 
 export default function PromoBar() {
     // Cuenta regresiva de la oferta. Cambia el valor inicial si necesitas otra duración.
     const [seconds, setSeconds] = useState(2 * 3600 + 18 * 60 + 46);
+    const { temaActivo } = useTema();
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -17,15 +19,23 @@ export default function PromoBar() {
     const m = format(Math.floor((seconds % 3600) / 60));
     const s = format(seconds % 60);
 
+    // Ícono decorativo del tema de temporada activo (Halloween, Navidad,
+    // Amor y Amistad...) -- Sparkles por defecto con el tema "Marca". El
+    // fondo usa los mismos tokens derivados de --primary que ya usa
+    // .footer-brand (theme.css), así que se recolorea solo con el tema
+    // activo sin tocar nada aquí cuando el admin activa otro.
+    const IconoTema = getTemaIcono(temaActivo?.icono);
+
     return (
         <div
             className="h-[38px] flex items-center justify-center gap-3 sm:gap-6 px-4 text-white text-[11px] font-semibold text-center"
             style={{
-                background: "linear-gradient(90deg, #581127, #7B1E3A, #65112e)",
+                background:
+                    "linear-gradient(90deg, var(--primary-deep-2) 0%, var(--primary-shade) 50%, var(--primary-deep) 100%)",
             }}
         >
-            <span className="flex items-center gap-1.5 text-[#C9A227]">
-                <Sparkles className="w-3 h-3" />
+            <span className="flex items-center gap-1.5" style={{ color: "var(--gold-surface)" }}>
+                <IconoTema className="w-3 h-3" />
                 OFERTA ESPECIAL
             </span>
 

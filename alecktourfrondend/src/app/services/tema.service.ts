@@ -11,6 +11,10 @@ export interface Tema {
   color_secundario_oscuro: string;
   activo: boolean;
   es_predeterminado: boolean;
+  // Nombre de ícono decorativo (catálogo cerrado, ver temaIconos.tsx) --
+  // null en temas sin ícono elegido, nunca rompe el render (fallback a
+  // Sparkles vía getTemaIcono()).
+  icono: string | null;
   fecha_creacion: string | null;
 }
 
@@ -20,6 +24,7 @@ export interface TemaFormData {
   color_primario_oscuro: string;
   color_secundario_claro: string;
   color_secundario_oscuro: string;
+  icono: string | null;
 }
 
 export const temaService = {

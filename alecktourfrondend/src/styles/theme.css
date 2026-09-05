@@ -522,12 +522,16 @@
    para que el ::before (línea superior) se vea. */
 .navbar-surface {
   position: relative;
-  background: rgba(255, 255, 255, 0.86);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--primary-rgb), 0.09) 0%,
+    rgba(255, 255, 255, 0.92) 75%
+  );
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(var(--primary-rgb), 0.08);
+  border-bottom: 1px solid rgba(var(--primary-rgb), 0.14);
   box-shadow:
-    0 1px 0 rgba(var(--primary-rgb), 0.04),
+    0 1px 0 rgba(var(--primary-rgb), 0.06),
     var(--shadow-sm);
 }
 .navbar-surface::before {
@@ -536,18 +540,30 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(
     90deg,
     var(--primary) 0%,
     var(--gold) 50%,
     var(--primary) 100%
   );
+  box-shadow: 0 1px 8px rgba(var(--primary-rgb), 0.4);
 }
 .dark .navbar-surface {
-  background: rgba(15, 15, 16, 0.86);
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--primary-rgb), 0.16) 0%,
+    rgba(15, 15, 16, 0.94) 75%
+  );
+  border-bottom-color: rgba(var(--primary-rgb), 0.22);
 }
+
+/* Cuando hay un tema de temporada activo (Navidad, Halloween...) el
+   navbar se tiñe más fuerte con el color de ese tema -- ver
+   TemaContext.tsx, que inyecta la regla [data-tema-temporada="x"]
+   .navbar-surface con una opacidad mayor que la de arriba, reutilizando
+   el mismo --primary-rgb que ya queda redefinido en ese scope. Así se
+   nota de un vistazo qué temporada está activa, sin tocar nada aquí. */
 
 /* ---------- 14. Footer con identidad real de marca ----------
    Fondo oscuro granate con textura de puntos (igual criterio

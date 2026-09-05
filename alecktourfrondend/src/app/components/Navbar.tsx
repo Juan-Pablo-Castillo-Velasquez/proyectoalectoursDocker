@@ -17,7 +17,9 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { resolveFotoUrl } from "./admin/types";
 import { useAuth } from "../context/AuthContext";
+import { useTema } from "../context/TemaContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
+import { getTemaIcono } from "../utils/temaIconos";
 import LoginModal from "./LoginModal";
 import NotificacionesBell from "./NotificacionesBell";
 import RegisterModal from "./RegisterModal";
@@ -35,6 +37,15 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, usuario, logout } = useAuth();
+  const { temaActivo } = useTema();
+
+  // Solo se muestra cuando hay un tema de temporada distinto al de marca --
+  // así el navbar deja claro de un vistazo que Halloween/Navidad/Amor y
+  // Amistad está activo, sin inventar un ícono si el admin no eligió uno
+  // (getTemaIcono ya cae en Sparkles, pero ese caso no se muestra como
+  // "temporada especial" porque es el mismo ícono que el tema de marca).
+  const temaTemporadaActivo = temaActivo && !temaActivo.es_predeterminado ? temaActivo : null;
+  const IconoTemaTemporada = temaTemporadaActivo ? getTemaIcono(temaTemporadaActivo.icono) : null;
 
   // Pestaña activa (estilo tabs de Despegar: subrayado persistente, no solo
   // al pasar el mouse) para los enlaces directos de la barra desktop.
@@ -86,7 +97,8 @@ export default function Navbar() {
             {/* =========================================================
                 LOGO
             ========================================================= */}
-            <Link to="/" className="flex items-center gap-3 group shrink-0">
+            <div className="flex items-center gap-3 shrink-0">
+            <Link to="/" className="flex items-center gap-3 group">
               <motion.div
                 whileHover={{
                   scale: 1.06,
@@ -139,6 +151,27 @@ export default function Navbar() {
                 </div>
               </div>
             </Link>
+
+            {temaTemporadaActivo && IconoTemaTemporada && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25 }}
+                title={`Tema de temporada activo: ${temaTemporadaActivo.nombre}`}
+                className="hidden sm:flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full border"
+                style={{
+                  borderColor: "rgba(var(--primary-rgb), 0.28)",
+                  background: "rgba(var(--primary-rgb), 0.1)",
+                  color: "var(--primary)",
+                }}
+              >
+                <IconoTemaTemporada className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  {temaTemporadaActivo.nombre}
+                </span>
+              </motion.div>
+            )}
+            </div>
 
             {/* =========================================================
                 DESKTOP NAVIGATION

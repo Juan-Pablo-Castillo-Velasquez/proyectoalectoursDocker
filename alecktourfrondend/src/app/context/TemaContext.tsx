@@ -74,6 +74,31 @@ ${selector} {
   --gold: ${tema.color_secundario_oscuro};
   --gold-rgb: ${hexToRgb(tema.color_secundario_oscuro)};
 }
+
+/* Navbar con más presencia mientras este tema de temporada está activo
+   -- mismo --primary-rgb de arriba, solo con opacidad mayor que la base
+   de .navbar-surface (theme.css) para que se note el cambio de un
+   vistazo, sin tocar layout ni el resto de la paleta. */
+${selector} .navbar-surface {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--primary-rgb), 0.22) 0%,
+    rgba(255, 255, 255, 0.94) 78%
+  );
+  border-bottom-color: rgba(var(--primary-rgb), 0.3);
+}
+.dark${selector} .navbar-surface {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--primary-rgb), 0.3) 0%,
+    rgba(15, 15, 16, 0.95) 78%
+  );
+  border-bottom-color: rgba(var(--primary-rgb), 0.36);
+}
+${selector} .navbar-surface::before {
+  height: 5px;
+  box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.55);
+}
 `.trim();
 }
 

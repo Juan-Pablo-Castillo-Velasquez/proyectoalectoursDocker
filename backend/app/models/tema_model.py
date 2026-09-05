@@ -42,4 +42,10 @@ class Tema(Base):
     color_secundario_oscuro = Column(String(7), nullable=False)
     activo = Column(Boolean, nullable=False, default=False)
     es_predeterminado = Column(Boolean, nullable=False, default=False)
+    # Nombre de ícono decorativo (lucide-react, ej. "snowflake", "ghost") --
+    # nullable porque temas creados antes de este campo (o sin ícono
+    # elegido) simplemente no muestran nada decorativo, nunca rompen el
+    # render. Restringido a un catálogo cerrado (ver tema_schema.py) para
+    # que nunca llegue un string arbitrario al frontend.
+    icono = Column(String(30), nullable=True)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())
