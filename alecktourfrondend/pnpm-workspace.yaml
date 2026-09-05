@@ -1,2 +1,19 @@
 packages:
   - .
+
+# pnpm 10+ deja de ejecutar los scripts postinstall de las dependencias
+# por defecto (medida de seguridad contra supply-chain attacks) y "pnpm
+# install --frozen-lockfile" falla con [ERR_PNPM_IGNORED_BUILDS] si hay
+# alguno pendiente de aprobar -- esto rompía tanto el build de Docker
+# como (probablemente) el propio CI, que corren ese mismo comando sin
+# terminal interactiva para poder correr "pnpm approve-builds" a mano.
+# Estos 3 paquetes son los únicos con postinstall en el árbol de
+# dependencias actual (confirmado corriendo "pnpm approve-builds --all"
+# una vez): esbuild y @tailwindcss/oxide instalan su binario nativo
+# correspondiente a la plataforma, core-js solo imprime un mensaje de
+# apoyo al proyecto. Si en el futuro aparece un ERR_PNPM_IGNORED_BUILDS
+# nuevo para otro paquete, se agrega aquí de la misma forma.
+allowBuilds:
+  '@tailwindcss/oxide': true
+  core-js: true
+  esbuild: true
