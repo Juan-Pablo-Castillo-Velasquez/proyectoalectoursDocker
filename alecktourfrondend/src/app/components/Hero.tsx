@@ -1,5 +1,5 @@
 import { Compass, ShieldCheck } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { apiGetResenasDestacadas } from "../api/v1/api";
 import { useTema } from "../context/TemaContext";
@@ -15,6 +15,12 @@ const HERO_VIDEO_URL = "https://assets.mixkit.co/videos/5371/5371-360.mp4";
 
 export default function Hero() {
   const [videoFailed, setVideoFailed] = useState(false);
+  // El video arranca en opacidad 0 hasta que el navegador ya decodificó un
+  // primer frame real (onLoadedData) -- antes se animaba a opacidad 1 apenas
+  // se montaba el <video>, así que si el clip todavía no había descargado
+  // nada se veía un fundido hacia un cuadro vacío que después "saltaba" al
+  // primer frame real cuando por fin cargaba.
+  const [videoListo, setVideoListo] = useState(false);
   const { temaActivo } = useTema();
   const esHalloween = temaActivo?.clave === "halloween";
 
@@ -30,6 +36,7 @@ export default function Hero() {
   // escondido para siempre por el fallo de un video anterior distinto.
   useEffect(() => {
     setVideoFailed(false);
+    setVideoListo(false);
   }, [heroVideoUrl]);
 
   // Estadísticas reales del catálogo (nunca inventadas): se calculan a
@@ -130,9 +137,10 @@ export default function Hero() {
             loop
             playsInline
             onError={() => setVideoFailed(true)}
+            onLoadedData={() => setVideoListo(true)}
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1.2, delay: 0.4 }}
+            animate={{ opacity: videoListo ? 1 : 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
             className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
           >
             <source src={heroVideoUrl} type={heroVideoTipo} />
@@ -285,22 +293,51 @@ export default function Hero() {
           </div>
 
           {/* Confianza — dato real (conteo real de hoteles del catálogo),
-              no una cifra de marketing ni fotos de "viajeros" inventados. */}
-          {!statsLoading && totalHoteles > 0 && (
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-[var(--gold)]" />
-              </div>
+              no una cifra de marketing ni fotos de "viajeros" inventados.
+              Antes este bloque no existía en el DOM mientras cargaba y
+              "aparecía de golpe" al resolver el fetch -- ahora muestra un
+              esqueleto del mismo tamaño mientras carga, para que no haya
+              ningún salto de layout ni parpadeo cuando llega el dato real. */}
+          <AnimatePresence mode="wait">
+            {statsLoading ? (
+              <motion.div
+                key="confianza-skeleton"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-2.5 animate-pulse"
+                aria-hidden="true"
+              >
+                <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="h-2.5 w-32 rounded-full bg-white/15" />
+                  <div className="h-2.5 w-24 rounded-full bg-white/10" />
+                </div>
+              </motion.div>
+            ) : (
+              totalHoteles > 0 && (
+                <motion.div
+                  key="confianza-real"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="flex items-center gap-2.5"
+                >
+                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4 text-[var(--gold)]" />
+                  </div>
 
-              <p className="text-[11px] text-white/70 leading-tight">
-                <b className="text-white">
-                  +{totalHotelesLabel} hoteles verificados
-                </b>
-                <br />
-                listos para reservar hoy
-              </p>
-            </div>
-          )}
+                  <p className="text-[11px] text-white/70 leading-tight">
+                    <b className="text-white">
+                      +{totalHotelesLabel} hoteles verificados
+                    </b>
+                    <br />
+                    listos para reservar hoy
+                  </p>
+                </motion.div>
+              )
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* =========================
@@ -328,9 +365,14 @@ export default function Hero() {
                 STATS — cifras reales calculadas del catálogo actual
                 (hoteles, destinos y reseñas reales), no cifras fijas.
             ========================== */}
-      {!statsLoading && (
-        <div
-          className="
+      {/* Antes este bloque entero no existía en el DOM mientras
+          statsLoading era true, y las 4 tarjetas "aparecían de golpe" con
+          su ancho real apenas resolvía el fetch de hoteles/reseñas --
+          ahora el contenedor siempre está montado y muestra un esqueleto
+          del mismo tamaño mientras carga, así no hay ningún salto de
+          layout ni parpadeo cuando llega el dato real. */}
+      <div
+        className="
                     hidden
                     lg:flex
                     absolute
@@ -341,45 +383,75 @@ export default function Hero() {
                     gap-3
                     z-10
                 "
-        >
-          {/* Antes: min-w-[76px]/rounded-[9px]/bg-background -- un radio
-              que no existe en ningún otro lado del sitio (todo lo demás
-              usa rounded-xl/2xl) y un número casi ilegible a text-sm.
-              Mismo criterio de vidrio blanco que el resto del Hero, más
-              aire y un número que realmente se lea desde lejos. */}
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="
-                            min-w-[92px]
-                            px-4
-                            py-3.5
-                            rounded-xl
-                            border
-                            border-white/20
-                            bg-white/10
-                            backdrop-blur-md
-                        "
+      >
+        <AnimatePresence mode="wait">
+          {statsLoading ? (
+            <motion.div
+              key="stats-skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex gap-3 animate-pulse"
+              aria-hidden="true"
             >
-              <strong className="block text-white text-xl font-extrabold tabular-nums leading-tight">
-                {s.value}
-              </strong>
-
-              <span
-                className="
-                                text-white/65
-                                text-[9px]
-                                font-semibold
-                                uppercase
-                                tracking-wide
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="min-w-[92px] px-4 py-3.5 rounded-xl border border-white/20 bg-white/10 backdrop-blur-md"
+                >
+                  <div className="h-5 w-10 rounded bg-white/20 mb-2" />
+                  <div className="h-2 w-14 rounded-full bg-white/15" />
+                </div>
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="stats-real"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex gap-3"
+            >
+              {/* Antes: min-w-[76px]/rounded-[9px]/bg-background -- un radio
+                  que no existe en ningún otro lado del sitio (todo lo demás
+                  usa rounded-xl/2xl) y un número casi ilegible a text-sm.
+                  Mismo criterio de vidrio blanco que el resto del Hero, más
+                  aire y un número que realmente se lea desde lejos. */}
+              {stats.map((s) => (
+                <div
+                  key={s.label}
+                  className="
+                                min-w-[92px]
+                                px-4
+                                py-3.5
+                                rounded-xl
+                                border
+                                border-white/20
+                                bg-white/10
+                                backdrop-blur-md
                             "
-              >
-                {s.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+                >
+                  <strong className="block text-white text-xl font-extrabold tabular-nums leading-tight">
+                    {s.value}
+                  </strong>
+
+                  <span
+                    className="
+                                    text-white/65
+                                    text-[9px]
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                "
+                  >
+                    {s.label}
+                  </span>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </section>
   );
 }
