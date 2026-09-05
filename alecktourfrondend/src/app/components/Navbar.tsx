@@ -113,8 +113,8 @@ export default function Navbar() {
                   flex items-center justify-center
                   bg-primary
                   text-primary-foreground
-                  shadow-lg
-                  shadow-primary/20
+                  shadow-sm
+                  shadow-primary/15
                   overflow-hidden
                 "
               >
@@ -135,7 +135,13 @@ export default function Navbar() {
                     fontWeight: 800,
                   }}
                 >
-                  AlekTours
+                  {/* Nombre de marca real: coincide con el <title> del sitio
+                      (index.html) y con SITE_NAME en useSeoMeta.ts. El navbar
+                      antes decía "AlekTours" (sin la segunda "c") -- una marca
+                      que se escribe distinto en su propio logo que en la
+                      pestaña del navegador resta confianza, así que se unifica
+                      acá con el nombre oficial. */}
+                  AleckTours
                 </div>
 
                 <div
@@ -246,8 +252,8 @@ export default function Navbar() {
                         bg-card
                         text-card-foreground
                         rounded-2xl
-                        shadow-2xl
-                        shadow-black/10
+                        shadow-lg
+                        shadow-black/5
                         border border-border/60
                         overflow-hidden
                         p-2
@@ -403,7 +409,8 @@ export default function Navbar() {
                         w-[270px]
                         bg-card
                         rounded-2xl
-                        shadow-2xl
+                        shadow-lg
+                        shadow-black/5
                         border border-border/60
                         overflow-hidden
                         p-2
@@ -467,8 +474,6 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
 
-              {/* AUTOS */}
-
               {/* MÁS */}
               <div className="relative shrink-0">
                 <button
@@ -476,7 +481,7 @@ export default function Navbar() {
                   onMouseLeave={() => setShowInfoMenu(false)}
                   className="
                     group
-                    flex items-center gap-1
+                    flex items-center gap-1.5
                     px-2.5 2xl:px-3 py-2.5
                     rounded-xl
                     text-foreground/75
@@ -517,7 +522,8 @@ export default function Navbar() {
                         w-[230px]
                         bg-card
                         rounded-2xl
-                        shadow-2xl
+                        shadow-lg
+                        shadow-black/5
                         border border-border/60
                         overflow-hidden
                         p-2
@@ -887,7 +893,11 @@ export default function Navbar() {
                         <p className="text-xs font-bold">¿Necesitas ayuda?</p>
 
                         <p className="text-[11px] text-muted-foreground">
-                          +57 601 123 4567 · Asesoría 24/7
+                          {/* Mismo número real que ya usa WhatsAppButton.tsx
+                              (573228127104) -- antes este card mostraba un
+                              +57 601 123 4567 de relleno que no coincidía con
+                              ningún canal real de contacto del sitio. */}
+                          +57 322 812 7104 · Asesoría 24/7
                         </p>
                       </div>
                     </div>
@@ -904,8 +914,8 @@ export default function Navbar() {
                           bg-primary
                           text-primary-foreground
                           rounded-xl
-                          shadow-lg
-                          shadow-primary/20
+                          shadow-sm
+                          shadow-primary/15
                         "
                         onClick={() => setIsMenuOpen(false)}
                       >
@@ -980,8 +990,8 @@ export default function Navbar() {
                           text-center
                           font-bold
                           text-sm
-                          shadow-lg
-                          shadow-primary/20
+                          shadow-sm
+                          shadow-primary/15
                         "
                       >
                         <LogIn className="w-4 h-4" />
