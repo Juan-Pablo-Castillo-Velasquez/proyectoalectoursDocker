@@ -1,6 +1,8 @@
 import {
+  Building2,
   Calendar,
   MapPin,
+  Package,
   Search,
   ShieldCheck,
   Users,
@@ -17,9 +19,17 @@ interface MenuRect {
   width: number;
 }
 
+type ModoBusqueda = "hoteles" | "paquetes";
+
 export default function SearchBar() {
   const navigate = useNavigate();
   const destinoWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Modo de búsqueda: hoteles (comportamiento original, sin cambios) o
+  // paquetes (filtra por destino sobre /packages, ver Packages.tsx). No
+  // agregamos un tercer modo "Vuelos" porque la app no tiene búsqueda de
+  // vuelos real -- un tab así sería decorativo y no llevaría a nada.
+  const [modo, setModo] = useState<ModoBusqueda>("hoteles");
 
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -97,16 +107,26 @@ export default function SearchBar() {
     e.preventDefault();
 
     if (!destination.trim()) return;
-    if (startDate && endDate && endDate <= startDate) return;
 
-    const params = new URLSearchParams({
-      destination: destination.trim(),
-      start: startDate,
-      end: endDate,
-      people,
-    });
+    if (modo === "hoteles") {
+      if (startDate && endDate && endDate <= startDate) return;
 
-    navigate(`/search?${params.toString()}`);
+      const params = new URLSearchParams({
+        destination: destination.trim(),
+        start: startDate,
+        end: endDate,
+        people,
+      });
+
+      navigate(`/search?${params.toString()}`);
+      return;
+    }
+
+    // Modo paquetes: Packages.tsx lee "destino" de la URL y aplica un
+    // filtro real (client-side, sobre los paquetes ya cargados) por
+    // nombre/ciudad de destino/ciudad de salida -- no es un campo decorativo.
+    const params = new URLSearchParams({ destino: destination.trim() });
+    navigate(`/packages?${params.toString()}`);
   };
 
   const selectDestination = (value: string) => {
@@ -131,7 +151,7 @@ export default function SearchBar() {
           className="text-white text-[15px]"
           style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}
         >
-          Encuentra tu próximo hotel
+          {modo === "hoteles" ? "Encuentra tu próximo hotel" : "Encuentra tu próximo paquete"}
         </span>
         <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
           <ShieldCheck className="w-3.5 h-3.5" />
@@ -139,15 +159,32 @@ export default function SearchBar() {
         </span>
       </div>
 
+      {/* Tabs Hoteles / Paquetes. Sin tab de "Vuelos": la app no tiene
+          búsqueda de vuelos real, así que un tab así sería decorativo. */}
+      <div className="inline-flex items-center gap-1 bg-white/15 backdrop-blur-sm rounded-full p-1 mb-3 border border-white/25">
+        <ModoTab
+          active={modo === "hoteles"}
+          onClick={() => setModo("hoteles")}
+          icon={Building2}
+          label="Hoteles"
+        />
+        <ModoTab
+          active={modo === "paquetes"}
+          onClick={() => setModo("paquetes")}
+          icon={Package}
+          label="Paquetes"
+        />
+      </div>
+
       <form
         onSubmit={handleSearch}
-        className="bg-white rounded-2xl sm:rounded-full w-full text-[#2E2E2E] relative border border-[#7B1E3A]/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80"
+        className="bg-white rounded-2xl sm:rounded-full w-full text-[#2E2E2E] relative border border-primary/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80"
         style={{
           boxShadow:
-            "0 24px 60px -16px rgba(123, 30, 58, 0.32), 0 4px 16px rgba(0,0,0,0.04)",
+            "0 24px 60px -16px rgba(var(--primary-rgb), 0.32), 0 4px 16px rgba(0,0,0,0.04)",
         }}
       >
-        {/* DESTINO */}
+        {/* DESTINO — presente en ambos modos */}
         <div ref={destinoWrapperRef} className="relative flex-[1.3] min-w-0">
           <Segment label="Destino" icon={MapPin}>
             <input
@@ -163,7 +200,7 @@ export default function SearchBar() {
                 setDestination(e.target.value);
                 setShowDestinations(true);
               }}
-              placeholder="¿A qué ciudad viajas?"
+              placeholder={modo === "hoteles" ? "¿A qué ciudad viajas?" : "¿A qué destino quieres ir?"}
               required
               autoComplete="off"
               className="w-full bg-transparent text-[13px] font-semibold outline-none truncate placeholder:text-[#b9adb2] placeholder:font-normal"
@@ -171,63 +208,67 @@ export default function SearchBar() {
           </Segment>
         </div>
 
-        {/* ENTRADA */}
-        <div className="flex-1 min-w-0">
-          <Segment label="Entrada" icon={Calendar}>
-            <input
-              type="date"
-              value={startDate}
-              min={todayStr}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
-              className="w-full bg-transparent text-[13px] font-semibold outline-none"
-            />
-          </Segment>
-        </div>
+        {modo === "hoteles" && (
+          <>
+            {/* ENTRADA */}
+            <div className="flex-1 min-w-0">
+              <Segment label="Entrada" icon={Calendar}>
+                <input
+                  type="date"
+                  value={startDate}
+                  min={todayStr}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                  className="w-full bg-transparent text-[13px] font-semibold outline-none"
+                />
+              </Segment>
+            </div>
 
-        {/* SALIDA */}
-        <div className="flex-1 min-w-0">
-          <Segment label="Salida" icon={Calendar}>
-            <input
-              type="date"
-              value={endDate}
-              min={startDate || todayStr}
-              onChange={(e) => setEndDate(e.target.value)}
-              required
-              className="w-full bg-transparent text-[13px] font-semibold outline-none"
-            />
-          </Segment>
-        </div>
+            {/* SALIDA */}
+            <div className="flex-1 min-w-0">
+              <Segment label="Salida" icon={Calendar}>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate || todayStr}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                  className="w-full bg-transparent text-[13px] font-semibold outline-none"
+                />
+              </Segment>
+            </div>
 
-        {/* HUÉSPEDES */}
-        <div className="flex-1 min-w-0">
-          <Segment label="Huéspedes" icon={Users}>
-            <select
-              value={people}
-              onChange={(e) => setPeople(e.target.value)}
-              className="w-full bg-transparent text-[13px] font-semibold outline-none appearance-none cursor-pointer"
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
-                <option key={num} value={num}>
-                  {num} {num === 1 ? "huésped" : "huéspedes"}
-                </option>
-              ))}
-            </select>
-          </Segment>
-        </div>
+            {/* HUÉSPEDES */}
+            <div className="flex-1 min-w-0">
+              <Segment label="Huéspedes" icon={Users}>
+                <select
+                  value={people}
+                  onChange={(e) => setPeople(e.target.value)}
+                  className="w-full bg-transparent text-[13px] font-semibold outline-none appearance-none cursor-pointer"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                    <option key={num} value={num}>
+                      {num} {num === 1 ? "huésped" : "huéspedes"}
+                    </option>
+                  ))}
+                </select>
+              </Segment>
+            </div>
+          </>
+        )}
 
         {/* BUSCAR */}
         <motion.button
           whileHover={{ scale: 1.015 }}
           whileTap={{ scale: 0.98 }}
           type="submit"
-          className="m-1.5 sm:m-1.5 rounded-xl sm:rounded-full bg-[#7B1E3A] text-white text-[13px] font-bold flex items-center justify-center gap-2 py-3.5 sm:py-0 sm:px-7 shrink-0"
+          className="m-1.5 sm:m-1.5 rounded-xl sm:rounded-full bg-primary text-primary-foreground text-[13px] font-bold flex items-center justify-center gap-2 py-3.5 sm:py-0 sm:px-7 shrink-0"
           style={{
-            boxShadow: "0 8px 20px -6px rgba(123, 30, 58, 0.45)",
+            boxShadow: "0 8px 20px -6px rgba(var(--primary-rgb), 0.45)",
           }}
         >
           <Search className="w-4 h-4" />
-          Buscar hoteles
+          {modo === "hoteles" ? "Buscar hoteles" : "Buscar paquetes"}
         </motion.button>
       </form>
 
@@ -272,10 +313,10 @@ export default function SearchBar() {
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => selectDestination(item.nombre_destino)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[#7B1E3A]/5 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5 transition-colors"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-[#7B1E3A]/8 flex items-center justify-center shrink-0">
-                          <MapPin className="w-3.5 h-3.5 text-[#7B1E3A]" />
+                        <div className="w-8 h-8 rounded-lg bg-primary/8 flex items-center justify-center shrink-0">
+                          <MapPin className="w-3.5 h-3.5 text-primary" />
                         </div>
 
                         <div className="min-w-0">
@@ -318,6 +359,38 @@ export default function SearchBar() {
   );
 }
 
+function ModoTab({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-bold transition-colors ${
+        active ? "text-primary" : "text-white/85 hover:text-white"
+      }`}
+    >
+      {active && (
+        <motion.span
+          layoutId="searchbar-modo-activo"
+          className="absolute inset-0 bg-white rounded-full shadow-sm"
+          transition={{ type: "spring", stiffness: 400, damping: 32 }}
+        />
+      )}
+      <Icon className="w-3.5 h-3.5 relative z-10 shrink-0" />
+      <span className="relative z-10">{label}</span>
+    </button>
+  );
+}
+
 function Segment({
   label,
   icon: Icon,
@@ -330,7 +403,7 @@ function Segment({
   return (
     <div className="px-5 py-3 h-full flex flex-col justify-center min-w-0">
       <label className="flex items-center gap-1 text-[9px] uppercase tracking-wide font-bold text-[#9d8e94] mb-1">
-        <Icon className="w-2.5 h-2.5 text-[#7B1E3A]" />
+        <Icon className="w-2.5 h-2.5 text-primary" />
         {label}
       </label>
 

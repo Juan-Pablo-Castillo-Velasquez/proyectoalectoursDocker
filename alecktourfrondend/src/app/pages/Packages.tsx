@@ -1,7 +1,7 @@
-import { ChevronLeft, ChevronRight, MapPin, Package as PackageIcon, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Package as PackageIcon, Search, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import BannersPromocionales from "../components/BannersPromocionales";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
@@ -21,10 +21,18 @@ const RESULTADOS_POR_PAGINA = 9;
 // hasta una ficha de detalle (PackageDetail.tsx) construidos, pero a los
 // que nada enlazaba.
 export default function Packages() {
+  const [searchParams] = useSearchParams();
   const [paquetes, setPaquetes] = useState<PaqueteResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordenPor, setOrdenPor] = useState<OrdenPor>("relevancia");
   const [pagina, setPagina] = useState(1);
+  // Filtro real de destino: si se llega desde el SearchBar en modo
+  // "Paquetes" (/packages?destino=...) arranca precargado; si no, el
+  // usuario lo escribe acá. Filtra sobre los paquetes ya cargados
+  // (nombre, ciudad de destino y ciudad de salida) -- paqueteService no
+  // soporta filtro por destino en el backend, así que hacerlo del lado
+  // del cliente es la única forma de que sea un filtro real y no decorativo.
+  const [filtroDestino, setFiltroDestino] = useState(() => searchParams.get("destino") ?? "");
 
   useEffect(() => {
     setLoading(true);
@@ -42,17 +50,28 @@ export default function Packages() {
     path: "/packages",
   });
 
-  const ordenados = [...paquetes].sort((a, b) => {
+  const filtrados = filtroDestino.trim()
+    ? paquetes.filter((p) => {
+        const q = filtroDestino.trim().toLowerCase();
+        return (
+          p.nombre_paquete.toLowerCase().includes(q) ||
+          (p.ciudad_destino ?? "").toLowerCase().includes(q) ||
+          (p.ciudad_salida ?? "").toLowerCase().includes(q)
+        );
+      })
+    : paquetes;
+
+  const ordenados = [...filtrados].sort((a, b) => {
     if (ordenPor === "precio_asc") return a.precio_base - b.precio_base;
     if (ordenPor === "precio_desc") return b.precio_base - a.precio_base;
     return 0;
   });
 
   // Paquetes destacados del carrusel superior: los de mayor precio base
-  // (suelen ser los planes más completos/largos), tope de 8 para que el
-  // carrusel no se sienta interminable -- son los mismos paquetes reales
-  // de abajo, no un contenido aparte.
-  const destacados = [...paquetes]
+  // (suelen ser los planes más completos/largos) dentro de lo ya filtrado,
+  // tope de 8 para que el carrusel no se sienta interminable -- son los
+  // mismos paquetes reales de abajo, no un contenido aparte.
+  const destacados = [...filtrados]
     .sort((a, b) => b.precio_base - a.precio_base)
     .slice(0, 8);
 
@@ -96,24 +115,55 @@ export default function Packages() {
 
         {!loading && destacados.length > 0 && <PaquetesDestacadosCarousel paquetes={destacados} />}
 
-        {!loading && ordenados.length > 0 && (
-          <div className="flex items-center justify-end gap-2 mb-4">
-            <label htmlFor="ordenar-paquetes" className="text-xs font-medium text-muted-foreground">
-              Ordenar por
-            </label>
-            <select
-              id="ordenar-paquetes"
-              value={ordenPor}
-              onChange={(e) => {
-                setOrdenPor(e.target.value as OrdenPor);
-                setPagina(1);
-              }}
-              className="text-sm font-semibold bg-card border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-            >
-              <option value="relevancia">Más relevantes</option>
-              <option value="precio_asc">Precio: menor a mayor</option>
-              <option value="precio_desc">Precio: mayor a menor</option>
-            </select>
+        {!loading && paquetes.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div className="relative w-full sm:max-w-xs">
+              <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={filtroDestino}
+                onChange={(e) => {
+                  setFiltroDestino(e.target.value);
+                  setPagina(1);
+                }}
+                placeholder="Filtrar por destino..."
+                className="w-full pl-9 pr-8 py-2 text-sm font-medium bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              {filtroDestino && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltroDestino("");
+                    setPagina(1);
+                  }}
+                  aria-label="Limpiar filtro de destino"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {ordenados.length > 0 && (
+              <div className="flex items-center gap-2 shrink-0">
+                <label htmlFor="ordenar-paquetes" className="text-xs font-medium text-muted-foreground">
+                  Ordenar por
+                </label>
+                <select
+                  id="ordenar-paquetes"
+                  value={ordenPor}
+                  onChange={(e) => {
+                    setOrdenPor(e.target.value as OrdenPor);
+                    setPagina(1);
+                  }}
+                  className="text-sm font-semibold bg-card border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                >
+                  <option value="relevancia">Más relevantes</option>
+                  <option value="precio_asc">Precio: menor a mayor</option>
+                  <option value="precio_desc">Precio: mayor a menor</option>
+                </select>
+              </div>
+            )}
           </div>
         )}
 
@@ -190,6 +240,27 @@ export default function Packages() {
               </nav>
             )}
           </>
+        ) : filtroDestino.trim() && paquetes.length > 0 ? (
+          <div className="bg-card rounded-2xl border border-border p-8 sm:p-12 text-center">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mb-4">
+              <MapPin className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h2 className="text-lg font-bold text-foreground mb-1">
+              No encontramos paquetes para «{filtroDestino.trim()}»
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Prueba con otra ciudad o país, o quita el filtro para ver todos los
+              paquetes disponibles.
+            </p>
+            <button
+              type="button"
+              onClick={() => setFiltroDestino("")}
+              className="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-primary hover:underline"
+            >
+              <X className="h-4 w-4" />
+              Quitar filtro
+            </button>
+          </div>
         ) : (
           <div className="bg-card rounded-2xl border border-border p-8 sm:p-12 text-center">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mb-4">

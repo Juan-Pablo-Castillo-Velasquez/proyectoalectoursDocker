@@ -159,7 +159,7 @@ export default function Navbar() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.25 }}
                 title={`Tema de temporada activo: ${temaTemporadaActivo.nombre}`}
-                className="hidden sm:flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full border"
+                className="hidden sm:flex items-center gap-1.5 pl-1.5 pr-3 xl:pr-1.5 2xl:pr-3 py-1.5 rounded-full border shrink-0"
                 style={{
                   borderColor: "rgba(var(--primary-rgb), 0.28)",
                   background: "rgba(var(--primary-rgb), 0.1)",
@@ -170,12 +170,16 @@ export default function Navbar() {
                   <img
                     src={resolveImagenTema(temaTemporadaActivo.imagen_url)}
                     alt=""
-                    className="h-6 w-6 rounded-full object-cover border border-white/70 shadow-sm"
+                    className="h-6 w-6 rounded-full object-cover border border-white/70 shadow-sm shrink-0"
                   />
                 ) : (
-                  <IconoTemaTemporada className="w-3.5 h-3.5 ml-1" />
+                  <IconoTemaTemporada className="w-3.5 h-3.5 ml-1 shrink-0" />
                 )}
-                <span className="text-[10px] font-bold uppercase tracking-wide">
+                {/* Entre xl y 2xl compite por espacio con la barra de nav
+                    desktop completa (que solo aparece desde xl) -- se
+                    esconde la etiqueta y queda solo el ícono/imagen para
+                    que nada se vea forzado a partirse en dos líneas. */}
+                <span className="hidden sm:inline xl:hidden 2xl:inline text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">
                   {temaTemporadaActivo.nombre}
                 </span>
               </motion.div>
@@ -185,9 +189,9 @@ export default function Navbar() {
             {/* =========================================================
                 DESKTOP NAVIGATION
             ========================================================= */}
-            <div className="hidden xl:flex items-center gap-1 text-[12px] font-semibold">
+            <div className="hidden xl:flex items-center gap-0.5 2xl:gap-1 text-[12px] font-semibold whitespace-nowrap">
               {/* OFERTAS */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onMouseEnter={() => setShowOffersMenu(true)}
                   onMouseLeave={() => setShowOffersMenu(false)}
@@ -195,7 +199,7 @@ export default function Navbar() {
                     group
                     relative
                     flex items-center gap-1.5
-                    px-3 py-2.5
+                    px-2.5 2xl:px-3 py-2.5
                     rounded-xl
                     text-foreground/75
                     hover:text-primary
@@ -291,13 +295,14 @@ export default function Navbar() {
                   group
                   relative
                   flex items-center gap-1.5
-                  px-3 py-2.5
+                  px-2.5 2xl:px-3 py-2.5
                   rounded-xl
+                  shrink-0
                   transition-all
                   ${isActivePath("/search") ? "text-primary bg-primary/[0.06]" : "text-foreground/75 hover:text-primary hover:bg-primary/[0.05]"}
                 `}
               >
-                <Building2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                <Building2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
                 Hoteles
                 <span
                   className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/search") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
@@ -314,13 +319,14 @@ export default function Navbar() {
                   group
                   relative
                   flex items-center gap-1.5
-                  px-3 py-2.5
+                  px-2.5 2xl:px-3 py-2.5
                   rounded-xl
+                  shrink-0
                   transition-all
                   ${isActivePath("/travel-info") ? "text-primary bg-primary/[0.06]" : "text-foreground/75 hover:text-primary hover:bg-primary/[0.05]"}
                 `}
               >
-                <Compass className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                <Compass className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
                 Info de viaje
                 <span
                   className={`absolute bottom-1 left-3 right-3 h-[2px] bg-primary rounded-full transition-transform origin-left ${isActivePath("/travel-info") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
@@ -333,8 +339,9 @@ export default function Navbar() {
                 className="
                   group
                   flex items-center gap-1.5
-                  px-3.5 py-2.5
+                  px-2.5 2xl:px-3.5 py-2.5
                   rounded-xl
+                  shrink-0
                   bg-primary/[0.08]
                   text-primary
                   hover:bg-primary
@@ -343,19 +350,19 @@ export default function Navbar() {
                   shadow-sm
                 "
               >
-                <Package className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                <Package className="w-3.5 h-3.5 group-hover:scale-110 transition-transform shrink-0" />
                 <span>Paquetes</span>
               </Link>
 
               {/* BENEFICIOS */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onMouseEnter={() => setShowBenefitsMenu(true)}
                   onMouseLeave={() => setShowBenefitsMenu(false)}
                   className="
                     group
                     flex items-center gap-1.5
-                    px-3 py-2.5
+                    px-2.5 2xl:px-3 py-2.5
                     rounded-xl
                     text-foreground/75
                     hover:text-primary
@@ -363,7 +370,7 @@ export default function Navbar() {
                     transition-all
                   "
                 >
-                  <Gift className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                  <Gift className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
                   Beneficios
                   <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 </button>
@@ -463,14 +470,14 @@ export default function Navbar() {
               {/* AUTOS */}
 
               {/* MÁS */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onMouseEnter={() => setShowInfoMenu(true)}
                   onMouseLeave={() => setShowInfoMenu(false)}
                   className="
                     group
                     flex items-center gap-1
-                    px-3 py-2.5
+                    px-2.5 2xl:px-3 py-2.5
                     rounded-xl
                     text-foreground/75
                     hover:text-primary
@@ -542,7 +549,7 @@ export default function Navbar() {
             {/* =========================================================
                 RIGHT SIDE
             ========================================================= */}
-            <div className="hidden xl:flex items-center gap-3 shrink-0">
+            <div className="hidden xl:flex items-center gap-2 2xl:gap-3 shrink-0">
               {/* CONTACT */}
               <div
                 className="
