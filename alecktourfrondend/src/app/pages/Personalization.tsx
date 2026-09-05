@@ -14,10 +14,10 @@ export default function Personalization() {
 
   if (!pkg) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Paquete no encontrado</h1>
+          <h1 className="text-3xl font-bold text-foreground">Paquete no encontrado</h1>
         </div>
       </div>
     );
@@ -27,23 +27,26 @@ export default function Personalization() {
     classA: {
       label: "Clase Premium",
       description: "Experiencias exclusivas y VIP",
-      color: "from-[#F59E0B] to-[#D97706]",
-      borderColor: "border-[#F59E0B]",
-      bgColor: "bg-orange-50",
+      circleColor: "bg-gold",
+      iconColor: "text-gold-foreground",
+      borderColor: "border-gold",
+      bgColor: "bg-gold/10",
     },
     classB: {
       label: "Clase Confort",
       description: "El balance perfecto",
-      color: "from-[#2563EB] to-[#06B6D4]",
-      borderColor: "border-[#2563EB]",
-      bgColor: "bg-blue-50",
+      circleColor: "bg-primary",
+      iconColor: "text-primary-foreground",
+      borderColor: "border-primary",
+      bgColor: "bg-primary/10",
     },
     classC: {
       label: "Clase Esencial",
       description: "Lo mejor al mejor precio",
-      color: "from-[#06B6D4] to-[#2563EB]",
-      borderColor: "border-[#06B6D4]",
-      bgColor: "bg-cyan-50",
+      circleColor: "bg-primary/15",
+      iconColor: "text-primary",
+      borderColor: "border-primary/40",
+      bgColor: "bg-primary/5",
     },
   };
 
@@ -56,29 +59,29 @@ export default function Personalization() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
-            <Sparkles className="w-8 h-8 text-[#F59E0B]" />
-            <h1 className="text-4xl font-bold text-gray-900">
+            <Sparkles className="w-8 h-8 text-gold" />
+            <h1 className="text-4xl font-bold text-foreground">
               Personaliza tu experiencia
             </h1>
           </div>
-          <p className="text-xl text-gray-600">
+          <p className="text-xl text-muted-foreground">
             Selecciona las actividades que deseas incluir en tu viaje a{" "}
-            <span className="font-semibold text-[#2563EB]">
+            <span className="font-semibold text-primary">
               {pkg.destination}
             </span>
           </p>
         </div>
 
         {/* Class Selection */}
-        <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+        <div className="bg-card rounded-2xl shadow-md p-8 mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-6">
             Elige tu categoría de entretenimiento
           </h2>
 
@@ -90,7 +93,7 @@ export default function Personalization() {
                   className={`relative cursor-pointer rounded-2xl p-6 border-2 transition-all ${
                     selectedClass === classType
                       ? classInfo[classType].borderColor + " shadow-lg"
-                      : "border-gray-200 hover:border-gray-300"
+                      : "border-border hover:border-primary/30"
                   }`}
                 >
                   <input
@@ -103,21 +106,21 @@ export default function Personalization() {
 
                   <div className="text-center">
                     <div
-                      className={`w-16 h-16 rounded-full bg-gradient-to-br ${classInfo[classType].color} flex items-center justify-center mx-auto mb-4`}
+                      className={`w-16 h-16 rounded-full ${classInfo[classType].circleColor} flex items-center justify-center mx-auto mb-4`}
                     >
-                      <Sparkles className="w-8 h-8 text-white" />
+                      <Sparkles className={`w-8 h-8 ${classInfo[classType].iconColor}`} />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    <h3 className="text-xl font-bold text-foreground mb-2">
                       {classInfo[classType].label}
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       {classInfo[classType].description}
                     </p>
                   </div>
 
                   {selectedClass === classType && (
                     <div className="absolute top-4 right-4">
-                      <CheckCircle className="w-6 h-6 text-[#2563EB]" />
+                      <CheckCircle className="w-6 h-6 text-primary" />
                     </div>
                   )}
                 </label>
@@ -127,15 +130,15 @@ export default function Personalization() {
         </div>
 
         {/* Activities */}
-        <div className="bg-white rounded-2xl shadow-md p-8">
+        <div className="bg-card rounded-2xl shadow-md p-8">
           <div className="flex items-start gap-3 mb-6">
-            <Info className="w-6 h-6 text-[#2563EB] flex-shrink-0 mt-1" />
+            <Info className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-foreground mb-2">
                 Actividades disponibles -{" "}
                 {classInfo[selectedClass].label}
               </h2>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Selecciona las actividades que te gustaría realizar durante tu
                 viaje
               </p>
@@ -151,20 +154,20 @@ export default function Personalization() {
                     ? classInfo[selectedClass].borderColor +
                       " " +
                       classInfo[selectedClass].bgColor
-                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    : "border-border hover:border-primary/30 hover:bg-muted"
                 }`}
               >
                 <input
                   type="checkbox"
                   checked={selectedActivities.includes(activity)}
                   onChange={() => toggleActivity(activity)}
-                  className="mt-1 w-5 h-5 text-[#2563EB] rounded focus:ring-[#2563EB]"
+                  className="mt-1 w-5 h-5 text-primary rounded focus:ring-primary"
                 />
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">{activity}</p>
+                  <p className="font-medium text-foreground">{activity}</p>
                 </div>
                 {selectedActivities.includes(activity) && (
-                  <CheckCircle className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
                 )}
               </label>
             ))}
@@ -177,26 +180,26 @@ export default function Personalization() {
                 classInfo[selectedClass].bgColor
               }`}
             >
-              <h3 className="font-semibold text-gray-900 mb-3">
+              <h3 className="font-semibold text-foreground mb-3">
                 Resumen de tu selección
               </h3>
               <div className="space-y-2">
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-foreground">
                   <strong>Categoría:</strong>{" "}
                   {classInfo[selectedClass].label}
                 </p>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-foreground">
                   <strong>Actividades seleccionadas:</strong>{" "}
                   {selectedActivities.length}
                 </p>
-                <div className="pt-3 border-t border-gray-300">
+                <div className="pt-3 border-t border-border">
                   <ul className="space-y-1">
                     {selectedActivities.map((activity, index) => (
                       <li
                         key={index}
-                        className="text-sm text-gray-700 flex items-start gap-2"
+                        className="text-sm text-muted-foreground flex items-start gap-2"
                       >
-                        <CheckCircle className="w-4 h-4 text-[#2563EB] flex-shrink-0 mt-0.5" />
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                         {activity}
                       </li>
                     ))}
@@ -208,24 +211,24 @@ export default function Personalization() {
 
           {/* Save Button */}
           <div className="mt-8 flex gap-4">
-            <button className="flex-1 py-4 bg-gradient-to-r from-[#2563EB] to-[#06B6D4] text-white font-semibold rounded-xl hover:shadow-xl transition-all duration-300">
+            <button className="flex-1 py-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:shadow-xl hover:brightness-110 transition-all duration-300">
               Guardar preferencias
             </button>
-            <button className="px-8 py-4 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+            <button className="px-8 py-4 border-2 border-border text-foreground font-semibold rounded-xl hover:bg-muted transition-colors">
               Cancelar
             </button>
           </div>
         </div>
 
         {/* Info Card */}
-        <div className="mt-8 bg-blue-50 rounded-2xl p-6 border border-blue-200">
+        <div className="mt-8 bg-primary/5 rounded-2xl p-6 border border-primary/15">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-[#2563EB] flex-shrink-0 mt-0.5" />
+            <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">
+              <h3 className="font-semibold text-foreground mb-2">
                 ¿Cómo funciona?
               </h3>
-              <ul className="space-y-2 text-sm text-gray-700">
+              <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
                   • Puedes cambiar tu selección hasta 7 días antes del viaje
                 </li>

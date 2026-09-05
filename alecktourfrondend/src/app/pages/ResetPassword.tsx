@@ -8,7 +8,7 @@ export default function ResetPassword() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen section-tint">
       <Navbar />
       <ResetPasswordModal
         isOpen={true}

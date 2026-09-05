@@ -184,7 +184,7 @@ export default function SearchBar() {
           sobre blanco" con el resto de tarjetas de la página. */}
       <form
         onSubmit={handleSearch}
-        className="rounded-2xl w-full text-[#2E2E2E] relative border border-primary/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200/80"
+        className="rounded-2xl w-full text-foreground relative border border-primary/10 flex flex-col sm:flex-row items-stretch divide-y sm:divide-y-0 sm:divide-x divide-border"
         style={{
           background: "color-mix(in srgb, var(--primary) 4%, white)",
           boxShadow:
@@ -311,10 +311,10 @@ export default function SearchBar() {
                   left: menuRect.left,
                   width: menuRect.width,
                 }}
-                className="z-[10000] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden min-w-[240px]"
+                className="z-[10000] bg-card rounded-xl border border-border shadow-xl overflow-hidden min-w-[240px]"
               >
-                <div className="px-3 py-2.5 border-b border-gray-100">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                <div className="px-3 py-2.5 border-b border-border">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
                     {destination.trim() ? "Destinos disponibles" : "Destinos populares"}
                   </p>
                 </div>
@@ -334,11 +334,11 @@ export default function SearchBar() {
                         </div>
 
                         <div className="min-w-0">
-                          <p className="text-[12px] font-bold text-gray-800 truncate">
+                          <p className="text-[12px] font-bold text-foreground truncate">
                             {item.nombre_destino}
                           </p>
 
-                          <p className="text-[10px] text-gray-400">
+                          <p className="text-[10px] text-muted-foreground">
                             {[item.ciudad, item.pais].filter(Boolean).join(" · ")}
                           </p>
                         </div>
@@ -347,20 +347,20 @@ export default function SearchBar() {
                   </div>
                 ) : (
                   <div className="px-4 py-5 text-center">
-                    <MapPin className="w-5 h-5 text-gray-300 mx-auto mb-2" />
+                    <MapPin className="w-5 h-5 text-muted-foreground mx-auto mb-2" />
 
-                    <p className="text-xs font-semibold text-gray-600">
+                    <p className="text-xs font-semibold text-muted-foreground">
                       Buscaremos este destino
                     </p>
 
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-muted-foreground mt-1">
                       Presiona Buscar para consultar los alojamientos.
                     </p>
                   </div>
                 )}
 
-                <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
-                  <p className="text-[9px] text-gray-400">
+                <div className="px-3 py-2 border-t border-border bg-muted">
+                  <p className="text-[9px] text-muted-foreground">
                     Escribe una ciudad o país para encontrar hoteles.
                   </p>
                 </div>

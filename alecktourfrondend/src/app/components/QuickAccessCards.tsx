@@ -79,14 +79,14 @@ export default function QuickAccessCards() {
                 {/* Flechas de Navegación laterales fijas estilo Despegar */}
                 <button
                     onClick={handlePrev}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white hover:bg-gray-100 text-gray-700 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-card hover:bg-muted text-foreground p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
                     <ChevronLeft className="w-5 h-5" />
                 </button>
 
                 <button
                     onClick={handleNext}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white hover:bg-gray-100 text-gray-700 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-card hover:bg-muted text-foreground p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
                     <ChevronRight className="w-5 h-5" />
                 </button>
@@ -94,7 +94,7 @@ export default function QuickAccessCards() {
 
             {/* PARTE 2: Las Tarjetas Blancas (FLOTAN ENCIMA DEL BANNER) */}
             <div className="relative z-30 max-w-6xl mx-auto -mt-10 md:-mt-12 px-4 sm:px-6">
-                <div className="bg-white rounded-xl p-5 md:p-6 shadow-[0_12px_30px_rgba(0,0,0,0.08)] border border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                <div className="bg-white rounded-xl p-5 md:p-6 shadow-[0_12px_30px_rgba(0,0,0,0.08)] border border-border grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-border">
                     {cards.map((card, index) => (
                         <a
                             key={index}
@@ -106,10 +106,10 @@ export default function QuickAccessCards() {
                                 {card.icon}
                             </div>
                             <div className="text-left">
-                                <h5 className="text-gray-900 font-medium text-sm md:text-base mb-1 group-hover:text-[#7B1E3A] transition-colors">
+                                <h5 className="text-foreground font-medium text-sm md:text-base mb-1 group-hover:text-primary transition-colors">
                                     {card.title}
                                 </h5>
-                                <p className="text-gray-500 text-xs md:text-sm font-light leading-relaxed">
+                                <p className="text-muted-foreground text-xs md:text-sm font-light leading-relaxed">
                                     {card.description}
                                 </p>
                             </div>

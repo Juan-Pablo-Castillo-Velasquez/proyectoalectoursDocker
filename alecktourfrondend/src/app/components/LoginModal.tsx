@@ -151,7 +151,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                             exit={{ opacity: 0 }}
                                             className="flex flex-col items-center py-4 text-center gap-3"
                                         >
-                                            <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-md ${welcomeInfo.isAdmin ? "bg-amber-100 text-amber-600" : "bg-primary/10 text-primary"}`}>
+                                            <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-md ${welcomeInfo.isAdmin ? "bg-gold/15 text-gold" : "bg-primary/10 text-primary"}`}>
                                                 {welcomeInfo.isAdmin
                                                     ? <Shield className="w-8 h-8" />
                                                     : <User className="w-8 h-8" />
@@ -161,7 +161,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                 <p className="text-lg font-bold text-foreground">
                                                     ¡Hola, {welcomeInfo.username}!
                                                 </p>
-                                                <span className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full text-xs font-semibold ${welcomeInfo.isAdmin ? "bg-amber-100 text-amber-700" : "bg-primary/10 text-primary"}`}>
+                                                <span className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full text-xs font-semibold ${welcomeInfo.isAdmin ? "bg-gold/15 text-gold" : "bg-primary/10 text-primary"}`}>
                                                     {welcomeInfo.isAdmin
                                                         ? <><Shield className="w-3 h-3" /> Administrador</>
                                                         : <><User className="w-3 h-3" /> Cliente</>

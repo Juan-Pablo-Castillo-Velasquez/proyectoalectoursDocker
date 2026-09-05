@@ -43,12 +43,12 @@ export default function PackageCard({ package: pkg, index = 0 }: PackageCardProp
               {pkg.transport === "vuelo" ? (
                 <div className="flex items-center gap-2">
                   <Plane className="w-4 h-4 text-[#FF6B35]" />
-                  <span className="text-sm font-semibold text-gray-900">Vuelo</span>
+                  <span className="text-sm font-semibold text-foreground">Vuelo</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <Bus className="w-4 h-4 text-[#FF6B35]" />
-                  <span className="text-sm font-semibold text-gray-900">Bus</span>
+                  <span className="text-sm font-semibold text-foreground">Bus</span>
                 </div>
               )}
             </div>
@@ -67,25 +67,25 @@ export default function PackageCard({ package: pkg, index = 0 }: PackageCardProp
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 bg-orange-50 px-3 py-1 rounded-full">
                 <Star className="w-4 h-4 fill-[#F7931E] text-[#F7931E]" />
-                <span className="text-sm font-bold text-gray-900">{pkg.rating}</span>
+                <span className="text-sm font-bold text-foreground">{pkg.rating}</span>
               </div>
-              <span className="text-sm text-gray-500">({pkg.reviews})</span>
+              <span className="text-sm text-muted-foreground">({pkg.reviews})</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-600">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="w-4 h-4" />
               <span className="text-sm font-medium">{pkg.duration}</span>
             </div>
           </div>
 
-          <p className="text-gray-600 text-sm mb-4 line-clamp-2">{pkg.description}</p>
+          <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{pkg.description}</p>
 
-          <div className="flex items-end justify-between pt-4 border-t border-gray-100">
+          <div className="flex items-end justify-between pt-4 border-t border-border">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Desde</p>
+              <p className="text-xs text-muted-foreground mb-1">Desde</p>
               <p className="text-3xl font-bold bg-gradient-to-r from-[#FF6B35] to-[#F7931E] bg-clip-text text-transparent">
                 ${pkg.price.toLocaleString("es-CO")}
               </p>
-              <p className="text-xs text-gray-400">por persona</p>
+              <p className="text-xs text-muted-foreground">por persona</p>
             </div>
             <motion.div
               whileHover={{ x: 5 }}
