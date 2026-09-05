@@ -339,6 +339,32 @@ export default function AdminDashboard() {
 
   const deleteTema = (tema: Tema) => setConfirmDelete({ kind: "tema", id: tema.id_tema, label: `el tema "${tema.nombre}"` });
 
+  // Imagen decorativa real del tema (opcional, ver tema_route.py) -- se
+  // sube/borra aparte del resto de campos porque requiere que el tema ya
+  // exista (necesita su id_tema).
+  const subirImagenTema = async (id: number, imagen: File) => {
+    try {
+      await temaService.subirImagen(id, imagen);
+      await fetchTemas();
+      await refrescarTemaActivo();
+      toast.success("Imagen del tema actualizada");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo subir la imagen del tema");
+      throw e;
+    }
+  };
+
+  const borrarImagenTema = async (id: number) => {
+    try {
+      await temaService.borrarImagen(id);
+      await fetchTemas();
+      await refrescarTemaActivo();
+      toast.success("Imagen del tema eliminada");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo quitar la imagen del tema");
+    }
+  };
+
   const updateEstadoEmpresa = async (id: number, estado: SolicitudCorporativa["estado"]) => {
     try {
       const actualizado = await empresaService.actualizarEstado(id, estado);
@@ -680,6 +706,8 @@ export default function AdminDashboard() {
         onSubmit={submitTema}
         onDelete={deleteTema}
         onActivar={activarTema}
+        onSubirImagen={subirImagenTema}
+        onBorrarImagen={borrarImagenTema}
         loading={loading}
       />
     ),

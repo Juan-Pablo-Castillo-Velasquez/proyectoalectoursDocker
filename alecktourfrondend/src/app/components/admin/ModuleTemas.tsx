@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Palette, Plus, Pencil, Trash2, CheckCircle2, ShieldCheck } from "lucide-react";
-import { Tema, TemaFormData } from "../../services/tema.service";
+import { useRef, useState } from "react";
+import { Palette, Plus, Pencil, Trash2, CheckCircle2, ShieldCheck, ImagePlus, X, Loader2 } from "lucide-react";
+import { resolveImagenTema, Tema, TemaFormData } from "../../services/tema.service";
 import { getTemaIcono, TEMA_ICONOS_OPCIONES } from "../../utils/temaIconos";
+import { PALETAS_PRESET } from "../../utils/temaPaletas";
 import AdminModal from "./ui/AdminModal";
 import SectionHeader from "./ui/SectionHeader";
 import EmptyState from "./ui/EmptyState";
@@ -17,6 +18,8 @@ interface Props {
   onSubmit: (data: TemaFormData, id?: number) => Promise<void>;
   onDelete: (tema: Tema) => void;
   onActivar: (tema: Tema) => Promise<void>;
+  onSubirImagen: (id: number, imagen: File) => Promise<void>;
+  onBorrarImagen: (id: number) => Promise<void>;
   loading: boolean;
 }
 
@@ -145,13 +148,17 @@ function SelectorIcono({
 // ver TemaContext.tsx / theme.css. Solo un tema puede estar activo a la
 // vez; el tema "Marca" (es_predeterminado) nunca se puede borrar, así
 // siempre queda un color de respaldo si el admin elimina el resto.
-export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, loading }: Props) {
+export default function ModuleTemas({
+  temas, onSubmit, onDelete, onActivar, onSubirImagen, onBorrarImagen, loading,
+}: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Tema | null>(null);
   const [form, setForm] = useState<TemaFormData>(FORM_VACIO);
   const [saving, setSaving] = useState(false);
   const [activando, setActivando] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const inputImagenRef = useRef<HTMLInputElement>(null);
 
   const abrirCrear = () => {
     setEditing(null);
@@ -207,6 +214,52 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
     }
   };
 
+  // Aplica una paleta prestablecida a los 4 campos de color + el ícono
+  // sugerido -- el admin puede seguir ajustándolos después, no queda fijo.
+  // Si todavía no escribió un nombre, se lo sugiere también (sin pisar uno
+  // que ya haya escrito).
+  const aplicarPaleta = (paleta: (typeof PALETAS_PRESET)[number]) => {
+    setForm(prev => ({
+      ...prev,
+      nombre: prev.nombre.trim() ? prev.nombre : paleta.etiqueta,
+      color_primario_claro: paleta.color_primario_claro,
+      color_primario_oscuro: paleta.color_primario_oscuro,
+      color_secundario_claro: paleta.color_secundario_claro,
+      color_secundario_oscuro: paleta.color_secundario_oscuro,
+      icono: paleta.icono,
+    }));
+  };
+
+  // Imagen decorativa real (opcional) -- solo disponible editando un tema
+  // que ya existe, porque el endpoint necesita su id_tema (ver
+  // tema_route.py::subir_imagen_tema). Se sube de inmediato al elegir el
+  // archivo, aparte del botón "Guardar" del resto del formulario.
+  const handleArchivoImagen = async (file: File) => {
+    if (!editing) return;
+    setSubiendoImagen(true);
+    try {
+      await onSubirImagen(editing.id_tema, file);
+    } finally {
+      setSubiendoImagen(false);
+      if (inputImagenRef.current) inputImagenRef.current.value = "";
+    }
+  };
+
+  const handleQuitarImagen = async () => {
+    if (!editing) return;
+    setSubiendoImagen(true);
+    try {
+      await onBorrarImagen(editing.id_tema);
+    } finally {
+      setSubiendoImagen(false);
+    }
+  };
+
+  // El tema editado puede haber cambiado (nueva imagen) sin que se cierre
+  // el modal -- se busca la versión más fresca en `temas` en vez de
+  // quedarse con la copia de `editing` capturada al abrir el modal.
+  const editingActual = editing ? temas.find(t => t.id_tema === editing.id_tema) ?? editing : null;
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -234,11 +287,18 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
             const bloqueadoParaBorrar = tema.es_predeterminado || tema.activo;
             return (
               <div key={tema.id_tema} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-                <div className="h-20 flex">
+                <div className="h-20 flex relative">
                   <div className="flex-1" style={{ backgroundColor: tema.color_primario_claro }} />
                   <div className="flex-1" style={{ backgroundColor: tema.color_primario_oscuro }} />
                   <div className="flex-1" style={{ backgroundColor: tema.color_secundario_claro }} />
                   <div className="flex-1" style={{ backgroundColor: tema.color_secundario_oscuro }} />
+                  {tema.imagen_url && (
+                    <img
+                      src={resolveImagenTema(tema.imagen_url)}
+                      alt=""
+                      className="absolute bottom-1.5 right-1.5 h-10 w-10 rounded-lg object-cover border-2 border-white shadow-md"
+                    />
+                  )}
                 </div>
                 <div className="p-4 flex-1 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
@@ -343,6 +403,33 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
             />
           </div>
 
+          {!editing && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Paletas prestablecidas
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {PALETAS_PRESET.map((paleta) => (
+                  <button
+                    key={paleta.clave}
+                    type="button"
+                    onClick={() => aplicarPaleta(paleta)}
+                    className="flex items-center gap-2 p-2 rounded-xl border border-border hover:border-primary/40 transition-all text-left"
+                  >
+                    <span className="flex h-7 w-7 rounded-lg overflow-hidden shrink-0 shadow-sm">
+                      <span className="flex-1" style={{ backgroundColor: paleta.color_primario_claro }} />
+                      <span className="flex-1" style={{ backgroundColor: paleta.color_secundario_claro }} />
+                    </span>
+                    <span className="text-xs font-medium text-foreground truncate">{paleta.etiqueta}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                Aplica los 4 colores y un ícono sugerido -- puedes ajustarlos después.
+              </p>
+            </div>
+          )}
+
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
               Primario -- botones, enlaces, sidebar
@@ -391,6 +478,70 @@ export default function ModuleTemas({ temas, onSubmit, onDelete, onActivar, load
             value={form.icono}
             onChange={(v) => setForm(prev => ({ ...prev, icono: v }))}
           />
+
+          <div>
+            <Label>Imagen decorativa (opcional)</Label>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Una foto o ilustración real (ej. calabazas para Halloween, un
+              árbol para Navidad) que se muestra junto al ícono cuando el
+              tema está activo.
+            </p>
+            {!editing ? (
+              <p className="text-xs text-muted-foreground italic bg-muted/40 rounded-lg px-3 py-2">
+                Guarda el tema primero -- podrás subirle una imagen después, al editarlo.
+              </p>
+            ) : (
+              <div className="flex items-center gap-3">
+                {editingActual?.imagen_url ? (
+                  <img
+                    src={resolveImagenTema(editingActual.imagen_url)}
+                    alt=""
+                    className="h-16 w-16 rounded-xl object-cover border border-border shrink-0"
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-xl border border-dashed border-border flex items-center justify-center text-muted-foreground shrink-0">
+                    <ImagePlus className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    ref={inputImagenRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleArchivoImagen(file);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={subiendoImagen}
+                    onClick={() => inputImagenRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 transition-all"
+                  >
+                    {subiendoImagen ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ImagePlus className="w-3.5 h-3.5" />
+                    )}
+                    {editingActual?.imagen_url ? "Reemplazar" : "Subir imagen"}
+                  </button>
+                  {editingActual?.imagen_url && (
+                    <button
+                      type="button"
+                      disabled={subiendoImagen}
+                      onClick={handleQuitarImagen}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive/70 hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-all"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Quitar imagen
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <p className="text-[11px] text-muted-foreground">
             Verificación de contraste según WCAG 2.1 AA (mínimo 4.5:1) -- el

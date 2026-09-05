@@ -19,6 +19,7 @@ import { resolveFotoUrl } from "./admin/types";
 import { useAuth } from "../context/AuthContext";
 import { useTema } from "../context/TemaContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
+import { resolveImagenTema } from "../services/tema.service";
 import { getTemaIcono } from "../utils/temaIconos";
 import LoginModal from "./LoginModal";
 import NotificacionesBell from "./NotificacionesBell";
@@ -158,14 +159,22 @@ export default function Navbar() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.25 }}
                 title={`Tema de temporada activo: ${temaTemporadaActivo.nombre}`}
-                className="hidden sm:flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full border"
+                className="hidden sm:flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full border"
                 style={{
                   borderColor: "rgba(var(--primary-rgb), 0.28)",
                   background: "rgba(var(--primary-rgb), 0.1)",
                   color: "var(--primary)",
                 }}
               >
-                <IconoTemaTemporada className="w-3.5 h-3.5" />
+                {temaTemporadaActivo.imagen_url ? (
+                  <img
+                    src={resolveImagenTema(temaTemporadaActivo.imagen_url)}
+                    alt=""
+                    className="h-6 w-6 rounded-full object-cover border border-white/70 shadow-sm"
+                  />
+                ) : (
+                  <IconoTemaTemporada className="w-3.5 h-3.5 ml-1" />
+                )}
                 <span className="text-[10px] font-bold uppercase tracking-wide">
                   {temaTemporadaActivo.nombre}
                 </span>

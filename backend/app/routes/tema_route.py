@@ -4,12 +4,14 @@ crea/edita y activa uno a la vez para recolorear el acento de marca (granate
 app/models/tema_model.py para el porqué de cada campo y la verificación de
 contraste WCAG 2.1 AA."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.file_validation import validar_y_leer_archivo
+from app.core.image_storage import borrar_imagen, guardar_imagen
 from app.core.security import require_admin
 from app.repositories.tema_repository import TemaEnUsoError, TemaRepository
 from app.schemas.tema_schema import TemaCreate, TemaResponse, TemaUpdate
@@ -19,6 +21,14 @@ router = APIRouter(prefix="/api/temas", tags=["Temas"])
 TEMA_ACTIVO_CACHE_KEY = "tema:activo"
 TEMA_CACHE_PATTERN = "tema:*"
 TEMA_ACTIVO_CACHE_TTL = 300  # 5 min -- igual se invalida al instante en cada escritura
+
+# Imagen decorativa real (opcional) del tema -- Halloween/Navidad con una
+# foto/ilustración real, no solo el ícono lucide. Mismas validaciones y
+# mismo mecanismo de almacenamiento (Cloudinary si está configurado, disco
+# local si no) que ya usan banners y fotos de perfil.
+TEMA_IMAGEN_PUBLIC_PREFIX = "/uploads/temas"
+TEMA_IMAGEN_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+TEMA_IMAGEN_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 
 
 # ===================== PÚBLICO =====================
@@ -94,3 +104,52 @@ def delete_tema(id_tema: int, db: Session = Depends(get_db), admin_id: int = Dep
         raise HTTPException(status_code=409, detail=str(e)) from e
     delete_pattern(TEMA_CACHE_PATTERN)
     return resultado
+
+
+@router.post("/{id_tema}/imagen", response_model=TemaResponse)
+async def subir_imagen_tema(
+    id_tema: int,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Sube (o reemplaza) la imagen decorativa real del tema -- ej. una
+    foto de calabazas para Halloween o de un árbol para Navidad. Opcional:
+    un tema sigue funcionando solo con su ícono lucide si nunca se le sube
+    ninguna."""
+    tema = TemaRepository.get_by_id(db, id_tema)
+    if not tema:
+        raise HTTPException(status_code=404, detail=f"Tema con ID {id_tema} no encontrado")
+
+    contenido, extension = await validar_y_leer_archivo(
+        imagen,
+        tipos_permitidos=TEMA_IMAGEN_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=TEMA_IMAGEN_TAMANO_MAXIMO_BYTES,
+    )
+    nueva_url = guardar_imagen(
+        contenido, extension, carpeta="temas", public_path_prefix=TEMA_IMAGEN_PUBLIC_PREFIX
+    )
+    borrar_imagen(tema.imagen_url, carpeta="temas", public_path_prefix=TEMA_IMAGEN_PUBLIC_PREFIX)
+
+    actualizado = TemaRepository.update(db, id_tema, {"imagen_url": nueva_url})
+    delete_pattern(TEMA_CACHE_PATTERN)
+    return actualizado
+
+
+@router.delete("/{id_tema}/imagen", response_model=TemaResponse)
+def borrar_imagen_tema(
+    id_tema: int,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Quita la imagen decorativa del tema -- vuelve a depender solo del
+    ícono lucide, nunca deja el tema en un estado inválido."""
+    tema = TemaRepository.get_by_id(db, id_tema)
+    if not tema:
+        raise HTTPException(status_code=404, detail=f"Tema con ID {id_tema} no encontrado")
+
+    borrar_imagen(tema.imagen_url, carpeta="temas", public_path_prefix=TEMA_IMAGEN_PUBLIC_PREFIX)
+    actualizado = TemaRepository.update(db, id_tema, {"imagen_url": None})
+    delete_pattern(TEMA_CACHE_PATTERN)
+    return actualizado

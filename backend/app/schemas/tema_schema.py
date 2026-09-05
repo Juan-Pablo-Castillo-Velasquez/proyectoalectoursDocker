@@ -62,6 +62,9 @@ class TemaResponse(TemaBase):
     clave: str
     activo: bool
     es_predeterminado: bool
+    # Se sube por separado (POST /api/temas/{id}/imagen, multipart) igual
+    # que Banner.imagen_url -- nunca viaja en el body JSON de create/update.
+    imagen_url: str | None = None
     fecha_creacion: datetime | None = None
 
     class Config:

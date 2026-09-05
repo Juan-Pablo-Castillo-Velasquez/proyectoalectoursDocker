@@ -48,4 +48,10 @@ class Tema(Base):
     # render. Restringido a un catálogo cerrado (ver tema_schema.py) para
     # que nunca llegue un string arbitrario al frontend.
     icono = Column(String(30), nullable=True)
+    # URL de una imagen decorativa real subida por el admin (Cloudinary si
+    # está configurado, disco local si no -- ver app/core/image_storage.py,
+    # mismo mecanismo que ya usan banners/fotos de perfil). Nullable: un
+    # tema puede quedarse solo con su ícono lucide si el admin no sube
+    # ninguna imagen, nunca es obligatoria.
+    imagen_url = Column(String(500), nullable=True)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())
