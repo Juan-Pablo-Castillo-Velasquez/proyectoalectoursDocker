@@ -1,5 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { sincronizarThemeColorMeta } from "../context/TemaContext";
 
 export function ThemeToggle() {
     const [isDark, setIsDark] = useState(false);
@@ -12,6 +13,12 @@ export function ThemeToggle() {
 
         document.documentElement.classList.toggle("dark", shouldBeDark);
         setIsDark(shouldBeDark);
+        // El <meta name="theme-color"> depende de --primary, que cambia
+        // entre claro/oscuro (ver theme.css) -- sincronizarlo también acá
+        // y no solo al activar un tema de temporada (TemaContext.tsx),
+        // para que el color de la barra del sistema sea correcto desde el
+        // primer render, sin esperar a un cambio de tema.
+        sincronizarThemeColorMeta();
     }, []);
 
     const toggleTheme = () => {
@@ -24,6 +31,7 @@ export function ThemeToggle() {
             localStorage.setItem("theme", "dark");
             setIsDark(true);
         }
+        sincronizarThemeColorMeta();
     };
 
     return (

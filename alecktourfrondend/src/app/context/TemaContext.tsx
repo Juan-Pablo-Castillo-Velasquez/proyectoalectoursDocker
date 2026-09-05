@@ -29,6 +29,45 @@ function hexToRgb(hex: string): string {
   return `${r}, ${g}, ${b}`;
 }
 
+// El <meta name="theme-color"> (index.html) es lo que Android/PWA/algunos
+// navegadores usan para colorear la barra de título del sistema -- antes
+// quedaba fijo en un teal (#0F766E) que no existe en ninguna parte de la
+// paleta real. En vez de duplicar a mano la lógica de claro/oscuro/tema
+// de temporada (que ya vive resuelta en la cascada de CSS, ver
+// theme.css y el <style id="tema-temporada-runtime"> de más abajo), se
+// lee directamente el --primary YA COMPUTADO de <html> -- así queda
+// correcto sin importar qué lo cambió (activar un tema, o alternar
+// claro/oscuro en ThemeToggle.tsx, que llama a esta misma función).
+export function sincronizarThemeColorMeta(): void {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const primario = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
+  if (primario) meta.setAttribute("content", primario);
+}
+
+// Favicon de temporada: por ahora solo Halloween tiene una variante
+// propia (ver public/favicon-halloween.png, mismo badge del navbar pero
+// con el ícono "ghost" -- el mismo que ya usa este tema en icono, ver
+// tema_schema.py) -- agregar otra temporada es agregar otro `if` acá y
+// su archivo en /public, no un sistema nuevo. Fuera de esa temporada
+// activa, siempre se restauran los íconos por defecto (el badge real del
+// navbar, ver Navbar.tsx) -- nunca se queda pegado en un ícono viejo.
+function aplicarFaviconTemporada(tema: Tema | null): void {
+  const svgLink = document.getElementById("favicon-svg") as HTMLLinkElement | null;
+  const pngLink = document.getElementById("favicon-png") as HTMLLinkElement | null;
+  if (!svgLink || !pngLink) return;
+
+  if (tema?.clave === "halloween") {
+    svgLink.type = "image/png";
+    svgLink.href = "/favicon-halloween.png";
+    pngLink.href = "/favicon-halloween.png";
+  } else {
+    svgLink.type = "image/svg+xml";
+    svgLink.href = "/favicon.svg";
+    pngLink.href = "/favicon.png";
+  }
+}
+
 // Recolorea TODO el sitio (navbar, botones, footer, hero, sidebar admin)
 // según el tema de temporada activo, sin tocar layout ni fondos/textos
 // base -- ver theme.css ("TOKENS DERIVADOS PARA TEMAS DE TEMPORADA") para
@@ -43,9 +82,15 @@ function aplicarTemaEnDOM(tema: Tema | null): void {
   // valores base de theme.css YA son sus colores -- sin tema activo, o
   // si el activo es el predeterminado, el sitio queda exactamente igual
   // que hoy (conservando el color actual, como se pidió).
+  aplicarFaviconTemporada(tema);
+
   if (!tema || tema.es_predeterminado) {
     root.removeAttribute(ATTR);
     document.getElementById(STYLE_TAG_ID)?.remove();
+    // Recién ahora que el atributo/estilo de override ya se quitó del DOM
+    // -- si se leyera --primary computado ANTES de este punto, se leería
+    // el valor de la temporada que se acaba de desactivar, no el real.
+    sincronizarThemeColorMeta();
     return;
   }
 
@@ -87,6 +132,8 @@ ${selector} .navbar-surface::before {
   box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.55);
 }
 `.trim();
+
+  sincronizarThemeColorMeta();
 }
 
 export function TemaProvider({ children }: { children: ReactNode }) {

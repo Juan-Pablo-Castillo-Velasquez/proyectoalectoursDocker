@@ -51,10 +51,23 @@
   <meta name="twitter:image" content="https://proyectoalectours-docker.vercel.app/og-image.jpg" />
 
   <!-- Theme Color -->
-  <meta name="theme-color" content="#0F766E" />
+  <!-- Antes #0F766E (un teal que no existe en ningun lado de la paleta
+       real del sitio -- granate/dorado, ver theme.css). Se deja el
+       granate de marca como valor por defecto para el navegador/SO
+       (barra de titulo en Android, PWA, etc.); TemaContext.tsx lo
+       actualiza en vivo si el visitante esta en modo oscuro o con un
+       tema de temporada activo, igual que ya hace con el resto del
+       sitio -- ver aplicarTemaEnDOM(). -->
+  <meta name="theme-color" content="#6e1832" />
 
   <!-- Favicon -->
-  <link rel="icon" href="/favicon.png" />
+  <!-- SVG primero (vectorial, nitido a cualquier tamaño) con el PNG como
+       respaldo para navegadores que aun no soportan favicon SVG. El
+       propio badge del navbar (Navbar.tsx: cuadrado granate + avion
+       blanco) es el logo oficial -- estos archivos son exactamente ese
+       diseño exportado, no un ícono aparte inventado para la pestaña. -->
+  <link id="favicon-svg" rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link id="favicon-png" rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
   <!-- Performance -->
