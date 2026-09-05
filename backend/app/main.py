@@ -139,9 +139,19 @@ _CORS_ORIGINS_DEV = [
 ]
 _cors_origins_env = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
 
+# Vercel genera, ademas del dominio estable de produccion
+# (proyectoalectours-docker.vercel.app), una URL unica por cada deploy
+# (ej. proyectoalectours-docker-n0a9r12pj.vercel.app) para previews y para
+# cada nuevo deploy de produccion -- sin este regex, cada una de esas URLs
+# rompe con error de CORS aunque el dominio "real" ya este en CORS_ORIGINS.
+# Acotado a este proyecto especifico (no *.vercel.app en general) para no
+# habilitar credenciales desde cualquier otro proyecto alojado en Vercel.
+_VERCEL_PREVIEW_REGEX = r"https://proyectoalectours-docker(-[a-zA-Z0-9]+)*\.vercel\.app"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS_DEV + _cors_origins_env,
+    allow_origin_regex=_VERCEL_PREVIEW_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
