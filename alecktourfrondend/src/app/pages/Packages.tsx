@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import BannersPromocionales from "../components/BannersPromocionales";
 import Footer from "../components/Footer";
+import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import Navbar from "../components/Navbar";
 import PackageResultCard from "../components/PackageResultCard";
 import PaquetesDestacadosCarousel from "../components/PaquetesDestacadosCarousel";
+import { useTema } from "../context/TemaContext";
 import { useSeoMeta } from "../hooks/useSeoMeta";
 import { PaqueteResponse, paqueteService } from "../services/paquete.service";
 
@@ -21,6 +23,8 @@ const RESULTADOS_POR_PAGINA = 9;
 // hasta una ficha de detalle (PackageDetail.tsx) construidos, pero a los
 // que nada enlazaba.
 export default function Packages() {
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
   const [searchParams] = useSearchParams();
   const [paquetes, setPaquetes] = useState<PaqueteResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,8 +95,14 @@ export default function Packages() {
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-8 relative"
         >
+          {/* Un solo acento por sección: una foto real de la galería de
+              Cloudinary de la temporada (si ya hay alguna subida), nada
+              si todavía no hay ninguna -- ver HalloweenAccentDiscreto.tsx. */}
+          {esHalloween && (
+            <HalloweenAccentDiscreto variante="foto" posicion="top-right" />
+          )}
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <PackageIcon className="w-4 h-4 text-primary" />

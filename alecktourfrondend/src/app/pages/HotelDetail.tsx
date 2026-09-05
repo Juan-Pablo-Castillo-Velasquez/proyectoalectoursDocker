@@ -32,8 +32,10 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import CalendarioOcupacion from "../components/hotel/CalendarioOcupacion";
 import Footer from "../components/Footer";
+import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import Navbar from "../components/Navbar";
 import { useFavoritos } from "../context/FavoritosContext";
+import { useTema } from "../context/TemaContext";
 import { resolveFotoUrl } from "../components/admin/types";
 import { useSeoMeta } from "../hooks/useSeoMeta";
 import {
@@ -173,6 +175,8 @@ function formatFechaResena(iso: string): string {
 export default function HotelDetail() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
   const { isFavorito, toggleFavorito, loadingIds } = useFavoritos();
   const [hotel, setHotel] = useState<HotelDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -359,7 +363,14 @@ export default function HotelDetail() {
           </div>
 
           {/* Título Comercial */}
-          <div className="mb-6">
+          <div className="mb-6 relative">
+            {/* Un solo acento discreto -- lejos de la galería de fotos
+                reales del hotel y de la tarjeta de precio/reserva, para
+                no restarle seriedad a esas dos zonas (ver criterio de
+                confianza del rediseño). */}
+            {esHalloween && (
+              <HalloweenAccentDiscreto variante="murcielago" posicion="top-right" />
+            )}
             <div className="flex items-center gap-2 mb-2">
               <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider">
                 Hotel Destacado

@@ -1,12 +1,17 @@
 import { Plane } from "lucide-react";
 import { Link } from "react-router";
+import HalloweenAccentDiscreto from "./HalloweenAccentDiscreto";
+import { useTema } from "../context/TemaContext";
 
 export default function Footer() {
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
+
   const footerLinks = {
     empresa: [
       { name: "Inicio", href: "/" },
       { name: "Viajes Corporativos", href: "/corporate" },
-      { name: "AlekTours Rewards", href: "/benefits" },
+      { name: "AleckTours Rewards", href: "/benefits" },
       { name: "Contacto", href: "/contact" },
     ],
     soporte: [
@@ -23,7 +28,14 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="footer-brand pt-16 pb-8">
+    <footer className="footer-brand pt-16 pb-8 relative overflow-hidden">
+      {/* Un solo acento discreto de temporada -- máximo un elemento
+          decorativo por sección, mismo criterio que el resto del sitio.
+          Se retira solo (sin residuos) en cuanto el tema deja de ser
+          Halloween, ver TemaContext.tsx. */}
+      {esHalloween && (
+        <HalloweenAccentDiscreto variante="telarana" posicion="top-left" tamano="lg" />
+      )}
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
           {/* Brand + Newsletter Column */}

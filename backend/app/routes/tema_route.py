@@ -11,7 +11,7 @@ from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.file_validation import validar_y_leer_archivo
-from app.core.image_storage import borrar_imagen, guardar_imagen
+from app.core.image_storage import borrar_imagen, guardar_imagen, listar_galeria_temporada
 from app.core.security import require_admin
 from app.repositories.tema_repository import TemaEnUsoError, TemaRepository
 from app.schemas.tema_schema import TemaCreate, TemaResponse, TemaUpdate
@@ -21,6 +21,15 @@ router = APIRouter(prefix="/api/temas", tags=["Temas"])
 TEMA_ACTIVO_CACHE_KEY = "tema:activo"
 TEMA_CACHE_PATTERN = "tema:*"
 TEMA_ACTIVO_CACHE_TTL = 300  # 5 min -- igual se invalida al instante en cada escritura
+
+# Galería dinámica de Cloudinary por temporada (ver
+# image_storage.py::listar_galeria_temporada) -- a diferencia del resto de
+# TEMA_*_CACHE_*, esta caché SÍ tiene que expirar sola: no hay ningún punto
+# de escritura en esta API que la invalide, porque los archivos se suben
+# directo en Cloudinary, no a través de este backend. 10 minutos es el
+# tiempo máximo que alguien esperaría ver reflejada una foto recién subida.
+GALERIA_CACHE_KEY_PREFIX = "tema:galeria:"
+GALERIA_CACHE_TTL = 600  # 10 min
 
 # Imagen decorativa real (opcional) del tema -- Halloween/Navidad con una
 # foto/ilustración real, no solo el ícono lucide. Mismas validaciones y
@@ -59,6 +68,26 @@ def get_tema_activo(db: Session = Depends(get_db)):
     data = TemaResponse.model_validate(tema).model_dump(mode="json")
     set_cached(TEMA_ACTIVO_CACHE_KEY, data, ttl_seconds=TEMA_ACTIVO_CACHE_TTL)
     return data
+
+
+@router.get("/{clave}/galeria")
+def get_galeria_tema(clave: str, limite: int = 12):
+    """Imágenes reales de la temporada `clave` gestionadas directo en
+    Cloudinary (carpeta alectours/temporadas/<clave>/, ver
+    image_storage.py::listar_galeria_temporada) -- para que el frontend
+    pueda decorar el sitio con fotos/ilustraciones variadas de temporada
+    sin que el admin tenga que subir cada una desde este backend. Nunca
+    falla: sin Cloudinary configurado o sin fotos en esa carpeta todavía,
+    devuelve una lista vacía y la decoración cae solo en los acentos SVG
+    dibujados a mano (ver HalloweenAccents.tsx / useTemaGaleria.ts)."""
+    cache_key = f"{GALERIA_CACHE_KEY_PREFIX}{clave}"
+    cached = get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    urls = listar_galeria_temporada(clave, limite=limite)
+    set_cached(cache_key, urls, ttl_seconds=GALERIA_CACHE_TTL)
+    return urls
 
 
 # ===================== ADMIN =====================

@@ -23,9 +23,11 @@ import {
 } from "../components/ui/accordion";
 import { Badge } from "../components/ui/badge";
 import Footer from "../components/Footer";
+import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import HotelCard from "../components/HotelCard";
 import Navbar from "../components/Navbar";
 import { resolveFotoUrl } from "../components/admin/types";
+import { useTema } from "../context/TemaContext";
 import { HotelDetailResponse, hotelService } from "../services/hotel.service";
 import {
   PaqueteDetalleResponse,
@@ -143,6 +145,8 @@ function EncabezadoSeccion({
 
 export default function PackageDetail() {
   const { id } = useParams();
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
   const [pkg, setPkg] = useState<PaqueteDetalleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -253,6 +257,11 @@ export default function PackageDetail() {
             paquete (Hotel.imagen_url) en vez de una foto genérica por
             ciudad, la misma que ya se corrigió en el detalle del hotel. */}
         <div className="relative h-96 md:h-[500px] rounded-3xl overflow-hidden mb-4">
+          {/* Un solo acento discreto, sobre el scrim oscuro de la foto --
+              mismo patrón que HalloweenAccents.tsx en el Hero de Home. */}
+          {esHalloween && (
+            <HalloweenAccentDiscreto variante="calabaza" posicion="top-left" tamano="lg" />
+          )}
           <img
             src={heroImage}
             alt={destinoPrincipal ?? pkg.nombre_paquete}
@@ -278,7 +287,7 @@ export default function PackageDetail() {
               {pkg.hoteles[0]?.calificacion && (
                 <div className="flex items-center gap-2">
                   {Array.from({ length: pkg.hoteles[0].calificacion }).map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <Star key={i} className="w-4 h-4 fill-gold text-gold" />
                   ))}
                 </div>
               )}

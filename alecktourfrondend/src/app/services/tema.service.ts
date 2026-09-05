@@ -49,6 +49,18 @@ export const temaService = {
   // Público — usado por TemaProvider en el arranque de la app.
   getActivo: () => apiFetch<Tema>("/temas/activo"),
 
+  // Galería dinámica de Cloudinary de la temporada `clave` (ver
+  // backend/app/routes/tema_route.py::get_galeria_tema) -- a diferencia de
+  // imagen_url/video_url (un solo archivo subido desde ModuleTemas.tsx),
+  // esta lista la gestiona quien tenga acceso a la cuenta de Cloudinary
+  // subiendo/borrando archivos directo ahí, sin tocar código ni redeploy.
+  // Lista de URLs https:// listas para usar en <img src>, nunca falla
+  // (el backend devuelve [] si Cloudinary no está configurado o la
+  // carpeta está vacía) — ver useTemaGaleria.ts para el hook que la
+  // consume con manejo de loading.
+  getGaleria: (clave: string, limite = 12) =>
+    apiFetch<string[]>(`/temas/${clave}/galeria?limite=${limite}`),
+
   // Admin (ModuleTemas.tsx)
   getAll: () => apiFetch<Tema[]>("/temas/"),
 

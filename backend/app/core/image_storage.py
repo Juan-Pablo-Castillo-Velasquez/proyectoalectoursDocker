@@ -28,6 +28,7 @@ import uuid
 
 import cloudinary
 import cloudinary.uploader
+from cloudinary import Search as CloudinarySearch
 
 from app.core.config import settings
 
@@ -98,6 +99,41 @@ def guardar_imagen(
     with open(ruta_destino, "wb") as f:
         f.write(contenido)
     return f"{public_path_prefix}/{nombre_archivo}"
+
+
+def listar_galeria_temporada(clave: str, *, limite: int = 12) -> list[str]:
+    """Imágenes reales de una temporada (ej. "halloween") gestionadas
+    DIRECTO en Cloudinary, en la carpeta alectours/temporadas/<clave>/ --
+    a diferencia de Tema.imagen_url/video_url (un solo archivo por tema,
+    subido desde el panel admin, ver tema_route.py), esta carpeta la puede
+    llenar cualquiera con acceso a la cuenta de Cloudinary sin tocar
+    código ni redeploy: subir o borrar un archivo ahí cambia lo que
+    devuelve esta función la próxima vez que expire el caché (ver
+    GALERIA_CACHE_TTL en tema_route.py).
+
+    Usa la Search API (no cloudinary.api.resources) porque es la forma
+    confiable de filtrar por carpeta en cuentas con "Dynamic Folder Mode"
+    (todas las cuentas nuevas -- ver la nota de guardar_imagen() arriba
+    sobre por qué el parámetro "folder" sí crea una carpeta real ahí).
+
+    Sin Cloudinary configurado, sin resultados, o si la API de Cloudinary
+    falla por cualquier motivo (credenciales, rate limit, carpeta que no
+    existe todavía) devuelve una lista vacía -- nunca rompe la decoración
+    del sitio, que ya sabe tratar "sin imágenes de galería" como "solo
+    mostrar los acentos SVG" (ver useTemaGaleria.ts en el frontend)."""
+    if not CLOUDINARY_CONFIGURADO:
+        return []
+    try:
+        resultado = (
+            CloudinarySearch()
+            .expression(f'folder:"alectours/temporadas/{clave}"')
+            .sort_by("created_at", "desc")
+            .max_results(limite)
+            .execute()
+        )
+        return [r["secure_url"] for r in resultado.get("resources", []) if r.get("secure_url")]
+    except Exception:
+        return []
 
 
 def _public_id_desde_url_cloudinary(url: str) -> str | None:
