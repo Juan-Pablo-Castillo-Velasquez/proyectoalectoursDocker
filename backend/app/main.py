@@ -23,7 +23,6 @@ from app.core.database import get_db
 # Routers
 from app.routes.auth_route import router as auth_router
 from app.routes.banner_route import router as banner_router
-from app.routes.tema_route import router as tema_router
 from app.routes.cliente_route import router as cliente_router
 from app.routes.configuracion_route import router as configuracion_router
 from app.routes.contacto_route import router as contacto_router
@@ -40,6 +39,7 @@ from app.routes.resena_route import router as resena_route
 from app.routes.reserva_route import router as reserva_router
 from app.routes.servicio_route import router as servicio_router
 from app.routes.solicitud_cancelacion_route import router as solicitud_cancelacion_router
+from app.routes.tema_route import router as tema_router
 from app.routes.usuario_route import roles_router
 from app.routes.usuario_route import router as usuario_router
 
