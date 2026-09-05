@@ -11,9 +11,21 @@ _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 # sepa resolver, y el admin elige de una lista en vez de escribir texto
 # libre.
 ICONOS_PERMITIDOS = {
-    "sparkles", "snowflake", "tree-pine", "ghost", "heart", "flower2",
-    "sun", "umbrella", "party-popper", "gift", "star", "moon",
-    "cloud-snow", "flame", "leaf",
+    "sparkles",
+    "snowflake",
+    "tree-pine",
+    "ghost",
+    "heart",
+    "flower2",
+    "sun",
+    "umbrella",
+    "party-popper",
+    "gift",
+    "star",
+    "moon",
+    "cloud-snow",
+    "flame",
+    "leaf",
 }
 
 
@@ -32,8 +44,10 @@ class TemaBase(BaseModel):
     icono: str | None = None
 
     @field_validator(
-        "color_primario_claro", "color_primario_oscuro",
-        "color_secundario_claro", "color_secundario_oscuro",
+        "color_primario_claro",
+        "color_primario_oscuro",
+        "color_secundario_claro",
+        "color_secundario_oscuro",
     )
     @classmethod
     def _colores_hex(cls, v: str) -> str:

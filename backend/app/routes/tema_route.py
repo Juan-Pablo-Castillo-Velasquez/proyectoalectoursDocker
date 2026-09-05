@@ -127,9 +127,7 @@ async def subir_imagen_tema(
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         tamano_maximo_bytes=TEMA_IMAGEN_TAMANO_MAXIMO_BYTES,
     )
-    nueva_url = guardar_imagen(
-        contenido, extension, carpeta="temas", public_path_prefix=TEMA_IMAGEN_PUBLIC_PREFIX
-    )
+    nueva_url = guardar_imagen(contenido, extension, carpeta="temas", public_path_prefix=TEMA_IMAGEN_PUBLIC_PREFIX)
     borrar_imagen(tema.imagen_url, carpeta="temas", public_path_prefix=TEMA_IMAGEN_PUBLIC_PREFIX)
 
     actualizado = TemaRepository.update(db, id_tema, {"imagen_url": nueva_url})
