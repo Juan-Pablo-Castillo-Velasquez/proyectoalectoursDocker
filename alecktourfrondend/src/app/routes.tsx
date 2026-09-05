@@ -18,7 +18,6 @@ import Packages from "./pages/Packages";
 import Personalization from "./pages/Personalization";
 import PreferencesForm from "./pages/PreferencesForm";
 import Profile from "./pages/Profile";
-import Reservas from "./pages/Reservas";
 import ResetPassword from "./pages/ResetPassword";
 import SearchResults from "./pages/SearchResults";
 import Testimonios from "./pages/Testimonios";
@@ -65,14 +64,6 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Personalization />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "/reservas",
-        element: (
-          <ProtectedRoute>
-            <Reservas />
           </ProtectedRoute>
         ),
       },

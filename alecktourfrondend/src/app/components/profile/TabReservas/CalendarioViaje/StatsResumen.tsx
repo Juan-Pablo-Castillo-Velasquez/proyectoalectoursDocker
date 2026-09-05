@@ -25,7 +25,7 @@ export default function StatsResumen({
 
   const faltanColor =
     estadoViaje === "en_curso"
-      ? "text-cyan-500 bg-cyan-500/5 border-cyan-500/10"
+      ? "text-gold bg-gold/5 border-gold/10"
       : estadoViaje === "finalizado"
         ? "text-muted-foreground bg-muted/40 border-border"
         : diasRestantes <= 3
@@ -43,7 +43,7 @@ export default function StatsResumen({
       icon: Users,
       label: "Viajeros",
       value: proxima.numero_personas ?? "–",
-      color: "text-cyan-500 bg-cyan-500/5 border-cyan-500/10",
+      color: "text-primary bg-primary/5 border-primary/10",
     },
     {
       icon: Timer,

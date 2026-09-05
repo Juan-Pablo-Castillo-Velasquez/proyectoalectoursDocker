@@ -12,7 +12,7 @@ export default function UrgenciaBadge({ diasRestantes, estadoViaje }: Props) {
       ? {
           label: "Viaje en curso — ¡disfruta tu itinerario! 🧳",
           className:
-            "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+            "bg-gold/10 text-gold border-gold/20",
         }
       : estadoViaje === "finalizado"
         ? {

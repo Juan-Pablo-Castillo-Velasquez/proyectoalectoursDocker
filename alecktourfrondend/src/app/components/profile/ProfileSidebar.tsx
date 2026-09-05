@@ -140,17 +140,17 @@ export default function ProfileSidebar({
 
         {/* Próximo Viaje Destacado en Oscuro Distintivo */}
         {proximaReserva && (
-          <div className="bg-neutral-900 dark:bg-muted text-neutral-100 dark:text-foreground rounded-xl p-3.5 mb-4 border border-neutral-800 dark:border-border shadow-sm">
-            <div className="flex items-center gap-1.5 mb-1.5 text-primary dark:text-primary">
+          <div className="bg-primary dark:bg-muted text-primary-foreground dark:text-foreground rounded-xl p-3.5 mb-4 border border-primary/30 dark:border-border shadow-sm">
+            <div className="flex items-center gap-1.5 mb-1.5 text-gold dark:text-primary">
               <Plane className="w-3.5 h-3.5 transform rotate-45" />
               <span className="text-[10px] font-bold uppercase tracking-widest">
                 Próximo viaje
               </span>
             </div>
-            <p className="text-sm font-bold tracking-tight text-white dark:text-foreground">
+            <p className="text-sm font-bold tracking-tight text-primary-foreground dark:text-foreground">
               Paquete #{proximaReserva.id_paquete}
             </p>
-            <p className="text-xs text-neutral-400 dark:text-muted-foreground mt-0.5 font-medium">
+            <p className="text-xs text-primary-foreground/70 dark:text-muted-foreground mt-0.5 font-medium">
               {new Date(proximaReserva.fecha_inicio).toLocaleDateString(
                 "es-CO",
                 { day: "numeric", month: "short" },

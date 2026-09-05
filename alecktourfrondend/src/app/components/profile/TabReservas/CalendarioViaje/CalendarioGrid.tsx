@@ -29,7 +29,7 @@ export default function CalendarioGrid({
             <span>Inicio</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-500" />{" "}
+            <span className="w-2.5 h-2.5 rounded-full bg-gold" />{" "}
             <span>Fin</span>
           </div>
           <div className="flex items-center gap-1">
@@ -69,7 +69,7 @@ export default function CalendarioGrid({
             cellClass +=
               "bg-primary text-primary-foreground font-bold shadow-sm";
           else if (isOut)
-            cellClass += "bg-cyan-500 text-white font-bold shadow-sm";
+            cellClass += "bg-gold text-gold-foreground font-bold shadow-sm";
           else if (inRange)
             cellClass +=
               "bg-primary/10 text-primary font-medium rounded-md w-full";

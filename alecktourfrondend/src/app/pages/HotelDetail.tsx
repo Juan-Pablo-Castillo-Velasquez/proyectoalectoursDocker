@@ -854,11 +854,11 @@ export default function HotelDetail() {
                 {/* Badges de confianza */}
                 <div className="mt-6 pt-6 border-t border-border space-y-4">
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <ShieldCheck className="w-5 h-5 text-green-500 shrink-0" />
+                    <ShieldCheck className="w-5 h-5 text-gold shrink-0" />
                     <span>Transacción segura y cifrada</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <CreditCard className="w-5 h-5 text-blue-500 shrink-0" />
+                    <CreditCard className="w-5 h-5 text-gold shrink-0" />
                     <span>Aceptamos múltiples métodos de pago</span>
                   </div>
                 </div>

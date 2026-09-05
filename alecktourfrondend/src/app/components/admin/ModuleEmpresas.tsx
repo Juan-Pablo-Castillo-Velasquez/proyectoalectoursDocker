@@ -20,8 +20,8 @@ type Estado = typeof ESTADOS[number];
 type EstadoFilter = "todos" | Estado;
 
 const ESTADO_STYLES: Record<Estado, string> = {
-  nuevo: "bg-[#C9A227]/15 text-[#8a6f1c]",
-  contactado: "bg-blue-500/15 text-blue-600",
+  nuevo: "bg-gold/15 text-gold",
+  contactado: "bg-primary/15 text-primary",
   cerrado: "bg-emerald-500/15 text-emerald-600",
   descartado: "bg-muted text-muted-foreground",
 };

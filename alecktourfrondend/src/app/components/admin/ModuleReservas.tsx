@@ -890,7 +890,7 @@ export default function ModuleReservas({
   const CANAL_ICON: Record<CanalOrigen, React.ReactNode> = {
     web:      <Globe      className="w-3.5 h-3.5 text-primary/70"    />,
     empleado: <UserCheck  className="w-3.5 h-3.5 text-emerald-500" />,
-    telefono: <PhoneCall  className="w-3.5 h-3.5 text-purple-400"  />,
+    telefono: <PhoneCall  className="w-3.5 h-3.5 text-gold"  />,
   };
 
   const thCls = "px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap";

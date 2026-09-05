@@ -36,8 +36,8 @@ export const estadoConfig: Record<
     label: "Finalizada",
   },
   cancelacion_solicitada: {
-    color: "text-purple-600 dark:text-purple-400 border-purple-500/20",
-    bg: "bg-purple-500/10",
+    color: "text-primary border-primary/20",
+    bg: "bg-primary/10",
     icon: Clock,
     label: "Cancelación en trámite",
   },
