@@ -484,19 +484,28 @@ export default function PackageDetail() {
               </section>
             )}
 
-            {/* Personalización */}
-            {/* <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-              <EncabezadoSeccion icon={Sparkles} titulo="Personaliza tu experiencia" />
-              <p className="text-muted-foreground mb-6">
-                Después de reservar puedes agregar actividades y servicios adicionales a tu paquete.
-              </p>
-              <Link
-                to={`/personalize/${pkg.id_paquete}`}
-                className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-colors font-semibold"
-              >
-                Ver opciones de personalización
-              </Link>
-            </section> */}
+            {/* Personalización — solo se muestra si el paquete de verdad tiene
+                actividades opcionales configuradas (Servicio.incluido = false);
+                antes enlazaba a una página con datos 100% inventados
+                (data/packages.ts) y ahora enlaza a Personalization.tsx, que
+                muestra esas actividades opcionales reales agrupadas por
+                categoría real. Sin actividades opcionales no tiene sentido
+                mostrar el enlace. */}
+            {pkg.servicios.some((s) => !s.incluido) && (
+              <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
+                <EncabezadoSeccion icon={Sparkles} titulo="Personaliza tu experiencia" />
+                <p className="text-muted-foreground mb-6">
+                  Este paquete tiene actividades opcionales adicionales — revísalas y
+                  coordínalas con tu asesor al reservar.
+                </p>
+                <Link
+                  to={`/personalize/${pkg.id_paquete}`}
+                  className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-colors font-semibold"
+                >
+                  Ver opciones de personalización
+                </Link>
+              </section>
+            )}
 
             {/* Antes de reservar — el equivalente real de "Términos y
                 condiciones" / "Políticas de cancelación" de cualquier OTA,
