@@ -12,6 +12,7 @@ class BannerResponse(BaseModel):
     link_destino: str | None = None
     fecha_inicio: date | None = None
     fecha_fin: date | None = None
+    temporada: str | None = None
     orden: int
     activo: bool
     fecha_creacion: datetime | None = None

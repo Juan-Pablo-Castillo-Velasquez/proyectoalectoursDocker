@@ -132,6 +132,12 @@ def activar_tema(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail) from e
     delete_pattern(TEMA_CACHE_PATTERN)
+    # Un banner puede estar etiquetado a una temporada (ver
+    # Banner.temporada / BannerRepository.get_activos) -- si no se
+    # invalida acá también, el carrusel público podría tardar hasta
+    # BANNERS_CACHE_TTL (30 min, ver banner_route.py) en reflejar el
+    # cambio de temporada, mostrando banners de la temporada anterior.
+    delete_pattern("promo:banners:*")
     return tema
 
 

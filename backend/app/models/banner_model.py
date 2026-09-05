@@ -29,6 +29,14 @@ class Banner(Base):
     # lado (ej. fecha_fin=None = vigente indefinidamente hacia adelante).
     fecha_inicio = Column(Date, nullable=True)
     fecha_fin = Column(Date, nullable=True)
+    # Etiqueta de temporada opcional (coincide con Tema.clave, ej.
+    # "halloween") -- None significa "vigente todo el año", sin importar
+    # qué tema de color esté activo. Permite que un banner (ej. arte de
+    # Halloween) solo aparezca en el carrusel mientras esa temporada esté
+    # realmente activa (ver BannerRepository.get_activos), en vez de
+    # quedar visible todo el año o depender de que alguien lo
+    # active/desactive a mano cada temporada.
+    temporada = Column(String(40), nullable=True)
     orden = Column(Integer, nullable=False, default=0)
     activo = Column(Boolean, nullable=False, default=True)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())

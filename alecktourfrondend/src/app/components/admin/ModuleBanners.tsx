@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Megaphone, Plus, Pencil, Trash2, ArrowUp, ArrowDown, ImageIcon, Calendar, Link as LinkIcon,
+  Megaphone, Plus, Pencil, Trash2, ArrowUp, ArrowDown, ImageIcon, Calendar, Link as LinkIcon, Sparkles,
 } from "lucide-react";
 import { Banner, BannerFormData, resolveImagenBanner } from "../../services/banner.service";
+import { Tema, temaService } from "../../services/tema.service";
 import AdminModal from "./ui/AdminModal";
 import SectionHeader from "./ui/SectionHeader";
 import EmptyState from "./ui/EmptyState";
@@ -23,7 +24,7 @@ interface Props {
 
 const FORM_VACIO: BannerFormData = {
   titulo: "", descripcion_corta: "", texto_boton: "", link_destino: "",
-  fecha_inicio: "", fecha_fin: "", activo: true,
+  fecha_inicio: "", fecha_fin: "", temporada: "", activo: true,
 };
 
 function formatFecha(f: string | null): string {
@@ -42,6 +43,20 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Catálogo de temas de temporada (Navidad, Halloween, etc.) para el
+  // selector de "Temporada" -- se pide solo acá (no llega por props) para
+  // no acoplar Admindashboard.tsx a esto; si falla, el selector simplemente
+  // queda con una sola opción ("Todo el año"), nunca rompe el módulo.
+  const [temas, setTemas] = useState<Tema[]>([]);
+
+  useEffect(() => {
+    temaService.getAll().then(setTemas).catch(() => setTemas([]));
+  }, []);
+
+  const nombreTemporada = (clave: string | null): string | null => {
+    if (!clave) return null;
+    return temas.find((t) => t.clave === clave)?.nombre ?? clave;
+  };
 
   const ordenados = [...banners].sort((a, b) => a.orden - b.orden);
 
@@ -62,6 +77,7 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
       link_destino: banner.link_destino ?? "",
       fecha_inicio: banner.fecha_inicio ?? "",
       fecha_fin: banner.fecha_fin ?? "",
+      temporada: banner.temporada ?? "",
       activo: banner.activo,
     });
     setImagenPreview(resolveImagenBanner(banner.imagen_url));
@@ -136,6 +152,12 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
                 <div className="absolute top-2 right-2">
                   <StatusBadge status={banner.activo ? "activo" : "inactivo"} />
                 </div>
+                {banner.temporada && (
+                  <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    {nombreTemporada(banner.temporada)}
+                  </div>
+                )}
               </div>
               <div className="p-4 flex-1 flex flex-col gap-2">
                 <p className="font-semibold text-foreground text-sm truncate">{banner.titulo}</p>
@@ -295,6 +317,24 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground -mt-2">Deja las fechas vacías para que no tenga límite en ese extremo.</p>
+
+          <div>
+            <Label htmlFor="banner-temporada">Temporada</Label>
+            <select
+              id="banner-temporada"
+              value={form.temporada ?? ""}
+              onChange={(e) => setForm(prev => ({ ...prev, temporada: e.target.value }))}
+              className="mt-1.5 w-full h-10 px-3 rounded-xl border border-border bg-background text-sm text-foreground"
+            >
+              <option value="">Todo el año (sin temporada)</option>
+              {temas.filter(t => !t.es_predeterminado).map((t) => (
+                <option key={t.id_tema} value={t.clave}>{t.nombre}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground mt-1.5">
+              Si eliges una temporada, este banner solo aparece en el carrusel público mientras ese tema esté activo (ver ModuleTemas.tsx) — el resto del tiempo queda oculto automáticamente.
+            </p>
+          </div>
 
           <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl">
             <Label htmlFor="banner-activo" className="cursor-pointer">Banner activo</Label>

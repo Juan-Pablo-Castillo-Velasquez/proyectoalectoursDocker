@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
 from app.models.banner_model import Banner
+from app.repositories.tema_repository import TemaRepository
 
 
 class BannerRepository:
@@ -17,16 +18,31 @@ class BannerRepository:
     @staticmethod
     def get_activos(db: Session):
         """Los que de verdad debe ver un visitante del sitio ahora mismo:
-        activos y dentro de su rango de vigencia (None en fecha_inicio o
-        fecha_fin = sin límite en ese extremo)."""
+        activos, dentro de su rango de vigencia (None en fecha_inicio o
+        fecha_fin = sin límite en ese extremo), y si tienen `temporada`
+        (ej. "halloween"), que coincida con el tema de color realmente
+        activo ahora -- un banner de temporada nunca se cuela fuera de su
+        temporada solo porque alguien lo dejó activo/vigente por fecha."""
         hoy = date.today()
+        tema_activo = TemaRepository.get_activo(db)
+        clave_activa = tema_activo.clave if tema_activo else None
+
+        filtros = [
+            Banner.activo == True,  # noqa: E712
+            or_(Banner.fecha_inicio.is_(None), Banner.fecha_inicio <= hoy),
+            or_(Banner.fecha_fin.is_(None), Banner.fecha_fin >= hoy),
+        ]
+        if clave_activa:
+            filtros.append(or_(Banner.temporada.is_(None), Banner.temporada == clave_activa))
+        else:
+            # Caso extremo (no debería pasar, ver TemaRepository.get_activo):
+            # sin ningún tema activo ni predeterminado, solo se muestran
+            # los banners sin temporada asignada.
+            filtros.append(Banner.temporada.is_(None))
+
         return (
             db.query(Banner)
-            .filter(
-                Banner.activo == True,  # noqa: E712
-                or_(Banner.fecha_inicio.is_(None), Banner.fecha_inicio <= hoy),
-                or_(Banner.fecha_fin.is_(None), Banner.fecha_fin >= hoy),
-            )
+            .filter(*filtros)
             .order_by(Banner.orden.asc(), Banner.id_banner.asc())
             .all()
         )

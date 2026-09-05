@@ -10,6 +10,10 @@ export interface Banner {
   link_destino: string | null;
   fecha_inicio: string | null; // "2026-08-20"
   fecha_fin: string | null;
+  // Clave del tema de temporada al que pertenece (ej. "halloween") -- null
+  // significa "vigente todo el año", sin importar qué tema esté activo.
+  // Ver Tema.clave en tema.service.ts.
+  temporada: string | null;
   orden: number;
   activo: boolean;
   fecha_creacion: string | null;
@@ -22,6 +26,9 @@ export interface BannerFormData {
   link_destino?: string;
   fecha_inicio?: string;
   fecha_fin?: string;
+  /** Clave de un tema (Tema.clave) para que el banner solo se muestre
+   * mientras ese tema esté activo -- vacío/omitido = todo el año. */
+  temporada?: string;
   activo: boolean;
   /** Solo requerida al crear — al editar, si se omite se conserva la imagen actual. */
   imagen?: File;
@@ -41,6 +48,7 @@ function construirFormData(data: BannerFormData): FormData {
   if (data.link_destino) fd.append("link_destino", data.link_destino);
   if (data.fecha_inicio) fd.append("fecha_inicio", data.fecha_inicio);
   if (data.fecha_fin) fd.append("fecha_fin", data.fecha_fin);
+  if (data.temporada) fd.append("temporada", data.temporada);
   fd.append("activo", String(data.activo));
   if (data.imagen) fd.append("imagen", data.imagen);
   return fd;

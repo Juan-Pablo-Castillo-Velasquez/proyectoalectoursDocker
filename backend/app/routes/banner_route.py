@@ -88,6 +88,7 @@ async def create_banner(
     link_destino: str | None = Form(None),
     fecha_inicio: date | None = Form(None),
     fecha_fin: date | None = Form(None),
+    temporada: str | None = Form(None),
     activo: bool = Form(True),
     imagen: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -106,6 +107,7 @@ async def create_banner(
             "link_destino": link_destino,
             "fecha_inicio": fecha_inicio,
             "fecha_fin": fecha_fin,
+            "temporada": temporada or None,
             "orden": orden,
             "activo": activo,
         },
@@ -123,6 +125,7 @@ async def update_banner(
     link_destino: str | None = Form(None),
     fecha_inicio: date | None = Form(None),
     fecha_fin: date | None = Form(None),
+    temporada: str | None = Form(None),
     activo: bool = Form(True),
     imagen: UploadFile | None = File(None),
     db: Session = Depends(get_db),
@@ -139,6 +142,7 @@ async def update_banner(
         "link_destino": link_destino,
         "fecha_inicio": fecha_inicio,
         "fecha_fin": fecha_fin,
+        "temporada": temporada or None,
         "activo": activo,
     }
 
