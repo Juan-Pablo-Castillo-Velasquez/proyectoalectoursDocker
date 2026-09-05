@@ -1,68 +1,95 @@
-import { useParams } from "react-router";
-import { useState } from "react";
+import { CalendarDays, Info, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router";
+import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
-import { packages } from "../data/packages";
-import { Sparkles, CheckCircle, Info } from "lucide-react";
+import {
+  PaqueteDetalleResponse,
+  PaqueteServicioDetalle,
+  paqueteService,
+} from "../services/paquete.service";
 
-type EntertainmentClass = "classA" | "classB" | "classC";
+// Antes esta página leía de data/packages.ts (datos de ejemplo: hoteles,
+// vuelos y "clases de entretenimiento" Premium/Confort/Esencial que NO
+// existen en la base de datos real) usando un id de tipo string ("1",
+// "2", "3"). PackageDetail.tsx en cambio ya enlaza aquí con el id_paquete
+// numérico real -- así que un cliente podía ver contenido totalmente
+// fabricado, de un destino distinto, para un paquete real. Ahora se
+// consume GET /paquetes/{id}/detalle igual que PackageDetail.tsx.
+//
+// La base de datos no tiene ningún concepto de "clase de entretenimiento":
+// lo único real es la lista de servicios vinculados al paquete
+// (paquete_servicios), cada uno con una categoría real y una bandera
+// incluido/opcional. Por eso esta página deja de simular una selección
+// que en realidad no se guarda en ningún lado (no existe ningún endpoint
+// para eso hoy) y en su lugar muestra, de verdad, las actividades
+// opcionales del paquete agrupadas por su categoría real -- el
+// itinerario completo (incluido + opcional) ya vive en PackageDetail.tsx.
+function agruparPorCategoria(servicios: PaqueteServicioDetalle[]) {
+  const grupos = new Map<string, PaqueteServicioDetalle[]>();
+  for (const s of servicios) {
+    const key = s.categoria ?? "Otras actividades";
+    if (!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key)!.push(s);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
 
 export default function Personalization() {
   const { id } = useParams();
-  const pkg = packages.find((p) => p.id === id);
-  const [selectedClass, setSelectedClass] = useState<EntertainmentClass>("classB");
-  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
+  const [pkg, setPkg] = useState<PaqueteDetalleResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!pkg) {
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    setNotFound(false);
+    paqueteService
+      .getDetalle(parseInt(id))
+      .then(setPkg)
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h1 className="text-3xl font-bold text-foreground">Paquete no encontrado</h1>
+        <div className="max-w-5xl mx-auto px-4 py-8 animate-pulse">
+          <div className="h-10 w-2/3 bg-muted rounded-lg mb-4" />
+          <div className="h-5 w-1/2 bg-muted rounded-lg mb-10" />
+          <div className="h-64 bg-card border border-border rounded-2xl" />
         </div>
       </div>
     );
   }
 
-  const classInfo = {
-    classA: {
-      label: "Clase Premium",
-      description: "Experiencias exclusivas y VIP",
-      circleColor: "bg-gold",
-      iconColor: "text-gold-foreground",
-      borderColor: "border-gold",
-      bgColor: "bg-gold/10",
-    },
-    classB: {
-      label: "Clase Confort",
-      description: "El balance perfecto",
-      circleColor: "bg-primary",
-      iconColor: "text-primary-foreground",
-      borderColor: "border-primary",
-      bgColor: "bg-primary/10",
-    },
-    classC: {
-      label: "Clase Esencial",
-      description: "Lo mejor al mejor precio",
-      circleColor: "bg-primary/15",
-      iconColor: "text-primary",
-      borderColor: "border-primary/40",
-      bgColor: "bg-primary/5",
-    },
-  };
-
-  const toggleActivity = (activity: string) => {
-    setSelectedActivities((prev) =>
-      prev.includes(activity)
-        ? prev.filter((a) => a !== activity)
-        : [...prev, activity]
+  if (notFound || !pkg) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="max-w-5xl mx-auto px-4 py-16 text-center">
+          <h1 className="text-3xl font-bold text-foreground mb-4">
+            Paquete no encontrado
+          </h1>
+          <Link to="/packages" className="text-primary hover:underline font-medium">
+            ← Volver a explorar paquetes
+          </Link>
+        </div>
+      </div>
     );
-  };
+  }
+
+  const destino = pkg.destinos[0] ?? pkg.hoteles[0]?.ciudad ?? pkg.nombre_paquete;
+  const opcionales = pkg.servicios.filter((s) => !s.incluido);
+  const grupos = agruparPorCategoria(opcionales);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
@@ -72,152 +99,75 @@ export default function Personalization() {
             </h1>
           </div>
           <p className="text-xl text-muted-foreground">
-            Selecciona las actividades que deseas incluir en tu viaje a{" "}
-            <span className="font-semibold text-primary">
-              {pkg.destination}
-            </span>
+            Actividades opcionales para tu viaje a{" "}
+            <span className="font-semibold text-primary">{destino}</span>
           </p>
         </div>
 
-        {/* Class Selection */}
-        <div className="bg-card rounded-2xl shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-6">
-            Elige tu categoría de entretenimiento
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {(["classA", "classB", "classC"] as EntertainmentClass[]).map(
-              (classType) => (
-                <label
-                  key={classType}
-                  className={`relative cursor-pointer rounded-2xl p-6 border-2 transition-all ${
-                    selectedClass === classType
-                      ? classInfo[classType].borderColor + " shadow-lg"
-                      : "border-border hover:border-primary/30"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="class"
-                    checked={selectedClass === classType}
-                    onChange={() => setSelectedClass(classType)}
-                    className="sr-only"
-                  />
-
-                  <div className="text-center">
-                    <div
-                      className={`w-16 h-16 rounded-full ${classInfo[classType].circleColor} flex items-center justify-center mx-auto mb-4`}
-                    >
-                      <Sparkles className={`w-8 h-8 ${classInfo[classType].iconColor}`} />
-                    </div>
-                    <h3 className="text-xl font-bold text-foreground mb-2">
-                      {classInfo[classType].label}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {classInfo[classType].description}
-                    </p>
-                  </div>
-
-                  {selectedClass === classType && (
-                    <div className="absolute top-4 right-4">
-                      <CheckCircle className="w-6 h-6 text-primary" />
-                    </div>
-                  )}
-                </label>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Activities */}
-        <div className="bg-card rounded-2xl shadow-md p-8">
+        {/* Actividades opcionales reales del paquete */}
+        <div className="bg-card border border-border rounded-2xl shadow-sm p-8">
           <div className="flex items-start gap-3 mb-6">
             <Info className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">
-                Actividades disponibles -{" "}
-                {classInfo[selectedClass].label}
+                Actividades opcionales de {pkg.nombre_paquete}
               </h2>
               <p className="text-muted-foreground">
-                Selecciona las actividades que te gustaría realizar durante tu
-                viaje
+                No vienen incluidas en el precio base del paquete -- coordínalas con tu
+                asesor al momento de reservar.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {pkg.entertainment[selectedClass].map((activity, index) => (
-              <label
-                key={index}
-                className={`flex items-start gap-4 p-5 rounded-xl cursor-pointer border-2 transition-all ${
-                  selectedActivities.includes(activity)
-                    ? classInfo[selectedClass].borderColor +
-                      " " +
-                      classInfo[selectedClass].bgColor
-                    : "border-border hover:border-primary/30 hover:bg-muted"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedActivities.includes(activity)}
-                  onChange={() => toggleActivity(activity)}
-                  className="mt-1 w-5 h-5 text-primary rounded focus:ring-primary"
-                />
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{activity}</p>
-                </div>
-                {selectedActivities.includes(activity) && (
-                  <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
-                )}
-              </label>
-            ))}
-          </div>
-
-          {/* Summary */}
-          {selectedActivities.length > 0 && (
-            <div
-              className={`mt-8 p-6 rounded-xl ${
-                classInfo[selectedClass].bgColor
-              }`}
-            >
-              <h3 className="font-semibold text-foreground mb-3">
-                Resumen de tu selección
-              </h3>
-              <div className="space-y-2">
-                <p className="text-sm text-foreground">
-                  <strong>Categoría:</strong>{" "}
-                  {classInfo[selectedClass].label}
-                </p>
-                <p className="text-sm text-foreground">
-                  <strong>Actividades seleccionadas:</strong>{" "}
-                  {selectedActivities.length}
-                </p>
-                <div className="pt-3 border-t border-border">
-                  <ul className="space-y-1">
-                    {selectedActivities.map((activity, index) => (
-                      <li
-                        key={index}
-                        className="text-sm text-muted-foreground flex items-start gap-2"
+          {grupos.length > 0 ? (
+            <div className="space-y-8">
+              {grupos.map(([categoria, servicios]) => (
+                <div key={categoria}>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-primary mb-3">
+                    {categoria}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {servicios.map((s) => (
+                      <div
+                        key={s.id_servicio}
+                        className="flex items-start gap-4 p-5 rounded-xl border-2 border-border"
                       >
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                        {activity}
-                      </li>
+                        <CalendarDays className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-foreground">
+                              {s.nombre_servicio}
+                            </p>
+                            {s.dia_actividad != null && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                Día {s.dia_actividad}
+                              </span>
+                            )}
+                          </div>
+                          {s.descripcion && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {s.descripcion}
+                            </p>
+                          )}
+                          {s.capacidad_maxima != null && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Hasta {s.capacidad_maxima}{" "}
+                              {s.capacidad_maxima === 1 ? "persona" : "personas"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">
+              Este paquete ya incluye todas sus actividades en el precio base -- no tiene
+              actividades opcionales configuradas por ahora.
+            </p>
           )}
-
-          {/* Save Button */}
-          <div className="mt-8 flex gap-4">
-            <button className="flex-1 py-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:shadow-xl hover:brightness-110 transition-all duration-300">
-              Guardar preferencias
-            </button>
-            <button className="px-8 py-4 border-2 border-border text-foreground font-semibold rounded-xl hover:bg-muted transition-colors">
-              Cancelar
-            </button>
-          </div>
         </div>
 
         {/* Info Card */}
@@ -225,26 +175,40 @@ export default function Personalization() {
           <div className="flex items-start gap-3">
             <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-foreground mb-2">
-                ¿Cómo funciona?
-              </h3>
+              <h3 className="font-semibold text-foreground mb-2">¿Cómo funciona?</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>• Estas actividades se coordinan directamente con tu asesor al reservar.</li>
+                <li>• El precio final puede variar según temporada y disponibilidad real.</li>
                 <li>
-                  • Puedes cambiar tu selección hasta 7 días antes del viaje
-                </li>
-                <li>
-                  • Algunas actividades pueden tener costo adicional dependiendo de
-                  la temporada
-                </li>
-                <li>
-                  • Te contactaremos para coordinar horarios de las actividades
-                  seleccionadas
+                  • El itinerario completo del paquete (incluido y opcional) está en la
+                  ficha del paquete.
                 </li>
               </ul>
             </div>
           </div>
         </div>
+
+        {/* CTA real: no existe un checkout a nivel de paquete (ver
+            PackageDetail.tsx), así que se lleva al cliente a la ficha
+            completa del paquete, donde sí están los enlaces reales de
+            reserva por hotel. */}
+        <div className="mt-8 flex flex-col sm:flex-row gap-4">
+          <Link
+            to={`/package/${pkg.id_paquete}`}
+            className="flex-1 text-center py-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:shadow-xl hover:brightness-110 transition-all duration-300"
+          >
+            Ver detalle completo y reservar
+          </Link>
+          <Link
+            to="/packages"
+            className="px-8 py-4 border-2 border-border text-foreground font-semibold rounded-xl hover:bg-muted transition-colors flex items-center justify-center"
+          >
+            Explorar otros paquetes
+          </Link>
+        </div>
       </div>
+
+      <Footer />
     </div>
   );
 }
