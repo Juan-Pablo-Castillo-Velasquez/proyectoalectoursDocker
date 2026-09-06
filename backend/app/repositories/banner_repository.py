@@ -47,12 +47,7 @@ class BannerRepository:
         if tipo:
             filtros.append(Banner.tipo == tipo)
 
-        return (
-            db.query(Banner)
-            .filter(*filtros)
-            .order_by(Banner.orden.asc(), Banner.id_banner.asc())
-            .all()
-        )
+        return db.query(Banner).filter(*filtros).order_by(Banner.orden.asc(), Banner.id_banner.asc()).all()
 
     @staticmethod
     def get_by_id(db: Session, banner_id: int):

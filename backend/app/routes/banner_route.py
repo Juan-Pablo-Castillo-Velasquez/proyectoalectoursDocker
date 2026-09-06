@@ -103,7 +103,7 @@ async def create_banner(
     admin_id: int = Depends(require_admin),
 ):
     if tipo not in TIPOS_BANNER_VALIDOS:
-        raise HTTPException(status_code=400, detail=f'tipo debe ser uno de {sorted(TIPOS_BANNER_VALIDOS)}')
+        raise HTTPException(status_code=400, detail=f"tipo debe ser uno de {sorted(TIPOS_BANNER_VALIDOS)}")
 
     imagen_url = await _guardar_imagen(imagen)
     orden = BannerRepository.get_siguiente_orden(db)
@@ -145,7 +145,7 @@ async def update_banner(
     admin_id: int = Depends(require_admin),
 ):
     if tipo not in TIPOS_BANNER_VALIDOS:
-        raise HTTPException(status_code=400, detail=f'tipo debe ser uno de {sorted(TIPOS_BANNER_VALIDOS)}')
+        raise HTTPException(status_code=400, detail=f"tipo debe ser uno de {sorted(TIPOS_BANNER_VALIDOS)}")
 
     existente = BannerRepository.get_by_id(db, banner_id)
     if not existente:
