@@ -3,8 +3,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { toast, Toaster } from "sonner";
+import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
+import { useTema } from "../context/TemaContext";
 import { clienteService } from "../services/cliente.service";
 import { HabitacionResponse, HotelDetailResponse, hotelService } from "../services/hotel.service";
 import { MetodoPago, pagoService, reservaService } from "../services/reserva.service";
@@ -41,6 +43,11 @@ export default function Checkout() {
   const idHabitacion = searchParams.get("habitacion");
   const navigate = useNavigate();
   const { usuario, isAuthenticated } = useAuth();
+  // Acento de temporada SOLO en el encabezado del resumen (ver más abajo)
+  // -- nunca cerca del precio total ni del botón de pago, esa zona se deja
+  // siempre limpia (mismo criterio que HotelDetail.tsx/PackageDetail.tsx).
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
 
   const [hotel, setHotel] = useState<HotelDetailResponse | null>(null);
   const [habitacion, setHabitacion] = useState<HabitacionResponse | null>(null);
@@ -1062,7 +1069,10 @@ export default function Checkout() {
           {/* Sidebar Resumen Desglose */}
           <div className="lg:col-span-1">
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
-              className="bg-card rounded-xl border border-border p-6 sticky top-24 shadow-xs">
+              className="relative overflow-hidden bg-card rounded-xl border border-border p-6 sticky top-24 shadow-xs">
+              {esHalloween && (
+                <HalloweenAccentDiscreto variante="murcielago" posicion="top-right" tamano="sm" />
+              )}
               <h2 className="text-lg font-medium text-foreground mb-4">Resumen de itinerario</h2>
 
               {/* Mini card del hotel + habitación seleccionada */}

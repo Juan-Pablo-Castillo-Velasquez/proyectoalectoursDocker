@@ -2,9 +2,13 @@ import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import HalloweenAccentDiscreto from "./HalloweenAccentDiscreto";
+import { useTema } from "../context/TemaContext";
 import { OfertaDestacada, promocionService } from "../services/promocion.service";
 
 export default function OffersHighlight() {
+    const { temaActivo } = useTema();
+    const esHalloween = temaActivo?.clave === "halloween";
     const [offers, setOffers] = useState<OfertaDestacada[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -86,6 +90,13 @@ export default function OffersHighlight() {
                                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+
+                                {/* El badge de descuento real ya ocupa la esquina superior
+                                    izquierda -- el acento de temporada va en la opuesta para
+                                    no amontonarse ahí (máximo un elemento por esquina). */}
+                                {esHalloween && (
+                                    <HalloweenAccentDiscreto variante="telarana" posicion="top-right" tamano="sm" />
+                                )}
 
                                 <span className="absolute top-4 left-4 px-2.5 py-1 rounded-md bg-[var(--chart-2)] text-[#513b12] text-[11px] font-black shadow-sm">
                                     {o.discount}

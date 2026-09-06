@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useTema } from "../context/TemaContext";
+import HalloweenAccentDiscreto from "./HalloweenAccentDiscreto";
 import { DestinoSeleccion, destinoService } from "../services/destino.service";
 
 const cardVariants = {
@@ -147,6 +148,13 @@ export default function DestinationsGrid() {
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+                                        {/* Esquina superior izquierda libre (la derecha ya la usa
+                                            el botón "Ver más" en hover y la inferior izquierda el
+                                            rating) -- un solo acento por tarjeta. */}
+                                        {esHalloween && (
+                                            <HalloweenAccentDiscreto variante="calabaza" posicion="top-left" tamano="sm" />
+                                        )}
 
                                         <div className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-sm">
                                             <ArrowUpRight className="w-4 h-4 text-primary" />
