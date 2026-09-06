@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./app/App.tsx";
+import WelcomeSplash from "./app/components/WelcomeSplash.tsx";
 import { AuthProvider } from "./app/context/AuthContext";
 import { FavoritosProvider } from "./app/context/FavoritosContext";
 import { TemaProvider } from "./app/context/TemaContext";
@@ -10,6 +11,11 @@ createRoot(document.getElementById("root")!).render(
     <FavoritosProvider>
       <TemaProvider>
         <App />
+        {/* Fuera de <App />/RouterProvider a propósito: es un overlay
+            global (poster de bienvenida, sección 7 del brief) que debe
+            aparecer sin importar por qué ruta entre alguien al sitio, no
+            solo Home -- y una sola vez por sesión (ver WelcomeSplash.tsx). */}
+        <WelcomeSplash />
       </TemaProvider>
     </FavoritosProvider>
   </AuthProvider>
