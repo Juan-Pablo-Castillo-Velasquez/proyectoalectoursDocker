@@ -2,18 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Banner, bannerService, resolveImagenBanner } from "../services/banner.service";
 
-// Galería de "folletos" -- piezas tipo afiche (solo imagen + link, el
-// texto de la oferta ya viene dibujado en la imagen) administradas desde
-// Promociones y banners > "Nuevo folleto" (ver ModuleBanners.tsx).
-// Separada a propósito del carrusel de banners (BannersPromocionales.tsx)
-// y del splash de bienvenida (WelcomeSplash.tsx) -- esos dos siguen
-// mostrando solo tipo="banner", esta sección solo tipo="folleto", nunca
-// se mezclan (bannerService.getActivos("folleto")).
-//
-// No se decora con HalloweenAccentDiscreto a propósito: la pieza subida
-// YA es el arte de temporada completo (ese es el sentido de un folleto),
-// y es una grilla que puede crecer -- mismo criterio que HotelCard.tsx,
-// no repetir un acento en cada tarjeta de una lista.
+// ⚠️ SIN USAR (no se importa en ningún lado) -- se dejó el archivo por si
+// hace falta retomarlo, pero "folleto" NO es una galería del Home. Un
+// folleto es el anuncio a pantalla completa que se ve al entrar al sitio
+// (mismo splash de bienvenida que un banner clásico, con prioridad sobre
+// él) -- ver WelcomeSplash.tsx, que es donde realmente se consume
+// bannerService.getActivos("folleto") hoy.
 export default function FolletosGrid() {
   const [folletos, setFolletos] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);

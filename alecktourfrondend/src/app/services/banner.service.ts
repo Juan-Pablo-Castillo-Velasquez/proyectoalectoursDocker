@@ -14,8 +14,10 @@ export interface Banner {
   // significa "vigente todo el año", sin importar qué tema esté activo.
   // Ver Tema.clave en tema.service.ts.
   temporada: string | null;
-  /** "banner" (carrusel/splash de siempre) o "folleto" (pieza tipo afiche,
-   * solo imagen + link, para la galería nueva y separada de Ofertas). */
+  /** "banner" (carrusel/splash de siempre, con título/descripción/botón) o
+   * "folleto" (pieza tipo afiche, solo imagen + link, con el texto ya
+   * dibujado en la imagen -- se muestra en el splash de bienvenida a
+   * pantalla completa cuando hay uno activo, ver WelcomeSplash.tsx). */
   tipo: "banner" | "folleto";
   orden: number;
   activo: boolean;
@@ -61,10 +63,11 @@ function construirFormData(data: BannerFormData): FormData {
 }
 
 export const bannerService = {
-  // Público — home (BannersPromocionales.tsx), splash (WelcomeSplash.tsx) y
-  // la galería de folletos (FolletosGrid.tsx). Sin `tipo`, trae ambos
-  // mezclados -- cada consumidor pide explícitamente el suyo para no
-  // mezclar folletos en el carrusel ni banners normales en la galería.
+  // Público — home (BannersPromocionales.tsx, PromocionAccordeon.tsx) y el
+  // splash de bienvenida (WelcomeSplash.tsx, que prueba folletos primero y
+  // cae a banners si no hay ninguno activo). Sin `tipo`, trae ambos
+  // mezclados -- cada consumidor pide explícitamente el suyo para que un
+  // folleto nunca aparezca en el carrusel/acordeón de banners.
   getActivos: (tipo?: "banner" | "folleto") =>
     apiFetch<Banner[]>(`/banners/activos${tipo ? `?tipo=${tipo}` : ""}`),
 

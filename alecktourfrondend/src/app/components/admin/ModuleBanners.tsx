@@ -59,8 +59,10 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
   };
 
   const ordenados = [...banners].sort((a, b) => a.orden - b.orden);
-  // Banners (carrusel/splash) y folletos (galería aparte, ver
-  // FolletosGrid.tsx) se administran en la misma tabla pero se muestran en
+  // Banners (carrusel del home + acordeón "Ventajas de la oferta", y
+  // respaldo del splash si no hay ningún folleto activo) y folletos (el
+  // anuncio a pantalla completa que se ve al entrar al sitio, ver
+  // WelcomeSplash.tsx) se administran en la misma tabla pero se muestran en
   // dos grupos separados acá -- cada uno se reordena de forma independiente,
   // nunca se mezclan entre sí porque el sitio público también los pide por
   // separado (bannerService.getActivos("banner"|"folleto")).
@@ -134,7 +136,7 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
     <div className="space-y-6">
       <SectionHeader
         title="Promociones y banners"
-        subtitle="Banners del carrusel/splash del home y folletos de la galería de Ofertas"
+        subtitle="Banners del carrusel del home y folletos del anuncio de bienvenida a pantalla completa"
         action={
           <div className="flex items-center gap-2">
             <button
@@ -157,12 +159,12 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
         <EmptyState
           icon={Megaphone}
           title="Todavía no hay banners ni folletos"
-          description="Crea un banner para el carrusel del home, o un folleto para la galería de Ofertas."
+          description="Crea un banner para el carrusel del home, o un folleto para el anuncio de bienvenida a pantalla completa."
         />
       ) : (
         <div className="space-y-8">
           <section className="space-y-3">
-            <h3 className="text-sm font-bold text-foreground">Banners (carrusel y splash de bienvenida)</h3>
+            <h3 className="text-sm font-bold text-foreground">Banners (carrusel del home)</h3>
             {bannersOrdenados.length === 0 ? (
               <p className="text-xs text-muted-foreground">Todavía no hay banners.</p>
             ) : (
@@ -245,11 +247,11 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
 
           <section className="space-y-3">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-              <Newspaper className="w-4 h-4 text-primary" /> Folletos (galería de Ofertas)
+              <Newspaper className="w-4 h-4 text-primary" /> Folletos (anuncio de bienvenida a pantalla completa)
             </h3>
             {folletosOrdenados.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Todavía no hay folletos -- la galería de Ofertas simplemente no se muestra en el sitio hasta que crees el primero.
+                Todavía no hay folletos -- el anuncio de bienvenida simplemente cae al banner activo (si hay) hasta que crees el primero.
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

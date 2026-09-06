@@ -65,7 +65,8 @@ def get_banners_activos(
 ):
     """Solo banners activos y dentro de su rango de vigencia, en orden —
     lo que debe ver un visitante del sitio ahora mismo (carrusel del home,
-    splash de bienvenida, o la galería de folletos según `tipo`)."""
+    acordeón de ofertas, o el anuncio de bienvenida a pantalla completa,
+    según `tipo`)."""
     cache_key = f"{BANNERS_CACHE_KEY}:{tipo or 'todos'}"
     cached = get_cached(cache_key)
     if cached is not None:

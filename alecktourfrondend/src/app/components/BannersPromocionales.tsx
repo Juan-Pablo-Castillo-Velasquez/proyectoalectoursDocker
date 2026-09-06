@@ -19,7 +19,7 @@ export default function BannersPromocionales() {
   useEffect(() => {
     let activo = true;
     bannerService
-      .getActivos("banner") // nunca folletos (galería separada, ver FolletosGrid.tsx)
+      .getActivos("banner") // nunca folletos (esos solo van en el splash de bienvenida, ver WelcomeSplash.tsx)
       .then((data) => { if (activo) setBanners(data); })
       .catch((err) => console.error("Error cargando banners:", err))
       .finally(() => { if (activo) setLoading(false); });
