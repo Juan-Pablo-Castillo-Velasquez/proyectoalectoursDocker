@@ -41,8 +41,17 @@ def send_email_in_thread(email: str, token: str, username: str | None = None):
     este código de nuevo. `username` es opcional, solo para personalizar
     el saludo del correo (ver send_verification_email)."""
     try:
-        asyncio.run(send_verification_email(email, token, FRONTEND_URL, username))
-        print(f"[BACKGROUND] Email enviado a {email}")
+        # send_verification_email() ya atrapa sus propios errores de SMTP
+        # y devuelve False en vez de lanzar excepción (ver send_email() en
+        # app/core/mail.py) -- antes este código imprimía "Email enviado"
+        # sin revisar ese resultado, así que un envío fallido (ej. Gmail
+        # rechazando la conexión) quedaba registrado en los logs como si
+        # hubiera funcionado, ocultando el problema real.
+        enviado = asyncio.run(send_verification_email(email, token, FRONTEND_URL, username))
+        if enviado:
+            print(f"[BACKGROUND] Email enviado a {email}")
+        else:
+            print(f"[BACKGROUND] No se pudo enviar el email a {email} (ver 'Error al enviar email' arriba)")
     except Exception as e:
         print(f"[BACKGROUND] Error: {str(e)}")
 

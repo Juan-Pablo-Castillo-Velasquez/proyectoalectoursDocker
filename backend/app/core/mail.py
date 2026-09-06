@@ -3,13 +3,42 @@ Módulo de correo electrónico - Envío de emails con SMTP directo
 Configurado para Mailpit (desarrollo) — sin TLS, sin autenticación
 """
 
+import contextlib
 import html
 import os
 import smtplib
+import socket
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.core.config import settings
+
+
+@contextlib.contextmanager
+def _forzar_dns_ipv4():
+    """Fuerza que socket.getaddrinfo() solo devuelva direcciones IPv4
+    mientras el bloque `with` está activo.
+
+    Hallazgo real en producción (Render): enviar por smtp.gmail.com
+    fallaba al instante con "[Errno 101] Network is unreachable" -- eso
+    NO es Gmail rechazando la conexión ni Render bloqueando el puerto
+    587 (eso daría timeout, no "unreachable"), es que smtp.gmail.com
+    resuelve a IPv4 y a IPv6, y el contenedor de Render no tiene salida
+    IPv6 funcional -- si getaddrinfo() devuelve la dirección IPv6
+    primero, la conexión muere de inmediato antes de intentar la IPv4
+    que sí funcionaría. Forzar solo A records (IPv4) evita el problema
+    sin tocar el hostname (sigue siendo "smtp.gmail.com" para efectos
+    de la verificación TLS del certificado en starttls())."""
+    original = socket.getaddrinfo
+
+    def _solo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+        return original(host, port, socket.AF_INET, type, proto, flags)
+
+    socket.getaddrinfo = _solo_ipv4
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original
 
 
 async def send_email(email: str, subject: str, body: str, html_body: str | None = None) -> bool:
@@ -41,20 +70,21 @@ async def send_email(email: str, subject: str, body: str, html_body: str | None 
         use_ssl = getattr(settings, "MAIL_SSL_TLS", False)
         use_tls = getattr(settings, "MAIL_STARTTLS", False)
 
-        if use_ssl:
-            # Puerto 465 — SSL desde el inicio
-            with smtplib.SMTP_SSL(settings.MAIL_SERVER, settings.MAIL_PORT, timeout=10) as server:
-                if settings.MAIL_USERNAME and settings.MAIL_PASSWORD:
-                    server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
-                server.sendmail(settings.MAIL_FROM, [email], msg.as_string())
-        else:
-            # Puerto 587 (STARTTLS) o 1025 (Mailpit sin cifrado)
-            with smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT, timeout=10) as server:
-                if use_tls:
-                    server.starttls()
-                if settings.MAIL_USERNAME and settings.MAIL_PASSWORD:
-                    server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
-                server.sendmail(settings.MAIL_FROM, [email], msg.as_string())
+        with _forzar_dns_ipv4():
+            if use_ssl:
+                # Puerto 465 — SSL desde el inicio
+                with smtplib.SMTP_SSL(settings.MAIL_SERVER, settings.MAIL_PORT, timeout=10) as server:
+                    if settings.MAIL_USERNAME and settings.MAIL_PASSWORD:
+                        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+                    server.sendmail(settings.MAIL_FROM, [email], msg.as_string())
+            else:
+                # Puerto 587 (STARTTLS) o 1025 (Mailpit sin cifrado)
+                with smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT, timeout=10) as server:
+                    if use_tls:
+                        server.starttls()
+                    if settings.MAIL_USERNAME and settings.MAIL_PASSWORD:
+                        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+                    server.sendmail(settings.MAIL_FROM, [email], msg.as_string())
 
         return True
 
