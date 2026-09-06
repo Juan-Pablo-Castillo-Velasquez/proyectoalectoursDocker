@@ -1,12 +1,12 @@
+import asyncio
 import os
 import threading
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.database import get_db
-from app.core.mail import send_password_reset_email  # ← agrega
+from app.core.mail import send_password_reset_email, send_verification_email
 from app.core.security import create_verification_token, hash_password, verify_verification_token  # ← agrega
 from app.schemas.user_schema import (
     PasswordResetConfirm,
@@ -27,29 +27,20 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 def send_email_in_thread(email: str, token: str):
+    """Corre en un hilo aparte para no bloquear la respuesta de /register
+    mientras se envía el correo de verificación.
+
+    Antes reimplementaba su propio envío SMTP crudo (sin STARTTLS ni
+    login) -- funcionaba "por casualidad" contra Mailpit (que no exige
+    autenticación) pero se quedaba callado, sin enviar nada, contra
+    cualquier proveedor real (Gmail, Brevo, etc.) que sí exige TLS +
+    credenciales. Ahora reutiliza send_verification_email() de
+    app/core/mail.py, que ya maneja STARTTLS/SSL y login según
+    MAIL_STARTTLS/MAIL_SSL_TLS/MAIL_USERNAME/MAIL_PASSWORD -- cambiar de
+    Mailpit a un servidor real es solo cuestión de env vars, sin tocar
+    este código de nuevo."""
     try:
-        import smtplib
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-
-        verification_link = f"{FRONTEND_URL}/verify?token={token}"
-        html_body = f"""
-        <html><body style="font-family: Arial, sans-serif; margin: 20px;">
-            <h2>Verifica tu correo</h2>
-            <a href="{verification_link}" style="background-color: #007bff; color: white; padding: 10px 20px;
-               text-decoration: none; border-radius: 5px; display: inline-block;">
-                Verificar Correo
-            </a>
-        </body></html>
-        """
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Verifica tu correo - AlecTours"
-        msg["From"] = settings.MAIL_FROM
-        msg["To"] = email
-        msg.attach(MIMEText(html_body, "html"))
-
-        with smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT, timeout=5) as server:
-            server.sendmail(settings.MAIL_FROM, email, msg.as_string())
+        asyncio.run(send_verification_email(email, token, FRONTEND_URL))
         print(f"[BACKGROUND] Email enviado a {email}")
     except Exception as e:
         print(f"[BACKGROUND] Error: {str(e)}")
