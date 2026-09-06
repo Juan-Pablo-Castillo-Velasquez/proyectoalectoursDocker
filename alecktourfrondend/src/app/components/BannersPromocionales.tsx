@@ -19,7 +19,7 @@ export default function BannersPromocionales() {
   useEffect(() => {
     let activo = true;
     bannerService
-      .getActivos()
+      .getActivos("banner") // nunca folletos (galería separada, ver FolletosGrid.tsx)
       .then((data) => { if (activo) setBanners(data); })
       .catch((err) => console.error("Error cargando banners:", err))
       .finally(() => { if (activo) setLoading(false); });

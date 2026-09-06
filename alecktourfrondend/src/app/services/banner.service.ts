@@ -14,6 +14,9 @@ export interface Banner {
   // significa "vigente todo el año", sin importar qué tema esté activo.
   // Ver Tema.clave en tema.service.ts.
   temporada: string | null;
+  /** "banner" (carrusel/splash de siempre) o "folleto" (pieza tipo afiche,
+   * solo imagen + link, para la galería nueva y separada de Ofertas). */
+  tipo: "banner" | "folleto";
   orden: number;
   activo: boolean;
   fecha_creacion: string | null;
@@ -29,6 +32,8 @@ export interface BannerFormData {
   /** Clave de un tema (Tema.clave) para que el banner solo se muestre
    * mientras ese tema esté activo -- vacío/omitido = todo el año. */
   temporada?: string;
+  /** "banner" (por defecto) o "folleto" -- ver Banner.tipo arriba. */
+  tipo?: "banner" | "folleto";
   activo: boolean;
   /** Solo requerida al crear — al editar, si se omite se conserva la imagen actual. */
   imagen?: File;
@@ -49,14 +54,19 @@ function construirFormData(data: BannerFormData): FormData {
   if (data.fecha_inicio) fd.append("fecha_inicio", data.fecha_inicio);
   if (data.fecha_fin) fd.append("fecha_fin", data.fecha_fin);
   if (data.temporada) fd.append("temporada", data.temporada);
+  fd.append("tipo", data.tipo || "banner");
   fd.append("activo", String(data.activo));
   if (data.imagen) fd.append("imagen", data.imagen);
   return fd;
 }
 
 export const bannerService = {
-  // Público — home (BannersPromocionales.tsx)
-  getActivos: () => apiFetch<Banner[]>("/banners/activos"),
+  // Público — home (BannersPromocionales.tsx), splash (WelcomeSplash.tsx) y
+  // la galería de folletos (FolletosGrid.tsx). Sin `tipo`, trae ambos
+  // mezclados -- cada consumidor pide explícitamente el suyo para no
+  // mezclar folletos en el carrusel ni banners normales en la galería.
+  getActivos: (tipo?: "banner" | "folleto") =>
+    apiFetch<Banner[]>(`/banners/activos${tipo ? `?tipo=${tipo}` : ""}`),
 
   // Admin (ModuleBanners.tsx)
   getAll: () => apiFetch<Banner[]>("/banners/"),

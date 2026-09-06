@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Megaphone, Plus, Pencil, Trash2, ArrowUp, ArrowDown, ImageIcon, Calendar, Link as LinkIcon, Sparkles,
+  Megaphone, Plus, Pencil, Trash2, ArrowUp, ArrowDown, ImageIcon, Calendar, Link as LinkIcon, Sparkles, Newspaper,
 } from "lucide-react";
 import { Banner, BannerFormData, resolveImagenBanner } from "../../services/banner.service";
 import { Tema, temaService } from "../../services/tema.service";
@@ -24,7 +24,7 @@ interface Props {
 
 const FORM_VACIO: BannerFormData = {
   titulo: "", descripcion_corta: "", texto_boton: "", link_destino: "",
-  fecha_inicio: "", fecha_fin: "", temporada: "", activo: true,
+  fecha_inicio: "", fecha_fin: "", temporada: "", tipo: "banner", activo: true,
 };
 
 function formatFecha(f: string | null): string {
@@ -59,10 +59,17 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
   };
 
   const ordenados = [...banners].sort((a, b) => a.orden - b.orden);
+  // Banners (carrusel/splash) y folletos (galería aparte, ver
+  // FolletosGrid.tsx) se administran en la misma tabla pero se muestran en
+  // dos grupos separados acá -- cada uno se reordena de forma independiente,
+  // nunca se mezclan entre sí porque el sitio público también los pide por
+  // separado (bannerService.getActivos("banner"|"folleto")).
+  const bannersOrdenados = ordenados.filter((b) => b.tipo !== "folleto");
+  const folletosOrdenados = ordenados.filter((b) => b.tipo === "folleto");
 
-  const abrirCrear = () => {
+  const abrirCrear = (tipo: "banner" | "folleto" = "banner") => {
     setEditing(null);
-    setForm(FORM_VACIO);
+    setForm({ ...FORM_VACIO, tipo });
     setImagenPreview(null);
     setError("");
     setModalOpen(true);
@@ -78,6 +85,7 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
       fecha_inicio: banner.fecha_inicio ?? "",
       fecha_fin: banner.fecha_fin ?? "",
       temporada: banner.temporada ?? "",
+      tipo: banner.tipo,
       activo: banner.activo,
     });
     setImagenPreview(resolveImagenBanner(banner.imagen_url));
@@ -114,10 +122,10 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
     }
   };
 
-  const mover = (index: number, direction: -1 | 1) => {
+  const moverEnLista = (lista: Banner[], index: number, direction: -1 | 1) => {
     const destino = index + direction;
-    if (destino < 0 || destino >= ordenados.length) return;
-    const copia = [...ordenados];
+    if (destino < 0 || destino >= lista.length) return;
+    const copia = [...lista];
     [copia[index], copia[destino]] = [copia[destino], copia[index]];
     onReordenar(copia.map((b, i) => ({ id_banner: b.id_banner, orden: i })));
   };
@@ -126,104 +134,205 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
     <div className="space-y-6">
       <SectionHeader
         title="Promociones y banners"
-        subtitle="Banners publicitarios del sitio público (carrusel del home, ofertas destacadas)"
+        subtitle="Banners del carrusel/splash del home y folletos de la galería de Ofertas"
         action={
-          <button
-            onClick={abrirCrear}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-xl hover:opacity-90 transition-all"
-          >
-            <Plus className="w-4 h-4" /> Nuevo banner
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => abrirCrear("banner")}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-xl hover:opacity-90 transition-all"
+            >
+              <Plus className="w-4 h-4" /> Nuevo banner
+            </button>
+            <button
+              onClick={() => abrirCrear("folleto")}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground text-sm font-semibold rounded-xl hover:bg-muted transition-all"
+            >
+              <Newspaper className="w-4 h-4" /> Nuevo folleto
+            </button>
+          </div>
         }
       />
 
       {ordenados.length === 0 ? (
         <EmptyState
           icon={Megaphone}
-          title="Todavía no hay banners"
-          description="Crea el primero para que aparezca en el carrusel del home del sitio público."
+          title="Todavía no hay banners ni folletos"
+          description="Crea un banner para el carrusel del home, o un folleto para la galería de Ofertas."
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ordenados.map((banner, i) => (
-            <div key={banner.id_banner} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-              <div className="relative h-36 bg-muted">
-                <img src={resolveImagenBanner(banner.imagen_url)} alt={banner.titulo} className="w-full h-full object-cover" />
-                <div className="absolute top-2 right-2">
-                  <StatusBadge status={banner.activo ? "activo" : "inactivo"} />
-                </div>
-                {banner.temporada && (
-                  <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold">
-                    <Sparkles className="w-2.5 h-2.5" />
-                    {nombreTemporada(banner.temporada)}
-                  </div>
-                )}
-              </div>
-              <div className="p-4 flex-1 flex flex-col gap-2">
-                <p className="font-semibold text-foreground text-sm truncate">{banner.titulo}</p>
-                {banner.descripcion_corta && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">{banner.descripcion_corta}</p>
-                )}
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Calendar className="w-3 h-3 flex-shrink-0" />
-                  {formatFecha(banner.fecha_inicio)} → {formatFecha(banner.fecha_fin)}
-                </div>
-                {banner.link_destino && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
-                    <LinkIcon className="w-3 h-3 flex-shrink-0" /> {banner.link_destino}
-                  </div>
-                )}
+        <div className="space-y-8">
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-foreground">Banners (carrusel y splash de bienvenida)</h3>
+            {bannersOrdenados.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Todavía no hay banners.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {bannersOrdenados.map((banner, i) => (
+                  <div key={banner.id_banner} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+                    <div className="relative h-36 bg-muted">
+                      <img src={resolveImagenBanner(banner.imagen_url)} alt={banner.titulo} className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2">
+                        <StatusBadge status={banner.activo ? "activo" : "inactivo"} />
+                      </div>
+                      {banner.temporada && (
+                        <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          {nombreTemporada(banner.temporada)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col gap-2">
+                      <p className="font-semibold text-foreground text-sm truncate">{banner.titulo}</p>
+                      {banner.descripcion_corta && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{banner.descripcion_corta}</p>
+                      )}
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Calendar className="w-3 h-3 flex-shrink-0" />
+                        {formatFecha(banner.fecha_inicio)} → {formatFecha(banner.fecha_fin)}
+                      </div>
+                      {banner.link_destino && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+                          <LinkIcon className="w-3 h-3 flex-shrink-0" /> {banner.link_destino}
+                        </div>
+                      )}
 
-                <div className="mt-auto pt-3 flex items-center justify-between border-t border-border/60">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => mover(i, -1)}
-                      disabled={i === 0}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                      title="Subir"
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => mover(i, 1)}
-                      disabled={i === ordenados.length - 1}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                      title="Bajar"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
+                      <div className="mt-auto pt-3 flex items-center justify-between border-t border-border/60">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => moverEnLista(bannersOrdenados, i, -1)}
+                            disabled={i === 0}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            title="Subir"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => moverEnLista(bannersOrdenados, i, 1)}
+                            disabled={i === bannersOrdenados.length - 1}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            title="Bajar"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Switch
+                            checked={banner.activo}
+                            onCheckedChange={() => onToggleActivo(banner)}
+                          />
+                          <button
+                            onClick={() => abrirEditar(banner)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
+                            title="Editar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onDelete(banner.id_banner)}
+                            className="p-1.5 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Switch
-                      checked={banner.activo}
-                      onCheckedChange={() => onToggleActivo(banner)}
-                    />
-                    <button
-                      onClick={() => abrirEditar(banner)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
-                      title="Editar"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => onDelete(banner.id_banner)}
-                      className="p-1.5 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-all"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+                ))}
               </div>
-            </div>
-          ))}
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <Newspaper className="w-4 h-4 text-primary" /> Folletos (galería de Ofertas)
+            </h3>
+            {folletosOrdenados.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Todavía no hay folletos -- la galería de Ofertas simplemente no se muestra en el sitio hasta que crees el primero.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {folletosOrdenados.map((banner, i) => (
+                  <div key={banner.id_banner} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+                    <div className="relative h-36 bg-muted">
+                      <img src={resolveImagenBanner(banner.imagen_url)} alt={banner.titulo} className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2">
+                        <StatusBadge status={banner.activo ? "activo" : "inactivo"} />
+                      </div>
+                      {banner.temporada && (
+                        <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          {nombreTemporada(banner.temporada)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col gap-2">
+                      <p className="font-semibold text-foreground text-sm truncate">{banner.titulo}</p>
+                      <p className="text-[10px] text-muted-foreground italic">Nombre interno -- no se muestra en el sitio.</p>
+                      {banner.link_destino && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+                          <LinkIcon className="w-3 h-3 flex-shrink-0" /> {banner.link_destino}
+                        </div>
+                      )}
+
+                      <div className="mt-auto pt-3 flex items-center justify-between border-t border-border/60">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => moverEnLista(folletosOrdenados, i, -1)}
+                            disabled={i === 0}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            title="Subir"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => moverEnLista(folletosOrdenados, i, 1)}
+                            disabled={i === folletosOrdenados.length - 1}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            title="Bajar"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Switch
+                            checked={banner.activo}
+                            onCheckedChange={() => onToggleActivo(banner)}
+                          />
+                          <button
+                            onClick={() => abrirEditar(banner)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
+                            title="Editar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onDelete(banner.id_banner)}
+                            className="p-1.5 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
 
       <AdminModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        title={editing ? "Editar banner" : "Nuevo banner"}
+        title={
+          form.tipo === "folleto"
+            ? (editing ? "Editar folleto" : "Nuevo folleto")
+            : (editing ? "Editar banner" : "Nuevo banner")
+        }
         maxWidth="sm:max-w-xl"
         footer={
           <div className="flex items-center justify-end gap-2 w-full">
@@ -252,7 +361,11 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
               ) : (
                 <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
                   <ImageIcon className="w-6 h-6" />
-                  <span className="text-xs">Haz clic para elegir una imagen (JPG, PNG o WEBP, máx. 5MB)</span>
+                  <span className="text-xs px-4 text-center">
+                    {form.tipo === "folleto"
+                      ? "Sube la pieza completa (JPG, PNG o WEBP, máx. 5MB) -- el texto de la oferta ya va dibujado en la imagen"
+                      : "Haz clic para elegir una imagen (JPG, PNG o WEBP, máx. 5MB)"}
+                  </span>
                 </div>
               )}
               <input
@@ -263,35 +376,46 @@ export default function ModuleBanners({ banners, onSubmit, onDelete, onToggleAct
           </div>
 
           <div>
-            <Label htmlFor="banner-titulo">Título</Label>
+            <Label htmlFor="banner-titulo">
+              {form.tipo === "folleto" ? "Nombre interno" : "Título"}
+            </Label>
             <Input
               id="banner-titulo" value={form.titulo}
               onChange={(e) => setForm(prev => ({ ...prev, titulo: e.target.value }))}
-              placeholder="Ej. Escápate a San Andrés"
+              placeholder={form.tipo === "folleto" ? "Ej. Folleto Halloween - vuelos" : "Ej. Escápate a San Andrés"}
             />
+            {form.tipo === "folleto" && (
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                Solo para identificarlo acá en el panel -- no se muestra en el sitio (el texto de la oferta ya va dibujado en la imagen).
+              </p>
+            )}
           </div>
 
-          <div>
-            <Label htmlFor="banner-descripcion">Descripción corta</Label>
-            <Textarea
-              id="banner-descripcion" value={form.descripcion_corta}
-              onChange={(e) => setForm(prev => ({ ...prev, descripcion_corta: e.target.value }))}
-              placeholder="Una línea que aparece debajo del título en el banner"
-              rows={2}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          {form.tipo !== "folleto" && (
             <div>
-              <Label htmlFor="banner-boton">Texto del botón</Label>
-              <Input
-                id="banner-boton" value={form.texto_boton}
-                onChange={(e) => setForm(prev => ({ ...prev, texto_boton: e.target.value }))}
-                placeholder="Ej. Ver oferta"
+              <Label htmlFor="banner-descripcion">Descripción corta</Label>
+              <Textarea
+                id="banner-descripcion" value={form.descripcion_corta}
+                onChange={(e) => setForm(prev => ({ ...prev, descripcion_corta: e.target.value }))}
+                placeholder="Una línea que aparece debajo del título en el banner"
+                rows={2}
               />
             </div>
+          )}
+
+          <div className={form.tipo === "folleto" ? "" : "grid grid-cols-2 gap-3"}>
+            {form.tipo !== "folleto" && (
+              <div>
+                <Label htmlFor="banner-boton">Texto del botón</Label>
+                <Input
+                  id="banner-boton" value={form.texto_boton}
+                  onChange={(e) => setForm(prev => ({ ...prev, texto_boton: e.target.value }))}
+                  placeholder="Ej. Ver oferta"
+                />
+              </div>
+            )}
             <div>
-              <Label htmlFor="banner-link">Link de destino</Label>
+              <Label htmlFor="banner-link">Link de destino {form.tipo === "folleto" && "(opcional)"}</Label>
               <Input
                 id="banner-link" value={form.link_destino}
                 onChange={(e) => setForm(prev => ({ ...prev, link_destino: e.target.value }))}

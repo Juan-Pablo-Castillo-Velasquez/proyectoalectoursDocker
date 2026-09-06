@@ -37,6 +37,12 @@ class Banner(Base):
     # quedar visible todo el año o depender de que alguien lo
     # active/desactive a mano cada temporada.
     temporada = Column(String(40), nullable=True)
+    # "banner" (carrusel/splash de siempre, con titulo/descripcion/boton) o
+    # "folleto" (pieza tipo afiche: solo imagen + link, para la galeria
+    # nueva y separada de Ofertas -- ver banner_repository.py::get_activos
+    # y FolletosGrid.tsx en el frontend). Nunca None: server_default en la
+    # migracion deja "banner" en las filas que ya existian.
+    tipo = Column(String(20), nullable=False, default="banner")
     orden = Column(Integer, nullable=False, default=0)
     activo = Column(Boolean, nullable=False, default=True)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())

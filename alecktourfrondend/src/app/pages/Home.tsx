@@ -3,6 +3,7 @@ import BannersPromocionales from "../components/BannersPromocionales";
 import BlogGuides from "../components/BlogGuides";
 import DestinationsGrid from "../components/DestinationsGrid";
 import Footer from "../components/Footer";
+import FolletosGrid from "../components/FolletosGrid";
 import Hero from "../components/Hero";
 import Navbar from "../components/Navbar";
 import Newsletter from "../components/Newsletter";
@@ -31,6 +32,7 @@ export default function Home() {
       <Benefits />
       <DestinationsGrid />
       <OffersHighlight />
+      <FolletosGrid />
       <WhyChooseUs />
       <Testimonials />
       <BlogGuides />

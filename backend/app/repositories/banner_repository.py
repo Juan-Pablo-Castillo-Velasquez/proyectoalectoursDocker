@@ -16,13 +16,18 @@ class BannerRepository:
         return db.query(Banner).order_by(Banner.orden.asc(), Banner.id_banner.asc()).all()
 
     @staticmethod
-    def get_activos(db: Session):
+    def get_activos(db: Session, tipo: str | None = None):
         """Los que de verdad debe ver un visitante del sitio ahora mismo:
         activos, dentro de su rango de vigencia (None en fecha_inicio o
         fecha_fin = sin límite en ese extremo), y si tienen `temporada`
         (ej. "halloween"), que coincida con el tema de color realmente
         activo ahora -- un banner de temporada nunca se cuela fuera de su
-        temporada solo porque alguien lo dejó activo/vigente por fecha."""
+        temporada solo porque alguien lo dejó activo/vigente por fecha.
+
+        `tipo` ("banner" | "folleto") es opcional: BannersPromocionales.tsx
+        y WelcomeSplash.tsx siempre piden tipo="banner" (mismo carrusel de
+        siempre, folletos nunca se mezclan ahí), FolletosGrid.tsx pide
+        tipo="folleto" -- sin filtro, devuelve ambos tipos mezclados."""
         hoy = date.today()
         tema_activo = TemaRepository.get_activo(db)
         clave_activa = tema_activo.clave if tema_activo else None
@@ -39,6 +44,8 @@ class BannerRepository:
             # sin ningún tema activo ni predeterminado, solo se muestran
             # los banners sin temporada asignada.
             filtros.append(Banner.temporada.is_(None))
+        if tipo:
+            filtros.append(Banner.tipo == tipo)
 
         return (
             db.query(Banner)

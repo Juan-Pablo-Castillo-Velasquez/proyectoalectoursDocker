@@ -8,7 +8,7 @@ chocar con esa ruta existente.
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,7 @@ TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 # "promo:" para contenido público cacheado con TTL largo (cambia con poca
 # frecuencia — un admin editando banners, no una escritura de cliente).
 BANNERS_CACHE_KEY = "promo:banners:activos"
+TIPOS_BANNER_VALIDOS = {"banner", "folleto"}
 BANNERS_CACHE_PATTERN = "promo:banners:*"
 BANNERS_CACHE_TTL = 1800  # 30 min
 
@@ -58,16 +59,21 @@ async def _guardar_imagen(file: UploadFile) -> str:
 
 # ===================== PÚBLICO =====================
 @router.get("/activos", response_model=list[BannerResponse])
-def get_banners_activos(db: Session = Depends(get_db)):
+def get_banners_activos(
+    tipo: str | None = Query(None, description='Filtra por "banner" o "folleto"; sin filtro devuelve ambos.'),
+    db: Session = Depends(get_db),
+):
     """Solo banners activos y dentro de su rango de vigencia, en orden —
-    lo que debe ver un visitante del sitio ahora mismo (carrusel del home)."""
-    cached = get_cached(BANNERS_CACHE_KEY)
+    lo que debe ver un visitante del sitio ahora mismo (carrusel del home,
+    splash de bienvenida, o la galería de folletos según `tipo`)."""
+    cache_key = f"{BANNERS_CACHE_KEY}:{tipo or 'todos'}"
+    cached = get_cached(cache_key)
     if cached is not None:
         return cached
 
-    activos = BannerRepository.get_activos(db)
+    activos = BannerRepository.get_activos(db, tipo=tipo)
     data = [BannerResponse.model_validate(b).model_dump(mode="json") for b in activos]
-    set_cached(BANNERS_CACHE_KEY, data, ttl_seconds=BANNERS_CACHE_TTL)
+    set_cached(cache_key, data, ttl_seconds=BANNERS_CACHE_TTL)
     return data
 
 
@@ -89,11 +95,15 @@ async def create_banner(
     fecha_inicio: date | None = Form(None),
     fecha_fin: date | None = Form(None),
     temporada: str | None = Form(None),
+    tipo: str = Form("banner"),
     activo: bool = Form(True),
     imagen: UploadFile = File(...),
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
 ):
+    if tipo not in TIPOS_BANNER_VALIDOS:
+        raise HTTPException(status_code=400, detail=f'tipo debe ser uno de {sorted(TIPOS_BANNER_VALIDOS)}')
+
     imagen_url = await _guardar_imagen(imagen)
     orden = BannerRepository.get_siguiente_orden(db)
 
@@ -108,6 +118,7 @@ async def create_banner(
             "fecha_inicio": fecha_inicio,
             "fecha_fin": fecha_fin,
             "temporada": temporada or None,
+            "tipo": tipo,
             "orden": orden,
             "activo": activo,
         },
@@ -126,11 +137,15 @@ async def update_banner(
     fecha_inicio: date | None = Form(None),
     fecha_fin: date | None = Form(None),
     temporada: str | None = Form(None),
+    tipo: str = Form("banner"),
     activo: bool = Form(True),
     imagen: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
 ):
+    if tipo not in TIPOS_BANNER_VALIDOS:
+        raise HTTPException(status_code=400, detail=f'tipo debe ser uno de {sorted(TIPOS_BANNER_VALIDOS)}')
+
     existente = BannerRepository.get_by_id(db, banner_id)
     if not existente:
         raise HTTPException(status_code=404, detail="Banner no encontrado")
@@ -143,6 +158,7 @@ async def update_banner(
         "fecha_inicio": fecha_inicio,
         "fecha_fin": fecha_fin,
         "temporada": temporada or None,
+        "tipo": tipo,
         "activo": activo,
     }
 

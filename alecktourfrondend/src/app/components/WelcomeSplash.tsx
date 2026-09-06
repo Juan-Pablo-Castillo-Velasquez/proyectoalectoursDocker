@@ -26,7 +26,7 @@ export default function WelcomeSplash() {
 
     let activo = true;
     bannerService
-      .getActivos()
+      .getActivos("banner") // nunca folletos (galería separada, ver FolletosGrid.tsx)
       .then((data) => {
         if (!activo || data.length === 0) return;
         setBanner(data[0]);
