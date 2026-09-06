@@ -15,12 +15,16 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import Footer from "../components/Footer";
+import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import HotelCard from "../components/HotelCard";
 import Navbar from "../components/Navbar";
+import { useTema } from "../context/TemaContext";
 import { HotelDetailResponse, hotelService } from "../services/hotel.service";
 
 export default function SearchResults() {
   const [searchParams] = useSearchParams();
+  const { temaActivo } = useTema();
+  const esHalloween = temaActivo?.clave === "halloween";
 
   const [hoteles, setHoteles] = useState<HotelDetailResponse[]>([]);
   const [filtrados, setFiltrados] = useState<HotelDetailResponse[]>([]);
@@ -905,8 +909,14 @@ export default function SearchResults() {
               {/* BANNER COMERCIAL — el mismo beneficio real que ya se
                   publicita en el Home (Benefits.tsx: "Paga en cuotas, sin
                   intereses"), reutilizado aquí en formato compacto tipo
-                  Despegar. Nunca una oferta o descuento inventado. */}
-              <div className="mb-4 rounded-2xl bg-gradient-to-r from-primary to-[#5c1229] p-4 sm:p-5 text-primary-foreground flex items-center gap-3 sm:gap-4">
+                  Despegar. Nunca una oferta o descuento inventado. Único
+                  punto de esta página con acento de temporada -- a
+                  propósito NO se decora HotelCard.tsx (se repite por cada
+                  resultado, decorarlo saturaría la lista). */}
+              <div className="relative overflow-hidden mb-4 rounded-2xl bg-gradient-to-r from-primary to-[#5c1229] p-4 sm:p-5 text-primary-foreground flex items-center gap-3 sm:gap-4">
+                {esHalloween && (
+                  <HalloweenAccentDiscreto variante="foto" posicion="top-right" tamano="sm" />
+                )}
                 <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
                   <CreditCard className="w-5 h-5" />
                 </div>

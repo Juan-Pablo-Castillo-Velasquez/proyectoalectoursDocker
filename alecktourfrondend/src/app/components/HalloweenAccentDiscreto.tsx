@@ -68,8 +68,15 @@ function Calabaza({ className }: { className: string }) {
 // sitio se sienta "vivo" con imágenes reales cuando alguien las suba
 // directo a Cloudinary. Si todavía no hay ninguna imagen en la carpeta de
 // esta temporada, no renderiza nada (nunca deja un marco vacío).
-function FotoPolaroid({ className, posicion }: { className: string; posicion: Posicion }) {
-  const { imagenes } = useTemaGaleria();
+function FotoPolaroid({
+  className,
+  posicion,
+  imagenes,
+}: {
+  className: string;
+  posicion: Posicion;
+  imagenes: string[];
+}) {
   if (imagenes.length === 0) return null;
   // Determinístico (no random en cada render) para que no "parpadee"
   // entre fotos distintas al re-renderizar el componente.
@@ -89,6 +96,32 @@ function FotoPolaroid({ className, posicion }: { className: string; posicion: Po
   );
 }
 
+// Palabras clave para reconocer el motivo en el nombre real del archivo
+// subido a Cloudinary (alectours/temporadas/<clave>/) -- ej. subir
+// "calabaza-recorte.png" hace que el motivo "calabaza" use esa imagen
+// real en vez del SVG. Sin coincidencia (o sin Cloudinary configurado, o
+// carpeta vacía todavía) se cae al SVG de siempre: nunca rompe nada ni
+// deja un hueco, mismo criterio que ya usa la variante "foto".
+const PALABRAS_CLAVE: Record<"telarana" | "murcielago" | "calabaza", string[]> = {
+  // Cloudinary limpia automáticamente los acentos/ñ de los nombres de
+  // archivo al subirlos, así que basta con las formas sin tilde.
+  telarana: ["telarana", "spiderweb", "cobweb"],
+  murcielago: ["murcielago", "bat"],
+  calabaza: ["calabaza", "pumpkin"],
+};
+
+function buscarImagenPorMotivo(
+  imagenes: string[],
+  variante: "telarana" | "murcielago" | "calabaza"
+): string | null {
+  const palabras = PALABRAS_CLAVE[variante];
+  const match = imagenes.find((url) => {
+    const nombre = url.toLowerCase();
+    return palabras.some((palabra) => nombre.includes(palabra));
+  });
+  return match ?? null;
+}
+
 // Decoración de temporada para UNA sección o tarjeta -- a diferencia de
 // HalloweenAccents.tsx (pensado para cubrir todo el Hero con 3 motivos a
 // la vez), este componente muestra un único motivo discreto, para
@@ -101,6 +134,7 @@ export default function HalloweenAccentDiscreto({
   posicion = "top-right",
   tamano = "sm",
 }: Props) {
+  const { imagenes } = useTemaGaleria();
   const posicionClase = POSICION_CLASES[posicion];
   const tamanoClase = tamano === "lg" ? "w-20 h-20 sm:w-24 sm:h-24" : "w-12 h-12 sm:w-14 sm:h-14";
 
@@ -109,22 +143,37 @@ export default function HalloweenAccentDiscreto({
       <div className="absolute inset-0 z-[6] overflow-visible pointer-events-none" aria-hidden="true">
         <FotoPolaroid
           posicion={posicion}
+          imagenes={imagenes}
           className={`absolute ${posicionClase} w-16 h-20 sm:w-20 sm:h-24`}
         />
       </div>
     );
   }
 
+  const imagenReal = buscarImagenPorMotivo(imagenes, variante);
+
   return (
     <div className="absolute inset-0 z-[6] overflow-hidden pointer-events-none" aria-hidden="true">
-      {variante === "telarana" && (
-        <Telarana className={`absolute ${posicionClase} ${tamanoClase} text-primary/15`} />
-      )}
-      {variante === "murcielago" && (
-        <Murcielago className={`absolute ${posicionClase} ${tamanoClase} text-primary/25`} />
-      )}
-      {variante === "calabaza" && (
-        <Calabaza className={`absolute ${posicionClase} ${tamanoClase} text-primary/15`} />
+      {imagenReal ? (
+        <img
+          src={imagenReal}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className={`absolute ${posicionClase} ${tamanoClase} object-contain drop-shadow-lg`}
+        />
+      ) : (
+        <>
+          {variante === "telarana" && (
+            <Telarana className={`absolute ${posicionClase} ${tamanoClase} text-primary/15`} />
+          )}
+          {variante === "murcielago" && (
+            <Murcielago className={`absolute ${posicionClase} ${tamanoClase} text-primary/25`} />
+          )}
+          {variante === "calabaza" && (
+            <Calabaza className={`absolute ${posicionClase} ${tamanoClase} text-primary/15`} />
+          )}
+        </>
       )}
     </div>
   );
