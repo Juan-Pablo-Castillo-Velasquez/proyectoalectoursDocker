@@ -11,6 +11,14 @@ export default function OffersHighlight() {
     const esHalloween = temaActivo?.clave === "halloween";
     const [offers, setOffers] = useState<OfertaDestacada[]>([]);
     const [loading, setLoading] = useState(true);
+    // Si una imagen no carga (ej. bloqueada por CSP en producción, link
+    // roto) esa tarjeta se oculta sola en vez de quedar como un cuadro
+    // negro -- y si terminan siendo todas, la sección entera se oculta,
+    // igual que si nunca hubiera habido ofertas.
+    const [idsConImagenRota, setIdsConImagenRota] = useState<Set<number>>(new Set());
+    const marcarImagenRota = (id: number) =>
+        setIdsConImagenRota((prev) => new Set(prev).add(id));
+    const offersVisibles = offers.filter((o) => !idsConImagenRota.has(o.id));
 
     useEffect(() => {
         let activo = true;
@@ -32,8 +40,9 @@ export default function OffersHighlight() {
         };
     }, []);
 
-    // No renderizamos la sección si no hay ofertas (evita un bloque vacío feo)
-    if (!loading && offers.length === 0) return null;
+    // No renderizamos la sección si no hay ofertas, o si todas terminaron
+    // con la imagen rota (evita un bloque vacío o negro).
+    if (!loading && offersVisibles.length === 0) return null;
 
     return (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 bg-background transition-colors duration-300">
@@ -72,7 +81,7 @@ export default function OffersHighlight() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    {offers.map((o, i) => (
+                    {offersVisibles.map((o, i) => (
                         <motion.div
                             key={o.id}
                             initial={{ opacity: 0, y: 20 }}
@@ -87,6 +96,7 @@ export default function OffersHighlight() {
                                 <img
                                     src={o.img}
                                     alt={o.title}
+                                    onError={() => marcarImagenRota(o.id)}
                                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />

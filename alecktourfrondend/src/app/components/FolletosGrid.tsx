@@ -46,14 +46,14 @@ export default function FolletosGrid() {
       <div className="flex items-center gap-2 mb-2">
         <span className="h-px w-8 bg-[var(--chart-2)]" />
         <span className="text-primary text-[11px] font-bold uppercase tracking-[0.2em]">
-          Promociones
+          Folletos
         </span>
       </div>
       <h2
         className="text-2xl md:text-3xl text-foreground font-medium mb-8"
         style={{ fontFamily: "'Fraunces', serif" }}
       >
-        Más ofertas para ti
+        Piezas especiales para ti
       </h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
