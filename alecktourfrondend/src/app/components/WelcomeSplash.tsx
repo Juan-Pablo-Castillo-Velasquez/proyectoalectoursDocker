@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 import { Banner, bannerService, resolveImagenBanner } from "../services/banner.service";
 
 const SESSION_KEY = "alectours_welcome_splash_visto";
@@ -101,14 +100,20 @@ export default function WelcomeSplash() {
                   <p className="text-white/85 text-sm sm:text-base mb-5 max-w-md">{banner.descripcion_corta}</p>
                 )}
                 <div className="flex items-center gap-4">
+                  {/* <a> normal, NO <Link> de react-router: este componente se
+                      monta a propósito FUERA de <RouterProvider> (ver main.tsx,
+                      es un overlay global sobre cualquier ruta) -- un <Link>
+                      ahí revienta toda la app con "Cannot destructure property
+                      'basename' of useContext(...) as it is null" en cuanto el
+                      banner activo trae botón + link (visto en producción). */}
                   {banner.texto_boton && banner.link_destino && (
-                    <Link
-                      to={banner.link_destino}
+                    <a
+                      href={banner.link_destino}
                       onClick={cerrar}
                       className="inline-flex items-center px-6 py-3 bg-primary text-primary-foreground text-sm sm:text-base font-semibold rounded-xl hover:opacity-90 hover:scale-[1.02] transition-all shadow-lg shadow-primary/30"
                     >
                       {banner.texto_boton}
-                    </Link>
+                    </a>
                   )}
                   <button
                     onClick={cerrar}

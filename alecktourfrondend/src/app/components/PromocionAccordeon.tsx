@@ -40,7 +40,7 @@ export default function PromocionAccordeon() {
   useEffect(() => {
     let activo = true;
     bannerService
-      .getActivos()
+      .getActivos("banner") // nunca folletos (galería separada, ver FolletosGrid.tsx)
       .then((data) => { if (activo) setBanners(data); })
       .catch((err) => console.error("Error cargando promociones:", err))
       .finally(() => { if (activo) setLoading(false); });
