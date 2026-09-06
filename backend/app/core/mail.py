@@ -3,6 +3,7 @@ Módulo de correo electrónico - Envío de emails con SMTP directo
 Configurado para Mailpit (desarrollo) — sin TLS, sin autenticación
 """
 
+import html
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -99,42 +100,145 @@ async def send_verification_email(
     email: str,
     verification_token: str,
     base_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173"),
+    username: str | None = None,
 ) -> bool:
     """
-    Envía un email de verificación con un enlace.
+    Envía el correo de verificación de registro con la identidad visual de
+    AlecTours (granate + dorado, la misma paleta que --primary/--gold en
+    theme.css) en vez de la plantilla generica de Arial + boton azul que
+    traia antes. `username` es opcional (compatibilidad hacia atras con
+    quien ya llamaba esta funcion sin ese dato) -- sin el, el saludo
+    simplemente queda generico ("Hola,") en vez de "Hola, <nombre>,".
     """
     verification_link = f"{base_url}/verify?token={verification_token}"
+    # Texto plano: el username tal cual (no es HTML, no hace falta escapar
+    # nada ahí, y escaparlo solo ensuciaría el correo con "&lt;...&gt;"
+    # literal si alguien puso caracteres raros en su nombre de usuario).
+    saludo_nombre_texto = f", {username}" if username else ""
+    # HTML: sí se escapa -- username es texto libre que el usuario eligió
+    # al registrarse, y va insertado directo en el <body> del correo.
+    nombre_seguro = html.escape(username) if username else None
+    saludo_nombre_html = f", {nombre_seguro}" if nombre_seguro else ""
 
-    subject = "Verifica tu correo - AlecTours"
+    subject = "Confirma tu correo para activar tu cuenta - AlecTours"
 
     body = f"""
-Hola,
+Hola{saludo_nombre_texto},
 
-Por favor verifica tu correo haciendo clic en el siguiente enlace:
+¡Gracias por crear tu cuenta en AlecTours! Solo falta un paso: confirma
+tu correo electrónico para activarla del todo.
+
+Verifica tu correo aquí:
 {verification_link}
 
-Este enlace expirará en 24 horas.
+Este enlace expira en 24 horas. Si tú no creaste esta cuenta, puedes
+ignorar este mensaje con tranquilidad.
 
 Saludos,
 El equipo de AlecTours
     """.strip()
 
     html_body = f"""
-<html>
-    <body style="font-family: Arial, sans-serif; margin: 20px;">
-        <h2>Verifica tu correo</h2>
-        <p>Por favor, haz clic en el botón de abajo para verificar tu dirección de correo:</p>
-        <a href="{verification_link}"
-           style="background-color: #007bff; color: white; padding: 10px 20px;
-                  text-decoration: none; border-radius: 5px; display: inline-block;">
-            Verificar Correo
-        </a>
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">
-            Este enlace expirará en 24 horas.
-        </p>
-        <hr>
-        <p>Saludos,<br>El equipo de AlecTours</p>
-    </body>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{subject}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#fbf8f6; -webkit-text-size-adjust:100%; text-size-adjust:100%;">
+  <div style="display:none; max-height:0; max-width:0; overflow:hidden; opacity:0; font-size:1px; line-height:1px; color:#fbf8f6; mso-hide:all;">
+    Confirma tu correo para activar tu cuenta en AlecTours. El enlace expira en 24 horas.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fbf8f6; border-collapse:collapse;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:16px; overflow:hidden; border-collapse:collapse; box-shadow:0 4px 24px rgba(110,24,50,0.08);">
+
+          <tr>
+            <td style="background-color:#6e1832; padding:32px 40px 28px 40px;" align="center">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:14px;" valign="middle">
+                    <table role="presentation" width="44" height="44" cellpadding="0" cellspacing="0" border="0" style="width:44px; height:44px; background-color:#b8912e; border-radius:12px;">
+                      <tr>
+                        <td align="center" valign="middle" style="font-family:Georgia,'Times New Roman',serif; font-size:20px; font-weight:700; color:#2e2611; line-height:44px;">A</td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle" align="left">
+                    <div style="font-family:Georgia,'Times New Roman',serif; font-size:24px; font-weight:700; color:#ffffff; letter-spacing:-0.3px; line-height:1.1;">AlecTours</div>
+                    <div style="font-family:Helvetica,Arial,sans-serif; font-size:10px; font-weight:600; color:#e7b9c5; letter-spacing:1.5px; text-transform:uppercase; margin-top:4px;">Agencia de viajes y turismo</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#b8912e; height:4px; line-height:4px; font-size:0;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px 40px 32px 40px; font-family:Helvetica,Arial,sans-serif;">
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:#241a1f; line-height:1.3;">
+                Ya casi estás dentro
+              </h1>
+              <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:#4a3f41;">
+                Hola{saludo_nombre_html}, gracias por crear tu cuenta en <strong style="color:#6e1832;">AlecTours</strong>. Solo falta un paso: confirma tu correo para activarla y empezar a reservar tus próximos viajes.
+              </p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td align="center" style="background-color:#6e1832; border-radius:10px;">
+                    <a href="{verification_link}" target="_blank"
+                       style="display:inline-block; padding:14px 36px; font-family:Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
+                      Verificar mi correo
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background-color:#fbf3e2; border-radius:8px; padding:10px 14px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:#7a5f1e;">⏳ Este enlace expira en 24 horas.</span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#73686a;">
+                ¿El botón no funciona? Copia y pega este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 28px 0; font-size:12px; line-height:1.5; color:#6e1832; word-break:break-all; background-color:#f5f1ee; padding:10px 12px; border-radius:8px;">
+                {verification_link}
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
+                  <p style="margin:0; font-size:12px; line-height:1.6; color:#a89a9d;">
+                    Si tú no creaste esta cuenta, puedes ignorar este correo con tranquilidad -- no se activará nada sin confirmar.
+                  </p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:#f5f1ee; padding:20px 40px; text-align:center;">
+              <p style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:12px; color:#8a7d7f;">
+                Con cariño, el equipo de <strong style="color:#6e1832;">AlecTours</strong> ✈️
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>
     """.strip()
 

@@ -26,7 +26,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-def send_email_in_thread(email: str, token: str):
+def send_email_in_thread(email: str, token: str, username: str | None = None):
     """Corre en un hilo aparte para no bloquear la respuesta de /register
     mientras se envía el correo de verificación.
 
@@ -38,9 +38,10 @@ def send_email_in_thread(email: str, token: str):
     app/core/mail.py, que ya maneja STARTTLS/SSL y login según
     MAIL_STARTTLS/MAIL_SSL_TLS/MAIL_USERNAME/MAIL_PASSWORD -- cambiar de
     Mailpit a un servidor real es solo cuestión de env vars, sin tocar
-    este código de nuevo."""
+    este código de nuevo. `username` es opcional, solo para personalizar
+    el saludo del correo (ver send_verification_email)."""
     try:
-        asyncio.run(send_verification_email(email, token, FRONTEND_URL))
+        asyncio.run(send_verification_email(email, token, FRONTEND_URL, username))
         print(f"[BACKGROUND] Email enviado a {email}")
     except Exception as e:
         print(f"[BACKGROUND] Error: {str(e)}")
@@ -56,7 +57,9 @@ def register(data: UsuarioCreate, db: Session = Depends(get_db)):
     email = result.get("email")
 
     try:
-        thread = threading.Thread(target=send_email_in_thread, args=(email, verification_token), daemon=True)
+        thread = threading.Thread(
+            target=send_email_in_thread, args=(email, verification_token, data.username), daemon=True
+        )
         thread.start()
     except Exception as e:
         print(f"[ERROR] {str(e)}")
