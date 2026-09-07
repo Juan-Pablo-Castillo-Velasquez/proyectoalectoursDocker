@@ -3,7 +3,8 @@ import { ESTADO_COLOR } from "../types";
 // Etiquetas legibles para los estados reales que ya existen en el backend
 // (reservas: pendiente/confirmada/cancelada/finalizada — pagos: pendiente/
 // procesando/pagado/rechazado/cancelado — solicitudes de cancelación:
-// pendiente/aprobada/rechazada — usuarios: activo/inactivo). No inventa
+// pendiente/aprobada/rechazada — usuarios: activo/inactivo/verificado/
+// no_verificado). No inventa
 // estados nuevos, solo les da una presentación visual consistente en
 // todo el panel en vez de que cada módulo dibuje su propio badge.
 const LABELS: Record<string, string> = {
@@ -19,6 +20,8 @@ const LABELS: Record<string, string> = {
   cancelado: "Cancelado",
   activo: "Activo",
   inactivo: "Inactivo",
+  verificado: "Verificado",
+  no_verificado: "No verificado",
 };
 
 interface StatusBadgeProps {

@@ -614,6 +614,21 @@ export default function AdminDashboard() {
     }
   };
 
+  // Override manual: cuando el correo de verificación nunca llegó (ej.
+  // falla de SMTP en producción), el admin puede marcar la cuenta como
+  // verificada a mano en vez de dejar al usuario bloqueado indefinidamente
+  // esperando un correo que quizás nunca llegue.
+  const toggleVerificadoUsuario = async (usuarioObj: Usuario) => {
+    try {
+      await usuarioAdminService.update(usuarioObj.id_usuario, { verificado: !usuarioObj.verificado });
+      setUsuarios(prev => prev.map(u => u.id_usuario === usuarioObj.id_usuario ? { ...u, verificado: !u.verificado } : u));
+      toast.success(usuarioObj.verificado ? "Verificación retirada" : "Cuenta verificada manualmente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo actualizar el usuario");
+      throw e;
+    }
+  };
+
   const handleLogout = () => { logout(); navigate("/"); };
 
   // Accesos rápidos globales, visibles desde cualquier módulo (header) —
@@ -659,7 +674,7 @@ export default function AdminDashboard() {
       <ModuleUsuarios
         usuarios={usuarios} roles={roles}
         onDelete={deleteUsuario} onSubmit={submitUsuario}
-        onToggleActivo={toggleActivoUsuario} loading={loading}
+        onToggleActivo={toggleActivoUsuario} onToggleVerificado={toggleVerificadoUsuario} loading={loading}
       />
     ),
     cancelaciones: (

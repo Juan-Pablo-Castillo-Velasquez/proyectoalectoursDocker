@@ -217,6 +217,10 @@ export const ESTADO_COLOR: Record<string, string> = {
   // Estados de Usuario.activo
   activo: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   inactivo: "bg-muted text-muted-foreground",
+  // Estados de Usuario.verificado (ver ModuleUsuarios.tsx -- override manual
+  // de admin para cuando el correo de verificación nunca llegó)
+  verificado: "bg-[#C9A227]/15 text-[#C9A227]",
+  no_verificado: "bg-muted text-muted-foreground",
 };
 
 export const inputCls =

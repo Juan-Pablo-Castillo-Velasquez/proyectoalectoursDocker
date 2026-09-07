@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Trash2, PlusCircle, ShieldCheck, ShieldOff, Users, UserCheck, Mail } from "lucide-react";
+import { Search, Trash2, PlusCircle, ShieldCheck, ShieldOff, Users, UserCheck, UserX, Mail } from "lucide-react";
 import { Usuario, Rol, inputCls, labelCls, resolveFotoUrl } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
@@ -23,10 +23,15 @@ interface Props {
   onDelete: (id: number) => void;
   onSubmit: (data: any) => Promise<void>;
   onToggleActivo: (usuario: Usuario) => Promise<void>;
+  // Override manual de admin: cuando el correo de verificación nunca le
+  // llegó a un usuario (ej. falla de SMTP en producción, ver mail.py), el
+  // admin puede marcar la cuenta como verificada a mano en vez de dejarlo
+  // sin poder usar su cuenta indefinidamente.
+  onToggleVerificado: (usuario: Usuario) => Promise<void>;
   loading: boolean;
 }
 
-export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, onToggleActivo, loading }: Props) {
+export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, onToggleActivo, onToggleVerificado, loading }: Props) {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [modalOpen, setModalOpen] = useState(false);
@@ -157,6 +162,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                 <th className={thCls}>Correo</th>
                 <th className={thCls}>Roles</th>
                 <th className={thCls}>Estado</th>
+                <th className={thCls}>Verificado</th>
                 <th className={thCls}></th>
               </tr>
             </thead>
@@ -198,6 +204,9 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                     <StatusBadge status={u.activo ? "activo" : "inactivo"} />
                   </td>
                   <td className="px-4 py-3">
+                    <StatusBadge status={u.verificado ? "verificado" : "no_verificado"} />
+                  </td>
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       <button
                         onClick={() => onToggleActivo(u)}
@@ -206,6 +215,24 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                       >
                         {u.activo ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
                       </button>
+                      {!u.verificado && (
+                        <button
+                          onClick={() => onToggleVerificado(u)}
+                          title="Verificar manualmente (el correo de confirmación nunca le llegó)"
+                          className="p-1.5 rounded-lg text-[#C9A227] hover:bg-[#C9A227]/10 transition-all"
+                        >
+                          <UserCheck className="w-4 h-4" />
+                        </button>
+                      )}
+                      {u.verificado && (
+                        <button
+                          onClick={() => onToggleVerificado(u)}
+                          title="Quitar verificación"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => onDelete(u.id_usuario)}
                         className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
