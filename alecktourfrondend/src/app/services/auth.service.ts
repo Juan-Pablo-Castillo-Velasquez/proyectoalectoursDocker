@@ -36,6 +36,11 @@ export interface AuthResponse {
   // foto de perfil desaparecía de la sesión con cada login nuevo, aunque
   // siguiera guardada en la base de datos.
   foto_perfil?: string | null;
+  // Un login exitoso siempre implica verificado=true y activo=true (ver
+  // login_user, auth_service.py — bloquea el login si alguno es false),
+  // así que el backend los devuelve explícitos.
+  verificado?: boolean;
+  activo?: boolean;
 }
 
 async function authFetch<T>(endpoint: string, body: object): Promise<T> {

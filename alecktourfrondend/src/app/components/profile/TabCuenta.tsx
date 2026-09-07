@@ -1,4 +1,4 @@
-import { Banknote, Building2, Camera, CreditCard, Eye, EyeOff, KeyRound, Lock, Loader2, Pencil, Plus, Shield, Smartphone, Trash2, User, Wallet, X, Check } from "lucide-react";
+import { Banknote, Building2, Camera, CreditCard, Eye, EyeOff, KeyRound, Lock, Loader2, Pencil, Plus, Shield, ShieldAlert, Smartphone, Trash2, User, Wallet, X, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { resolveFotoUrl } from "../admin/types";
@@ -265,6 +265,10 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
   };
 
   const fotoUrl = resolveFotoUrl(usuario?.foto_perfil);
+  // undefined (sesiones viejas que aún no pasaron por el refresco de
+  // Profile.tsx) se trata como verificada -- solo false (confirmado por
+  // el backend) bloquea la foto, nunca la ausencia del dato.
+  const cuentaVerificada = usuario?.verificado !== false;
 
   const handleSeleccionArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -372,7 +376,7 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
             <div className="w-24 h-24 bg-primary/10 rounded-full border-4 border-background flex items-center justify-center shadow-md overflow-hidden">
               {subiendoFoto ? (
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              ) : fotoUrl ? (
+              ) : fotoUrl && cuentaVerificada ? (
                 <img src={fotoUrl} alt="Foto de perfil" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-10 h-10 text-primary" />
@@ -380,9 +384,9 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={subiendoFoto}
+              disabled={subiendoFoto || !cuentaVerificada}
               className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full border-2 border-card shadow-md hover:scale-110 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-              title="Cambiar foto de perfil"
+              title={cuentaVerificada ? "Cambiar foto de perfil" : "Verifica tu cuenta para poder cambiar tu foto"}
             >
               <Camera className="w-4 h-4" />
             </button>
@@ -398,13 +402,20 @@ export default function TabCuenta({ clienteData, onClienteActualizado }: Props) 
           {/* Textos y botón de acción */}
           <div className="text-center sm:text-left">
             <h2 className="text-lg font-bold text-foreground">Foto de perfil</h2>
-            <p className="text-sm text-muted-foreground mb-4 mt-1 max-w-md">
-              Sube una nueva foto para personalizar tu cuenta. Recomendamos usar una imagen cuadrada de al menos 256x256px en formato JPG o PNG.
-            </p>
+            {cuentaVerificada ? (
+              <p className="text-sm text-muted-foreground mb-4 mt-1 max-w-md">
+                Sube una nueva foto para personalizar tu cuenta. Recomendamos usar una imagen cuadrada de al menos 256x256px en formato JPG o PNG.
+              </p>
+            ) : (
+              <p className="flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400 mb-4 mt-1 max-w-md font-medium">
+                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                Verifica tu cuenta para poder personalizar tu foto de perfil. Revisa tu correo o contacta a soporte si el mensaje nunca llegó.
+              </p>
+            )}
             <div className="flex items-center justify-center sm:justify-start gap-3">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={subiendoFoto}
+                disabled={subiendoFoto || !cuentaVerificada}
                 className="text-sm font-semibold bg-background border border-border hover:border-primary/50 hover:text-primary px-5 py-2.5 rounded-full transition-all duration-200 active:scale-95 shadow-sm disabled:opacity-50 disabled:pointer-events-none"
               >
                 Subir nueva imagen

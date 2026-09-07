@@ -7,6 +7,8 @@ export interface UsuarioResponse {
   foto_perfil: string | null;
   id_cliente: number | null;
   id_empleado: number | null;
+  verificado: boolean;
+  activo: boolean;
 }
 
 export const usuarioService = {

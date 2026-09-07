@@ -99,6 +99,13 @@ def login_user(db: Session, correo_electronico: str, password: str):
             "id_cliente": user.id_cliente,
             "roles": roles,
             "foto_perfil": user.foto_perfil,
+            # Ya se validaron arriba (if not user.verificado / if not
+            # user.activo) antes de llegar aquí -- se devuelven explícitos
+            # en vez de dejar que el frontend los infiera, para que
+            # AuthContext.usuario los tenga siempre definidos tras un
+            # login real (nunca en undefined "se desconoce").
+            "verificado": True,
+            "activo": True,
         }
     )
     return tokens

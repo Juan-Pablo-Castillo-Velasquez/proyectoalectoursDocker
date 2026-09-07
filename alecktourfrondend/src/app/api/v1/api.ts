@@ -104,6 +104,21 @@ export async function apiFetch<T>(
     } else {
       msg = "Error en la petición al servidor";
     }
+
+    // El backend responde 401 cuando el JWT no vino, expiró o es inválido
+    // (get_current_usuario, deps.py), y 403 con este mensaje exacto cuando
+    // un admin desactivó la cuenta a mitad de sesión (misma lógica que
+    // login_user en auth_service.py). Antes nada disparaba este evento
+    // -- AuthContext ya escuchaba "auth:session-expired" pero se quedaba
+    // sin usar, y una sesión invalidada en el backend seguía viéndose
+    // "logueada" en el frontend hasta que el usuario cerraba sesión a mano.
+    if (
+      response.status === 401 ||
+      (response.status === 403 && msg.includes("está desactivada"))
+    ) {
+      window.dispatchEvent(new Event("auth:session-expired"));
+    }
+
     throw new Error(msg || "Error en la petición al servidor");
   }
 

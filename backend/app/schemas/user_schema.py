@@ -25,6 +25,8 @@ class UsuarioResponse(BaseModel):
     foto_perfil: str | None = None
     id_cliente: int | None = None
     id_empleado: int | None = None
+    verificado: bool = False
+    activo: bool = True
 
     class Config:
         from_attributes = True

@@ -12,6 +12,12 @@ interface Usuario {
   id_cliente?: number;
   roles?: string[];
   foto_perfil?: string | null;
+  // Reflejan Usuario.verificado/Usuario.activo del backend (ver
+  // UsuarioResponse en user_schema.py). Undefined en sesiones viejas
+  // (localStorage guardado antes de este cambio) -- tratar como "se
+  // desconoce", no como false.
+  verificado?: boolean;
+  activo?: boolean;
 }
 
 interface AuthContextType {

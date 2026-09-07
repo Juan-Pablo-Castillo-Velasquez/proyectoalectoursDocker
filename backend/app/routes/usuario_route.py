@@ -188,6 +188,17 @@ async def subir_foto_perfil(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_usuario),
 ):
+    # La foto de perfil personalizada queda condicionada a que la cuenta ya
+    # esté verificada (ver ProfileSidebar.tsx/TabCuenta.tsx, que ya ocultan
+    # y deshabilitan esto en la UI) -- se repite la validación aquí porque
+    # un cliente HTTP directo (no el frontend) podría saltarse el chequeo
+    # visual y llamar a este endpoint igual.
+    if not usuario.verificado:
+        raise HTTPException(
+            status_code=403,
+            detail="Verifica tu cuenta antes de personalizar tu foto de perfil.",
+        )
+
     if file.content_type not in PERFILES_TIPOS_PERMITIDOS:
         raise HTTPException(
             status_code=422,

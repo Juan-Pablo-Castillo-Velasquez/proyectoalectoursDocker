@@ -68,6 +68,8 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                 id_cliente: res.id_cliente,
                 roles: res.roles ?? [],
                 foto_perfil: res.foto_perfil,
+                verificado: res.verificado,
+                activo: res.activo,
             });
 
             const roles = res.roles ?? [];

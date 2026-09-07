@@ -38,6 +38,21 @@ def get_current_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
+    # Antes esto no se revisaba aquí: un admin podía desactivar una cuenta
+    # (activo=False, PUT /api/usuarios/{id}) y el JWT ya emitido seguía
+    # sirviendo para todos los endpoints protegidos hasta que expirara por
+    # su cuenta (login_user sí bloquea activo=False, pero eso solo aplica
+    # al INICIAR sesión, no a una sesión ya abierta). Con esto, la
+    # desactivación corta el acceso de inmediato en la siguiente llamada
+    # autenticada, sin esperar a que el token expire. El mensaje es
+    # idéntico al de login_user (auth_service.py) para que el frontend lo
+    # reconozca como el mismo caso.
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=403,
+            detail="Esta cuenta está desactivada. Contacta al administrador.",
+        )
+
     return usuario
 
 

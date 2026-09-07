@@ -8,6 +8,7 @@ import {
   Phone,
   Plane,
   Settings,
+  ShieldAlert,
   SlidersHorizontal,
   User,
 } from "lucide-react";
@@ -54,10 +55,14 @@ export default function ProfileSidebar({
       </div>
 
       <div className="px-5 pb-5">
-        {/* Avatar Integrado */}
+        {/* Avatar Integrado -- si la cuenta no está verificada (admin la
+            marcó así desde ModuleUsuarios.tsx, ver Profile.tsx que
+            resincroniza esto al entrar) se oculta cualquier foto propia y
+            se muestra el ícono genérico, en vez de seguir mostrando una
+            foto personalizada de una cuenta que quedó sin verificar. */}
         <div className="-mt-10 mb-3 flex justify-center">
           <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center ring-4 ring-background shadow-md border border-border overflow-hidden">
-            {usuario?.foto_perfil ? (
+            {usuario?.foto_perfil && usuario?.verificado !== false ? (
               <img
                 src={resolveFotoUrl(usuario.foto_perfil)}
                 alt="Foto de perfil"
@@ -70,6 +75,15 @@ export default function ProfileSidebar({
             )}
           </div>
         </div>
+
+        {usuario?.verificado === false && (
+          <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <p className="text-[11px] font-medium leading-snug">
+              Cuenta sin verificar. Revisa tu correo para activarla o contacta a soporte.
+            </p>
+          </div>
+        )}
 
         {/* Nombre y Tipo de Viajero */}
         <div className="text-center mb-5">

@@ -17,8 +17,9 @@ import {
   preferenciasService,
 } from "../services/preferencias.service";
 import { ReservaResponse, reservaService } from "../services/reserva.service";
+import { usuarioService } from "../services/usuario.service";
 export default function Profile() {
-  const { usuario, logout, isAuthenticated } = useAuth();
+  const { usuario, logout, isAuthenticated, updateUsuario } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   // El único lugar del perfil donde tiene sentido un acento de temporada:
@@ -53,6 +54,31 @@ export default function Profile() {
       navigate("/login");
       return;
     }
+  }, [isAuthenticated]);
+
+  // AuthContext.usuario solo se actualiza al hacer login o al editar algo
+  // puntual (ver updateUsuario en TabCuenta.tsx) -- nunca se resincroniza
+  // con el backend después de eso. Si un admin cambia verificado/activo
+  // (ModuleUsuarios.tsx) mientras el cliente ya tiene sesión abierta, el
+  // perfil seguía mostrando el estado viejo indefinidamente. Se refresca
+  // una vez al entrar a /profile; si la cuenta fue desactivada mientras
+  // tanto, el backend responde 403 (get_current_usuario, deps.py) y eso ya
+  // dispara auth:session-expired (api.ts), que cierra la sesión sola.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    usuarioService
+      .getMe()
+      .then((datos) => {
+        updateUsuario({
+          foto_perfil: datos.foto_perfil,
+          verificado: datos.verificado,
+          activo: datos.activo,
+        });
+      })
+      .catch(() => {
+        // Si fue 401/403 por sesión invalidada, auth:session-expired ya se
+        // encargó de limpiar el estado -- no hay nada más que hacer aquí.
+      });
   }, [isAuthenticated]);
 
   useEffect(() => {
