@@ -20,6 +20,7 @@ from app.repositories.hotel_repository import (
 from app.schemas.hotel_schema import (
     CaracteristicaCreate,
     CaracteristicaResponse,
+    DestinoRealResponse,
     HabitacionCreate,
     HabitacionFechasOcupadas,
     HabitacionResponse,
@@ -126,6 +127,23 @@ def create_caracteristica(
 ):
     """Crea una nueva característica"""
     return CaracteristicaRepository.create(db, caracteristica.dict())
+
+
+@router.get("/destinos-sugeridos", response_model=list[DestinoRealResponse])
+def get_destinos_sugeridos(
+    q: str = Query("", description="Texto escrito por el usuario en el buscador"),
+    limit: int = Query(8, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    """Sugerencias de destino para el buscador (SearchBar.tsx), respaldadas
+    por hoteles reales -- ver HotelRepository.get_destinos_reales. Antes el
+    buscador usaba GET /destinos/sugerencias (catálogo de servicios/
+    actividades, sin relación con los hoteles), pudiendo sugerir una ciudad
+    sin ningún hotel ni paquete real. No se cachea: es una sola consulta
+    agrupada, liviana, y así un hotel nuevo aparece de inmediato en las
+    sugerencias sin esperar un TTL."""
+    filas = HotelRepository.get_destinos_reales(db, q, limit)
+    return [{"ciudad": ciudad, "pais": pais, "total_hoteles": total} for ciudad, pais, total in filas]
 
 
 # ===================== HOTELES CRUD =====================

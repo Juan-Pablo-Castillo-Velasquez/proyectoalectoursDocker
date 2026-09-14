@@ -62,6 +62,17 @@ export interface HabitacionFechasOcupadas {
   rangos: RangoOcupado[];
 }
 
+// Sugerencia de destino respaldada por hoteles reales (ver
+// HotelRepository.get_destinos_reales en el backend) -- a diferencia del
+// catálogo /destinos/sugerencias (pensado para servicios/actividades, sin
+// relación con los hoteles), esto nunca sugiere una ciudad sin al menos un
+// hotel real. total_hoteles es el conteo real, nunca inventado.
+export interface DestinoReal {
+  ciudad: string;
+  pais: string | null;
+  total_hoteles: number;
+}
+
 export const hotelService = {
   // El backend ya responde con HotelDetailResponse (incluye habitaciones y
   // hotel_caracteristicas) también en el listado, no solo en el detalle —
@@ -83,6 +94,13 @@ export const hotelService = {
 
   getById: (id: number) =>
     apiFetch<HotelDetailResponse>(`/hoteles/${id}`),
+
+  // Sugerencias de destino para el buscador (SearchBar.tsx), respaldadas
+  // por hoteles reales -- antes el buscador usaba destinoService.getSugerencias
+  // (catálogo de servicios/actividades sin relación con los hoteles), que
+  // podía sugerir/aceptar una ciudad sin ningún hotel ni paquete real.
+  getDestinosSugeridos: (q = '', limit = 8) =>
+    apiFetch<DestinoReal[]>(`/hoteles/destinos-sugeridos?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   // Fechas ya reservadas por habitación (reservas activas) — para mostrarle
   // al cliente disponibilidad real antes de elegir fechas. Nunca expone

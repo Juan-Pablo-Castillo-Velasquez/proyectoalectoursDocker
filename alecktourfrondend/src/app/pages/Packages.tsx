@@ -11,6 +11,7 @@ import PaquetesDestacadosCarousel from "../components/PaquetesDestacadosCarousel
 import { useTema } from "../context/TemaContext";
 import { useSeoMeta } from "../hooks/useSeoMeta";
 import { PaqueteResponse, paqueteService } from "../services/paquete.service";
+import { normalizarTexto } from "../utils/normalizarTexto";
 
 type OrdenPor = "relevancia" | "precio_asc" | "precio_desc";
 
@@ -56,11 +57,14 @@ export default function Packages() {
 
   const filtrados = filtroDestino.trim()
     ? paquetes.filter((p) => {
-        const q = filtroDestino.trim().toLowerCase();
+        // normalizarTexto (no toLowerCase a secas) para que buscar sin
+        // tilde (ej. "medellin") sí encuentre paquetes con destino guardado
+        // con tilde ("Medellín") -- mismo criterio que SearchResults.tsx.
+        const q = normalizarTexto(filtroDestino.trim());
         return (
-          p.nombre_paquete.toLowerCase().includes(q) ||
-          (p.ciudad_destino ?? "").toLowerCase().includes(q) ||
-          (p.ciudad_salida ?? "").toLowerCase().includes(q)
+          normalizarTexto(p.nombre_paquete).includes(q) ||
+          normalizarTexto(p.ciudad_destino ?? "").includes(q) ||
+          normalizarTexto(p.ciudad_salida ?? "").includes(q)
         );
       })
     : paquetes;

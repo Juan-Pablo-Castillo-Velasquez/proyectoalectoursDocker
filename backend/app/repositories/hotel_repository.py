@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date
 
 from sqlalchemy import func
@@ -6,6 +7,16 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.exceptions import HotelDependencyError, NotFoundError
 from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, TipoHabitacion
 from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
+
+
+def _sin_tildes(texto: str) -> str:
+    """Quita tildes/diacríticos para comparar texto sin distinguir acentos
+    (ej. "medellin" debe encontrar "Medellín") — se hace en Python en vez
+    de con la extensión `unaccent` de Postgres porque esta última requiere
+    CREATE EXTENSION, que no siempre está disponible en un Postgres
+    administrado (Render) sin privilegios de superusuario."""
+    descompuesto = unicodedata.normalize("NFD", texto)
+    return "".join(c for c in descompuesto if unicodedata.category(c) != "Mn").lower()
 
 
 class HotelRepository:
@@ -126,6 +137,38 @@ class HotelRepository:
             .all()
         )
         return resultados
+
+    @staticmethod
+    def get_destinos_reales(db: Session, q: str = "", limit: int = 8):
+        """Ciudades/países con inventario REAL de hoteles (y por lo tanto de
+        paquetes: Paquete.ciudad_destino sale del hotel vinculado, ver
+        reserva_model.py) -- agrupa Hotel por ciudad/país con el conteo real
+        de hoteles de cada una. Antes el autocompletado del buscador
+        (SearchBar.tsx) sugería destinos de la tabla `destinos` (catálogo
+        aparte, pensado para servicios/actividades, SIN relación con
+        Hotel.ciudad), así que podía sugerir una ciudad para la que no
+        existía ningún hotel ni paquete real -- la búsqueda en sí nunca
+        inventó resultados, pero invitaba a buscar algo que nunca los iba a
+        tener. El filtro de texto usa _sin_tildes (no ILIKE) para que
+        también ignore tildes."""
+        filas = (
+            db.query(Hotel.ciudad, Hotel.pais, func.count(Hotel.id_hotel).label("total"))
+            .filter(Hotel.ciudad.isnot(None), Hotel.ciudad != "")
+            .group_by(Hotel.ciudad, Hotel.pais)
+            .all()
+        )
+
+        q_normalizado = _sin_tildes(q.strip()) if q else ""
+        coincidencias = [
+            (ciudad, pais, total)
+            for ciudad, pais, total in filas
+            if not q_normalizado
+            or q_normalizado in _sin_tildes(ciudad)
+            or (pais and q_normalizado in _sin_tildes(pais))
+        ]
+        # Ciudades con más hoteles primero (más relevantes para sugerir), luego alfabético.
+        coincidencias.sort(key=lambda item: (-item[2], item[0]))
+        return coincidencias[:limit]
 
     @staticmethod
     def get_by_id(db: Session, hotel_id: int):

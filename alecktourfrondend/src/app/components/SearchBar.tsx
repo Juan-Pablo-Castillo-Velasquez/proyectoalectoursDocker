@@ -11,7 +11,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { destinoService, DestinoSugerencia } from "../services/destino.service";
+import { DestinoReal, hotelService } from "../services/hotel.service";
 
 interface MenuRect {
   top: number;
@@ -43,7 +43,7 @@ export default function SearchBar() {
   // armar una búsqueda con fechas imposibles.
   const todayStr = new Date().toISOString().slice(0, 10);
   const [showDestinations, setShowDestinations] = useState(false);
-  const [filteredDestinations, setFilteredDestinations] = useState<DestinoSugerencia[]>([]);
+  const [filteredDestinations, setFilteredDestinations] = useState<DestinoReal[]>([]);
   // Posición del dropdown calculada en coordenadas de viewport, para
   // renderizarlo con un portal (ver comentario más abajo) en vez de dejarlo
   // anidado dentro de la barra.
@@ -52,9 +52,17 @@ export default function SearchBar() {
   // Precarga destinos disponibles apenas se monta la barra (sin esperar a
   // que el usuario haga foco ni escriba) — así el dropdown ya tiene datos
   // reales listos para mostrarse "automáticamente" en cuanto se abre.
+  //
+  // Antes esto usaba destinoService.getSugerencias, que lee el catálogo
+  // `destinos` (pensado para servicios/actividades, sin ninguna relación
+  // con Hotel.ciudad) -- podía sugerir una ciudad para la que no existía
+  // ningún hotel ni paquete real, así que buscar "encontraba" un destino
+  // pero la búsqueda en sí siempre daba vacío. hotelService.getDestinosSugeridos
+  // agrupa los hoteles reales por ciudad, así que toda sugerencia tiene
+  // inventario real detrás (ver HotelRepository.get_destinos_reales).
   useEffect(() => {
-    destinoService
-      .getSugerencias("", 8)
+    hotelService
+      .getDestinosSugeridos("", 8)
       .then(setFilteredDestinations)
       .catch(() => setFilteredDestinations([]));
   }, []);
@@ -66,8 +74,8 @@ export default function SearchBar() {
   useEffect(() => {
     if (!showDestinations) return;
     const timeout = setTimeout(() => {
-      destinoService
-        .getSugerencias(destination.trim(), 8)
+      hotelService
+        .getDestinosSugeridos(destination.trim(), 8)
         .then(setFilteredDestinations)
         .catch(() => setFilteredDestinations([]));
     }, 250);
@@ -338,10 +346,10 @@ export default function SearchBar() {
                   <div className="py-1.5">
                     {filteredDestinations.map((item) => (
                       <button
-                        key={item.id_destino}
+                        key={item.ciudad}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectDestination(item.nombre_destino)}
+                        onClick={() => selectDestination(item.ciudad)}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5 transition-colors"
                       >
                         <div className="w-8 h-8 rounded-lg bg-primary/8 flex items-center justify-center shrink-0">
@@ -350,11 +358,20 @@ export default function SearchBar() {
 
                         <div className="min-w-0">
                           <p className="text-[12px] font-bold text-foreground truncate">
-                            {item.nombre_destino}
+                            {item.ciudad}
                           </p>
 
+                          {/* Conteo real de hoteles (nunca inventado, ver
+                              DestinoRealResponse) -- reemplaza el antiguo
+                              "ciudad · país" que ya era redundante con la
+                              línea de arriba (era la misma ciudad). */}
                           <p className="text-[10px] text-muted-foreground">
-                            {[item.ciudad, item.pais].filter(Boolean).join(" · ")}
+                            {[
+                              item.pais,
+                              `${item.total_hoteles} ${item.total_hoteles === 1 ? "hotel" : "hoteles"}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </p>
                         </div>
                       </button>

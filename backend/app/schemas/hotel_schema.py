@@ -151,3 +151,15 @@ class HotelResponse(BaseModel):
 class HotelDetailResponse(HotelResponse):
     habitaciones: list[HabitacionResponse] = []
     hotel_caracteristicas: list[HotelCaracteristicaResponse] = []
+
+
+class DestinoRealResponse(BaseModel):
+    """Sugerencia de destino para el buscador (SearchBar.tsx), respaldada
+    por hoteles reales -- ver HotelRepository.get_destinos_reales. A
+    diferencia del catálogo de /destinos (pensado para servicios/
+    actividades, sin relación con los hoteles), esto nunca sugiere una
+    ciudad sin al menos un hotel real detrás."""
+
+    ciudad: str
+    pais: str | None
+    total_hoteles: int

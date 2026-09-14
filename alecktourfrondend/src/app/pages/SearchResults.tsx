@@ -20,6 +20,7 @@ import HotelCard from "../components/HotelCard";
 import Navbar from "../components/Navbar";
 import { useTema } from "../context/TemaContext";
 import { HotelDetailResponse, hotelService } from "../services/hotel.service";
+import { normalizarTexto } from "../utils/normalizarTexto";
 
 export default function SearchResults() {
   const [searchParams] = useSearchParams();
@@ -150,8 +151,12 @@ export default function SearchResults() {
    * con los hoteles.
    */
   useEffect(() => {
+    // normalizarTexto (no toLowerCase a secas) para que buscar sin tilde
+    // (ej. "medellin") sí encuentre ciudades guardadas con tilde
+    // ("Medellín") -- antes un hotel real quedaba fuera del resultado solo
+    // por esa diferencia de acentos.
     const destination =
-      destinationSearch.toLowerCase();
+      normalizarTexto(destinationSearch);
 
     const resultado = hoteles.filter((h) => {
       /*
@@ -159,15 +164,9 @@ export default function SearchResults() {
        */
       const matchesDestination =
         !destination ||
-        h.ciudad
-          ?.toLowerCase()
-          .includes(destination) ||
-        h.pais
-          ?.toLowerCase()
-          .includes(destination) ||
-        h.nombre_hotel
-          ?.toLowerCase()
-          .includes(destination);
+        (h.ciudad ? normalizarTexto(h.ciudad).includes(destination) : false) ||
+        (h.pais ? normalizarTexto(h.pais).includes(destination) : false) ||
+        (h.nombre_hotel ? normalizarTexto(h.nombre_hotel).includes(destination) : false);
 
       /*
        * FILTRO CALIFICACIÓN
@@ -287,12 +286,12 @@ export default function SearchResults() {
    */
   const disponibilidadDestino = (() => {
     if (!totalCatalogo) return null;
-    const destino = destinationSearch.toLowerCase();
+    const destino = normalizarTexto(destinationSearch);
     const matchDestino = (h: HotelDetailResponse) =>
       !destino ||
-      h.ciudad?.toLowerCase().includes(destino) ||
-      h.pais?.toLowerCase().includes(destino) ||
-      h.nombre_hotel?.toLowerCase().includes(destino);
+      (h.ciudad ? normalizarTexto(h.ciudad).includes(destino) : false) ||
+      (h.pais ? normalizarTexto(h.pais).includes(destino) : false) ||
+      (h.nombre_hotel ? normalizarTexto(h.nombre_hotel).includes(destino) : false);
     const total = totalCatalogo.filter(matchDestino).length;
     const disponibles = hoteles.filter(matchDestino).length;
     return { disponibles, total };
@@ -326,11 +325,11 @@ export default function SearchResults() {
       caracteristicasFilter.length > 0;
     if (hayFiltrosDeCliente) return [];
     if (!destinationSearch) return [];
-    const destino = destinationSearch.toLowerCase();
+    const destino = normalizarTexto(destinationSearch);
     const matchDestino = (h: HotelDetailResponse) =>
-      h.ciudad?.toLowerCase().includes(destino) ||
-      h.pais?.toLowerCase().includes(destino) ||
-      h.nombre_hotel?.toLowerCase().includes(destino);
+      (h.ciudad ? normalizarTexto(h.ciudad).includes(destino) : false) ||
+      (h.pais ? normalizarTexto(h.pais).includes(destino) : false) ||
+      (h.nombre_hotel ? normalizarTexto(h.nombre_hotel).includes(destino) : false);
     const disponiblesIds = new Set(hoteles.map((h) => h.id_hotel));
     return totalCatalogo.filter((h) => matchDestino(h) && !disponiblesIds.has(h.id_hotel));
   })();
