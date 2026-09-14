@@ -87,7 +87,15 @@ export default function WelcomeSplash() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+            className={`relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 ${
+              // Folleto: SIN caja de fondo negro ni altura fija -- eso era lo
+              // que generaba las franjas negras cuando la imagen no calzaba
+              // exacto con el recuadro (object-contain dejando espacio vacío
+              // que el bg-black de abajo rellenaba). Ahora el recuadro se
+              // ajusta al tamaño real de la imagen ("flota"), sin ancho
+              // forzado -- solo un tope para que no se salga de pantalla.
+              esFolleto ? "max-w-[92vw] sm:max-w-2xl" : "w-full max-w-lg sm:max-w-xl md:max-w-2xl"
+            }`}
           >
             <button
               onClick={cerrar}
@@ -97,19 +105,27 @@ export default function WelcomeSplash() {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="relative h-[26rem] sm:h-[30rem] md:h-[34rem] bg-black">
+            <div className={esFolleto ? "relative" : "relative h-[26rem] sm:h-[30rem] md:h-[34rem] bg-black"}>
               <img
                 src={resolveImagenBanner(banner.imagen_url)}
                 alt={banner.titulo}
-                className={`absolute inset-0 w-full h-full ${esFolleto ? "object-contain" : "object-cover"}`}
+                className={
+                  esFolleto
+                    // Sin fondo detrás que rellenar: la altura del recuadro
+                    // la define la imagen misma (hasta 85% del alto de
+                    // pantalla, más alta que el límite fijo anterior), y el
+                    // ancho se ajusta solo -- nunca hay hueco que tape un
+                    // color de fondo.
+                    ? "block w-auto h-auto max-w-full max-h-[85vh] mx-auto"
+                    : "absolute inset-0 w-full h-full object-cover"
+                }
               />
 
               {esFolleto ? (
                 // Folleto: sin gradiente ni texto superpuesto -- el folleto ES
                 // el anuncio, con el texto ya dibujado en la imagen por quien
                 // lo diseñó (ver "Nombre interno", que nunca se muestra, en
-                // ModuleBanners.tsx). object-contain arriba para no recortar
-                // nunca ese texto. Si trae link, toda la imagen es clicable
+                // ModuleBanners.tsx). Si trae link, toda la imagen es clicable
                 // con un <a> transparente encima (normal, no <Link>: mismo
                 // motivo que abajo, este componente vive fuera del Router).
                 banner.link_destino && (
