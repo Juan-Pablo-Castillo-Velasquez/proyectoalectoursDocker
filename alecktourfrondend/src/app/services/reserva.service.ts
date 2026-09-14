@@ -36,6 +36,13 @@ export interface PagoResponse {
   referencia: string;
   estado: string;
   metodo_pago: MetodoPago;
+  // Reales (PagoResponse.numero_factura / .comprobante_url en el backend,
+  // ver reserva_schema.py) -- numero_factura se asigna solo cuando el pago
+  // llega a 'pagado'; comprobante_url es el voucher de transferencia/
+  // consignación subido por un admin (ruta relativa, resolver con
+  // resolveFotoUrl antes de usarlo en un <a>/<img>).
+  numero_factura?: string | null;
+  comprobante_url?: string | null;
 }
 
 export interface ReservaDetail {

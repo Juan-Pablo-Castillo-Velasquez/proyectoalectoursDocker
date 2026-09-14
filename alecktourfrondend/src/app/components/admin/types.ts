@@ -40,6 +40,10 @@ export interface Reserva {
   id_cliente: number;
   id_paquete: number;
   id_empleado?: number;           // null = reserva hecha en web sin asesor
+  // Ya existía en ReservaResponse (Reserva.fecha_reserva, timestamp real de
+  // creación) — solo faltaba declararse acá. Distinta de fecha_inicio (el
+  // check-in del viaje): esta es cuándo se HIZO la reserva.
+  fecha_reserva: string;
   fecha_inicio: string;
   fecha_fin: string;
   numero_personas: number;

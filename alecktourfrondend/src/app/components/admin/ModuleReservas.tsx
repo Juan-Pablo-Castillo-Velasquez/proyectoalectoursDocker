@@ -4,7 +4,7 @@ import {
   CreditCard, Calendar, Users, Phone, Mail, MapPin,
   Globe, UserCheck, PhoneCall, ChevronRight, AlertCircle,
   CheckCircle, Clock, XCircle, FileText, Save, MoreHorizontal,
-  MessageCircle, Send,
+  MessageCircle, Send, BedDouble, Sparkles, Receipt, Paperclip,
 } from "lucide-react";
 import { Reserva, Cliente, Paquete, ESTADO_COLOR, inputCls, resolveFotoUrl } from "./types";
 import { reservaDetailService, reservaService, type PagoResponse } from "../../services/reserva.service";
@@ -240,12 +240,18 @@ interface SidePanelProps {
    * el módulo principal) — para avisar acá mismo si el cliente pidió
    * cancelar, sin obligar a saltar al módulo de Cancelaciones para verlo. */
   solicitudesReserva?: SolicitudCancelacionResponse[];
+  /** Total de reservas de este cliente (ya calculado por el módulo principal
+   * sobre el arreglo `reservas` que ya tiene cargado, sin pedir ningún
+   * endpoint nuevo) — para que el admin sepa de un vistazo si es un cliente
+   * nuevo o recurrente, algo que hoy solo se podía inferir buscando a mano
+   * en la tabla filtrando por nombre. */
+  reservasClienteCount?: number;
   onClose: () => void;
   onDelete: (id: number) => void;
   onUpdateEstado: (id: number, estado: EstadoReserva) => Promise<void>;
 }
 
-function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReserva = [], onClose, onDelete, onUpdateEstado }: SidePanelProps) {
+function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReserva = [], reservasClienteCount, onClose, onDelete, onUpdateEstado }: SidePanelProps) {
   const solicitudPendiente = solicitudesReserva.find(s => s.estado === "pendiente");
 
   // reserva.precio_total ya viene calculado real desde el backend
@@ -256,9 +262,8 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
 
   const [habitaciones, setHabitaciones] = useState<any[]>([]);
   const [servicios,    setServicios]    = useState<any[]>([]);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [showDetail,    setShowDetail]    = useState(false);
-  const [detailError,   setDetailError]   = useState("");
+  const [detalleLoading, setDetalleLoading] = useState(true);
+  const [detailError,     setDetailError]   = useState("");
 
   const [historial,        setHistorial]        = useState<HistorialItem[]>([]);
   const [historialLoading, setHistorialLoading] = useState(true);
@@ -313,9 +318,8 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
   const [saveError,    setSaveError]    = useState("");
   const hasChanges = !!reserva && estadoLocal !== reserva.estado;
 
-  // El historial se carga solo al abrir el detalle (independiente del botón
-  // "Ver habitaciones y servicios") porque la trazabilidad debe verse de
-  // entrada, no quedar detrás de un clic extra.
+  // El historial se carga solo al abrir el detalle porque la trazabilidad
+  // debe verse de entrada, no quedar detrás de un clic extra.
   useEffect(() => {
     if (!reserva) return;
     let cancelado = false;
@@ -324,6 +328,26 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
       .then((h: HistorialItem[]) => { if (!cancelado) setHistorial(h); })
       .catch(() => { if (!cancelado) setHistorial([]); })
       .finally(() => { if (!cancelado) setHistorialLoading(false); });
+    return () => { cancelado = true; };
+  }, [reserva?.id_reserva]);
+
+  // Habitaciones y servicios reales de esta reserva (GET /reservas/{id}/
+  // habitaciones y /servicios) -- antes quedaban detrás de un botón "Ver
+  // habitaciones y servicios" que había que apretar para enterarse de qué
+  // se reservó realmente. Se cargan de entrada, mismo criterio que
+  // historial/pagos arriba: esto es información central de la reserva, no
+  // un detalle opcional.
+  useEffect(() => {
+    if (!reserva) return;
+    let cancelado = false;
+    setDetalleLoading(true); setDetailError("");
+    Promise.all([
+      reservaDetailService.getHabitaciones(reserva.id_reserva),
+      reservaDetailService.getServicios(reserva.id_reserva),
+    ])
+      .then(([h, s]) => { if (!cancelado) { setHabitaciones(h); setServicios(s); } })
+      .catch(() => { if (!cancelado) setDetailError("No se pudieron cargar las habitaciones y servicios"); })
+      .finally(() => { if (!cancelado) setDetalleLoading(false); });
     return () => { cancelado = true; };
   }, [reserva?.id_reserva]);
 
@@ -349,22 +373,6 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
       setSaveError("No se pudo actualizar el estado");
     } finally {
       setSavingEstado(false);
-    }
-  }
-
-  async function loadDetail() {
-    setLoadingDetail(true); setDetailError("");
-    try {
-      const [h, s] = await Promise.all([
-        reservaDetailService.getHabitaciones(reserva.id_reserva),
-        reservaDetailService.getServicios(reserva.id_reserva),
-      ]);
-      setHabitaciones(h); setServicios(s);
-      setShowDetail(true);
-    } catch {
-      setDetailError("No se pudieron cargar los detalles");
-    } finally {
-      setLoadingDetail(false);
     }
   }
 
@@ -416,14 +424,6 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
           >
             <Trash2 className="w-3.5 h-3.5" /> Eliminar
           </button>
-          <button
-            onClick={loadDetail}
-            disabled={loadingDetail}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-lg text-xs font-semibold hover:shadow-md hover:shadow-primary/20 transition-all disabled:opacity-60"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-            {loadingDetail ? "Cargando..." : showDetail ? "Actualizar habitaciones y servicios" : "Ver habitaciones y servicios"}
-          </button>
         </div>
       }
     >
@@ -459,6 +459,18 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                       <p className="text-[11px] text-muted-foreground">CC {cliente.cedula}</p>
                     </div>
                   </div>
+                  {/* Señal real de si es un cliente nuevo o recurrente — antes
+                      solo se podía saber yendo al módulo de Clientes y
+                      buscando a mano. reservasClienteCount ya viene calculado
+                      del arreglo `reservas` que el módulo principal ya tiene
+                      cargado, sin pedir ningún endpoint nuevo. */}
+                  {reservasClienteCount != null && (
+                    <p className="text-[11px] font-medium text-primary mb-3 -mt-1">
+                      {reservasClienteCount === 1
+                        ? "Primera reserva de este cliente"
+                        : `Cliente recurrente · ${reservasClienteCount} reservas en total`}
+                    </p>
+                  )}
                   <DetailRow icon={Mail} label="Correo" value={
                     cliente.correo ? <a href={`mailto:${cliente.correo}`} className="hover:underline">{cliente.correo}</a> : undefined
                   } />
@@ -480,6 +492,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                   <DetailRow icon={MapPin} label="Ciudad"     value={`${cliente.ciudad}, ${cliente.pais}`} />
                   <DetailRow icon={MapPin} label="Dirección"  value={cliente.direccion} />
                   <DetailRow icon={Calendar} label="Nacimiento" value={cliente.fecha_nacimiento ? formatFechaCorta(cliente.fecha_nacimiento) : undefined} />
+                  <DetailRow icon={Calendar} label="Cliente desde" value={cliente.fecha_registro ? formatFechaCorta(cliente.fecha_registro) : undefined} />
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">Cliente #{reserva.id_cliente}</p>
@@ -521,6 +534,73 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
             </div>
           </section>
 
+          {/* Habitaciones y servicios reales de la reserva (GET /reservas/{id}/
+              habitaciones y /servicios) — antes quedaban ocultos detrás de un
+              botón "Ver habitaciones y servicios" en el footer; siendo esto el
+              corazón de lo que el cliente realmente compró, se cargan y
+              muestran de entrada, igual que el resto de esta ficha. */}
+          <section>
+            <h3 className={section}><BedDouble className="w-3.5 h-3.5" /> Habitaciones</h3>
+            <div className="space-y-2">
+              {detalleLoading ? (
+                <div className={`${card} text-xs text-muted-foreground`}>Cargando habitaciones...</div>
+              ) : habitaciones.length > 0 ? (
+                habitaciones.map((h, i) => (
+                  <div key={i} className={`${card} text-xs space-y-1`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-foreground">{h.nombre_hotel} — Hab. {h.numero_habitacion}</p>
+                      {h.estado && <StatusBadge status={h.estado} />}
+                    </div>
+                    <p className="text-muted-foreground">
+                      {h.nombre_tipo}
+                      {h.precio_acordado != null && ` · $${h.precio_acordado.toLocaleString("es-CO")} acordado`}
+                      {h.precio_noche != null && ` ($${h.precio_noche.toLocaleString("es-CO")}/noche)`}
+                    </p>
+                    <p className="text-muted-foreground">{formatFechaCorta(h.fecha_checkin)} → {formatFechaCorta(h.fecha_checkout)}</p>
+                  </div>
+                ))
+              ) : (
+                <div className={`${card} text-xs text-muted-foreground`}>Sin habitaciones registradas para esta reserva</div>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <h3 className={section}><Sparkles className="w-3.5 h-3.5" /> Servicios adicionales</h3>
+            <div className="space-y-2">
+              {detalleLoading ? (
+                <div className={`${card} text-xs text-muted-foreground`}>Cargando servicios...</div>
+              ) : servicios.length > 0 ? (
+                servicios.map((s, i) => (
+                  <div key={i} className={`${card} text-xs space-y-1`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-foreground">{s.nombre_servicio}</p>
+                      {s.precio_acordado != null && (
+                        <span className="text-foreground font-medium">${s.precio_acordado.toLocaleString("es-CO")}</span>
+                      )}
+                    </div>
+                    <p className="text-muted-foreground">
+                      {[s.nombre_categoria, s.duracion_horas != null ? `${s.duracion_horas}h` : null].filter(Boolean).join(" · ")}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {formatFechaCorta(s.fecha_servicio)}{s.numero_personas != null ? ` · ${s.numero_personas} personas` : ""}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className={`${card} text-xs text-muted-foreground`}>Sin servicios adicionales para esta reserva</div>
+              )}
+            </div>
+          </section>
+
+          {/* Error al cargar habitaciones/servicios */}
+          {detailError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 rounded-xl p-3 text-xs flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {detailError}
+            </div>
+          )}
+
           {/* Financiero */}
           <section>
             <h3 className={section}><CreditCard className="w-3.5 h-3.5" /> Pago</h3>
@@ -558,6 +638,28 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                         {/* Dato ya disponible en PagoResponse.fecha_pago — antes solo se
                             usaba para ordenar la lista, nunca se mostraba al admin. */}
                         <DetailRow icon={Calendar}    label="Fecha"       value={p.fecha_pago ? formatFechaCorta(p.fecha_pago) : undefined} />
+                        {/* Reales (PagoResponse.numero_factura/.comprobante_url), antes
+                            nunca se mostraban acá -- numero_factura solo existe una vez
+                            que el pago llega a 'pagado' (ver _asignar_numero_factura en
+                            reserva_route.py); comprobante_url es el voucher que un admin
+                            subió a mano para pagos por transferencia/consignación. */}
+                        <DetailRow icon={Receipt} label="Factura" value={p.numero_factura} />
+                        {p.comprobante_url && (
+                          <DetailRow
+                            icon={Paperclip}
+                            label="Comprobante"
+                            value={
+                              <a
+                                href={resolveFotoUrl(p.comprobante_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                              >
+                                Ver comprobante
+                              </a>
+                            }
+                          />
+                        )}
                       </div>
                     ))}
                 </div>
@@ -598,56 +700,6 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
             </div>
           </section>
 
-          {/* Error detalles */}
-          {detailError && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 rounded-xl p-3 text-xs flex items-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              {detailError}
-            </div>
-          )}
-
-          {/* Detalles extra: habitaciones y servicios (carga bajo demanda) */}
-          {showDetail && (
-            <>
-              {habitaciones.length > 0 && (
-                <section>
-                  <h3 className={section}>🛏 Habitaciones</h3>
-                  <div className="space-y-2">
-                    {habitaciones.map((h, i) => (
-                      <div key={i} className={`${card} text-xs`}>
-                        <p className="font-semibold text-foreground">
-                          {h.nombre_hotel} — Hab. {h.numero_habitacion}
-                        </p>
-                        <p className="text-muted-foreground">{h.nombre_tipo} · ${h.precio_acordado?.toLocaleString("es-CO")}</p>
-                        <p className="text-muted-foreground">{h.fecha_checkin} → {h.fecha_checkout}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {servicios.length > 0 && (
-                <section>
-                  <h3 className={section}>🎯 Servicios</h3>
-                  <div className="space-y-2">
-                    {servicios.map((s, i) => (
-                      <div key={i} className={`${card} text-xs`}>
-                        <p className="font-semibold text-foreground">{s.nombre_servicio}</p>
-                        <p className="text-muted-foreground">{s.nombre_categoria} · {s.duracion_horas}h</p>
-                        <p className="text-muted-foreground">{s.fecha_servicio} · {s.numero_personas} personas</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {habitaciones.length === 0 && servicios.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  No hay habitaciones ni servicios adicionales registrados
-                </p>
-              )}
-            </>
-          )}
         </div>
 
         {/* Columna derecha: estado + trazabilidad */}
@@ -657,6 +709,14 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
           <section>
             <h3 className={section}><Clock className="w-3.5 h-3.5" /> Estado de la reserva</h3>
             <div className={`${card} space-y-3`}>
+              {/* Ya existía en el backend (Reserva.fecha_reserva) — solo faltaba
+                  mostrarse. Distinta de "Última actualización": esta es cuándo se
+                  HIZO la reserva, para saber su antigüedad real de un vistazo. */}
+              {reserva.fecha_reserva && (
+                <p className="text-[11px] text-muted-foreground">
+                  Reservada: {tiempoRelativo(reserva.fecha_reserva)}
+                </p>
+              )}
               {reserva.fecha_ultima_actualizacion && (
                 <p className="text-[11px] text-muted-foreground">
                   Última actualización: {tiempoRelativo(reserva.fecha_ultima_actualizacion)}
@@ -725,6 +785,38 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
               <Timeline items={historialItems} loading={historialLoading} emptyLabel="Sin cambios de estado registrados todavía" />
             </div>
           </section>
+
+          {/* Solicitudes de cancelación de ESTA reserva — antes solo se
+              avisaba arriba si había una PENDIENTE (banner rojo); las ya
+              resueltas (aprobadas/rechazadas) se perdían de vista aunque
+              `solicitudesReserva` ya las traía completas. Acá se ve el
+              historial completo, para saber si el cliente ya intentó
+              cancelar antes y qué se decidió. */}
+          {solicitudesReserva.length > 0 && (
+            <section>
+              <h3 className={section}><AlertCircle className="w-3.5 h-3.5" /> Solicitudes de cancelación</h3>
+              <div className="space-y-2">
+                {[...solicitudesReserva]
+                  .sort((a, b) => (b.fecha_solicitud ?? "").localeCompare(a.fecha_solicitud ?? ""))
+                  .map((s) => (
+                    <div key={s.id_solicitud} className={`${card} text-xs space-y-1.5`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <StatusBadge status={s.estado} />
+                        <span className="text-muted-foreground">{formatFechaCorta(s.fecha_solicitud)}</span>
+                      </div>
+                      <p className="font-medium text-foreground">{s.motivo}</p>
+                      {s.motivo_detalle && <p className="text-muted-foreground">{s.motivo_detalle}</p>}
+                      {s.estado !== "pendiente" && s.comentario_resolucion && (
+                        <p className="text-muted-foreground italic border-t border-border/50 pt-1.5 mt-1.5">
+                          "{s.comentario_resolucion}"
+                          {s.fecha_resolucion && ` · ${formatFechaCorta(s.fecha_resolucion)}`}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </AdminModal>
@@ -1218,6 +1310,7 @@ export default function ModuleReservas({
           paquete={paqueteMap[selectedReserva.id_paquete]}
           pago={pagoMap[selectedReserva.id_reserva]}
           solicitudesReserva={solicitudes.filter(sc => sc.id_reserva === selectedReserva.id_reserva)}
+          reservasClienteCount={reservas.filter(r => r.id_cliente === selectedReserva.id_cliente).length}
           onClose={() => setSelectedId(null)}
           onDelete={(id) => { onDelete(id); setSelectedId(null); }}
           onUpdateEstado={onUpdateEstado}
