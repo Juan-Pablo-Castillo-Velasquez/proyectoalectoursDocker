@@ -189,6 +189,12 @@ export interface Usuario {
   // Real (UsuarioAdminResponse.foto_perfil, ver usuario_route.py) — para
   // mostrar la foto real del usuario en vez de solo sus iniciales.
   foto_perfil?: string | null;
+  // Reales (UsuarioAdminResponse.fecha_creacion / .ultimo_login, ver
+  // usuario_route.py) — para el perfil detallado de ModuleUsuarios.tsx.
+  // ultimo_login llega en null para las cuentas que no han iniciado sesión
+  // desde que auth_service.py empezó a registrarlo.
+  fecha_creacion?: string | null;
+  ultimo_login?: string | null;
 }
 
 export interface Rol {

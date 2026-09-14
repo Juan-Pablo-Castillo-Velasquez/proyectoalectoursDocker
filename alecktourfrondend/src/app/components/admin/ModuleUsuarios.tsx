@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Search, Trash2, PlusCircle, ShieldCheck, ShieldOff, Users, UserCheck, UserX, Mail } from "lucide-react";
+import { Search, Trash2, PlusCircle, ShieldCheck, ShieldOff, Users, UserCheck, UserX, Mail, ChevronRight } from "lucide-react";
 import { Usuario, Rol, inputCls, labelCls, resolveFotoUrl } from "./types";
 import AdminModal from "./ui/AdminModal";
 import StatCard from "./ui/StatCard";
 import SectionHeader from "./ui/SectionHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
+import ConfirmDialog from "./ui/ConfirmDialog";
 import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 import Avatar from "./ui/Avatar";
@@ -16,6 +17,60 @@ import {
 const EMPTY_FORM = {
   username: "", correo_electronico: "", password: "", roles: [] as string[],
 };
+
+// Mismo criterio que formatFechaHora en ModulePagos.tsx — se duplica en vez
+// de importarse (función pura, sin estado), siguiendo la convención ya
+// usada en varios módulos de admin.
+function formatFechaHora(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-CO", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0">
+      <span className="text-xs text-muted-foreground min-w-[120px]">{label}</span>
+      <span className="text-xs font-medium text-foreground text-right ml-auto">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+// Tipo de acción pendiente de confirmación — reemplaza el clic directo de
+// activar/desactivar y verificar/quitar verificación por un ConfirmDialog
+// centrado (mismo patrón ya usado en ModuleCancelaciones.tsx y en el
+// executeDelete de Admindashboard.tsx), en vez de ejecutar la acción de
+// inmediato al primer clic.
+type PendingToggle = { usuario: Usuario; tipo: "activo" | "verificado" };
+
+// Función pura (no depende de estado del componente) que arma el texto del
+// ConfirmDialog según la acción pendiente — separada del JSX para no
+// depender del estrechamiento de tipos de TypeScript sobre encadenamientos
+// opcionales dentro de un ternario largo.
+function getToggleCopy(pending: PendingToggle) {
+  const nombre = pending.usuario.nombre_completo || pending.usuario.username;
+  if (pending.tipo === "activo") {
+    const activo = pending.usuario.activo;
+    return {
+      title: activo ? "Desactivar usuario" : "Activar usuario",
+      description: activo
+        ? `${nombre} no podrá iniciar sesión mientras la cuenta esté desactivada.`
+        : `${nombre} podrá volver a iniciar sesión con normalidad.`,
+      confirmLabel: activo ? "Desactivar" : "Activar",
+      destructive: activo,
+    };
+  }
+  const verificado = pending.usuario.verificado;
+  return {
+    title: verificado ? "Quitar verificación" : "Verificar usuario",
+    description: verificado
+      ? `${nombre} volverá a aparecer como cuenta no verificada.`
+      : `Se marcará la cuenta de ${nombre} como verificada manualmente.`,
+    confirmLabel: verificado ? "Quitar verificación" : "Verificar",
+    destructive: verificado,
+  };
+}
 
 interface Props {
   usuarios: Usuario[];
@@ -36,6 +91,21 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
   const [form, setForm] = useState(EMPTY_FORM);
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [profileId, setProfileId] = useState<number | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+
+  const profile = usuarios.find(u => u.id_usuario === profileId) ?? null;
+  const toggleCopy = pendingToggle ? getToggleCopy(pendingToggle) : null;
+
+  async function handleConfirmToggle() {
+    if (!pendingToggle) return;
+    if (pendingToggle.tipo === "activo") {
+      await onToggleActivo(pendingToggle.usuario);
+    } else {
+      await onToggleVerificado(pendingToggle.usuario);
+    }
+    setPendingToggle(null);
+  }
 
   // KPIs reales — activos/verificados calculados sobre el arreglo `usuarios`
   // que ya llega del backend, nada inventado.
@@ -168,7 +238,11 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
             </thead>
             <tbody className="divide-y divide-border/50">
               {slice.map(u => (
-                <tr key={u.id_usuario} className="hover:bg-accent transition-colors">
+                <tr
+                  key={u.id_usuario}
+                  className="hover:bg-accent transition-colors cursor-pointer group"
+                  onClick={() => setProfileId(u.id_usuario)}
+                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Avatar
@@ -207,9 +281,9 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                     <StatusBadge status={u.verificado ? "verificado" : "no_verificado"} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 justify-end">
+                    <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
                       <button
-                        onClick={() => onToggleActivo(u)}
+                        onClick={() => setPendingToggle({ usuario: u, tipo: "activo" })}
                         title={u.activo ? "Desactivar" : "Activar"}
                         className={`p-1.5 rounded-lg transition-all ${u.activo ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" : "text-muted-foreground hover:bg-muted"}`}
                       >
@@ -217,7 +291,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                       </button>
                       {!u.verificado && (
                         <button
-                          onClick={() => onToggleVerificado(u)}
+                          onClick={() => setPendingToggle({ usuario: u, tipo: "verificado" })}
                           title="Verificar manualmente (el correo de confirmación nunca le llegó)"
                           className="p-1.5 rounded-lg text-[#C9A227] hover:bg-[#C9A227]/10 transition-all"
                         >
@@ -226,7 +300,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                       )}
                       {u.verificado && (
                         <button
-                          onClick={() => onToggleVerificado(u)}
+                          onClick={() => setPendingToggle({ usuario: u, tipo: "verificado" })}
                           title="Quitar verificación"
                           className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
                         >
@@ -239,6 +313,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
                     </div>
                   </td>
                 </tr>
@@ -309,6 +384,55 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
           </button>
         </form>
       </AdminModal>
+
+      {/* Perfil detallado — antes la tabla era todo lo que se podía ver de
+          un usuario. Todo lo que muestra viene de datos reales que ya llegan
+          por props (nada inventado): fecha_creacion/ultimo_login son
+          columnas reales de Usuario (ver user_model.py), expuestas ahora en
+          UsuarioAdminResponse. ultimo_login queda en "—" para cuentas que no
+          han iniciado sesión desde que auth_service.py empezó a
+          registrarlo. */}
+      {profile && (
+        <AdminModal
+          open={!!profile}
+          onOpenChange={(o) => { if (!o) setProfileId(null); }}
+          title={
+            <span className="inline-flex items-center gap-2.5">
+              <Avatar nombre={profile.nombre_completo || profile.username} fotoUrl={resolveFotoUrl(profile.foto_perfil)} color="primary" />
+              {profile.nombre_completo || profile.username}
+            </span>
+          }
+          description={`@${profile.username}`}
+          maxWidth="sm:max-w-lg"
+        >
+          <div className="space-y-0.5">
+            <Row label="Correo" value={profile.correo_electronico} />
+            <Row
+              label="Roles"
+              value={profile.roles.length > 0 ? profile.roles.join(", ") : "—"}
+            />
+            <Row label="Estado" value={<StatusBadge status={profile.activo ? "activo" : "inactivo"} />} />
+            <Row label="Verificado" value={<StatusBadge status={profile.verificado ? "verificado" : "no_verificado"} />} />
+            <Row label="Cuenta creada" value={formatFechaHora(profile.fecha_creacion)} />
+            <Row label="Último acceso" value={formatFechaHora(profile.ultimo_login)} />
+          </div>
+        </AdminModal>
+      )}
+
+      {/* Confirmación centrada para activar/desactivar y verificar/quitar
+          verificación — antes estas dos acciones se ejecutaban al primer
+          clic sin ningún paso intermedio. La eliminación de usuarios ya
+          pasa por su propio ConfirmDialog centralizado en
+          Admindashboard.tsx (ver executeDelete), así que no se duplica acá. */}
+      <ConfirmDialog
+        open={!!pendingToggle}
+        onOpenChange={(o) => { if (!o) setPendingToggle(null); }}
+        title={toggleCopy?.title ?? ""}
+        description={toggleCopy?.description}
+        confirmLabel={toggleCopy?.confirmLabel}
+        destructive={toggleCopy?.destructive}
+        onConfirm={handleConfirmToggle}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 
 from app.core.security import (
     create_access_token,
@@ -78,6 +79,16 @@ def login_user(db: Session, correo_electronico: str, password: str):
     # contraseña y verificado. La desactivación quedaba sin efecto real.
     if not user.activo:
         return {"error": "Esta cuenta está desactivada. Contacta al administrador."}
+
+    # Última vez que esta cuenta inició sesión con éxito -- antes esta
+    # columna (Usuario.ultimo_login, ver user_model.py) nunca se actualizaba,
+    # así que quedaba NULL para siempre y no servía de nada en el panel de
+    # admin (ver "más información" pedido para ModuleUsuarios.tsx). Se marca
+    # aquí, después de pasar todas las validaciones (contraseña, verificado,
+    # activo), para que solo cuente como "acceso" un login que de verdad tuvo
+    # éxito.
+    user.ultimo_login = func.now()
+    db.commit()
 
     # Obtener roles con SQL directo (sin modelos ORM para roles/usuarios_roles)
     rows = db.execute(

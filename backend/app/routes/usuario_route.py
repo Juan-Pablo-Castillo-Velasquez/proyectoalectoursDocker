@@ -52,6 +52,8 @@ def _shape_usuario_admin(db: Session, usuario: Usuario) -> UsuarioAdminResponse:
         nombre_completo=nombre_completo,
         roles=roles,
         foto_perfil=usuario.foto_perfil,
+        fecha_creacion=usuario.fecha_creacion,
+        ultimo_login=usuario.ultimo_login,
     )
 
 
