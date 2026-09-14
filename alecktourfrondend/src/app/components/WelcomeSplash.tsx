@@ -65,39 +65,42 @@ export default function WelcomeSplash() {
     // bg-black/90 + blur-md (antes /70 + blur-sm): con overlay más liviano se
     // alcanzaba a notar contenido de la página detrás (títulos/números
     // grandes) a través del blur, sobre todo con banners de alto contraste.
+    //
+    // Sin animación de entrada con escala/desplazamiento ni Ken Burns en la
+    // imagen (antes: 6s de zoom continuo) -- pedido explícito: que se vea
+    // como un anuncio/popup típico (aparece, se puede cerrar con la X, listo),
+    // no una revelación cinematográfica. Solo queda un fade corto para que
+    // no aparezca de golpe.
     <AnimatePresence>
       {visible && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.15 }}
           className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
           onClick={cerrar}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.94, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+            className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10"
           >
             <button
               onClick={cerrar}
               aria-label="Cerrar"
-              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="relative h-[26rem] sm:h-[30rem] md:h-[34rem] bg-black">
-              <motion.img
+              <img
                 src={resolveImagenBanner(banner.imagen_url)}
                 alt={banner.titulo}
-                initial={{ scale: 1.06 }}
-                animate={{ scale: 1 }}
-                transition={{ duration: 6, ease: "easeOut" }}
                 className={`absolute inset-0 w-full h-full ${esFolleto ? "object-contain" : "object-cover"}`}
               />
 
