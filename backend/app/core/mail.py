@@ -131,6 +131,7 @@ async def send_verification_email(
     verification_token: str,
     base_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173"),
     username: str | None = None,
+    codigo: str | None = None,
 ) -> bool:
     """
     Envía el correo de verificación de registro con la identidad visual de
@@ -139,6 +140,13 @@ async def send_verification_email(
     traia antes. `username` es opcional (compatibilidad hacia atras con
     quien ya llamaba esta funcion sin ese dato) -- sin el, el saludo
     simplemente queda generico ("Hola,") en vez de "Hola, <nombre>,".
+
+    `codigo` (nuevo): el código de 6 dígitos que RegisterModal.tsx le pide
+    a la persona apenas crea la cuenta, sin que tenga que salir del modal a
+    buscar el enlace en su bandeja. Sigue siendo opcional (None) para no
+    romper ninguna otra llamada existente a esta función (ej. un futuro
+    reenvío que por algún motivo no genere código) -- sin él, el correo
+    queda igual que antes, solo con el botón/enlace.
     """
     verification_link = f"{base_url}/verify?token={verification_token}"
     # Texto plano: el username tal cual (no es HTML, no hace falta escapar
@@ -152,6 +160,18 @@ async def send_verification_email(
 
     subject = "Confirma tu correo para activar tu cuenta - AlecTours"
 
+    codigo_texto_plano = (
+        f"""
+También puedes volver a la pestaña donde te registraste e ingresar este código:
+
+    {codigo}
+
+Ese código vence en 15 minutos.
+"""
+        if codigo
+        else ""
+    )
+
     body = f"""
 Hola{saludo_nombre_texto},
 
@@ -160,13 +180,31 @@ tu correo electrónico para activarla del todo.
 
 Verifica tu correo aquí:
 {verification_link}
-
+{codigo_texto_plano}
 Este enlace expira en 24 horas. Si tú no creaste esta cuenta, puedes
 ignorar este mensaje con tranquilidad.
 
 Saludos,
 El equipo de AlecTours
     """.strip()
+
+    codigo_html = (
+        f"""
+              <p style="margin:0 0 10px 0; font-size:13px; line-height:1.6; color:#73686a;">
+                O vuelve a la pestaña donde te registraste e ingresa este código:
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background-color:#f5f1ee; border:1.5px dashed rgba(110,24,50,0.35); border-radius:10px; padding:14px 28px;">
+                    <span style="font-family:Georgia,'Times New Roman',serif; font-size:30px; font-weight:700; letter-spacing:8px; color:#6e1832;">{codigo}</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 24px 0; font-size:12px; color:#a89a9d;">Ese código vence en 15 minutos.</p>
+"""
+        if codigo
+        else ""
+    )
 
     html_body = f"""
 <!DOCTYPE html>
@@ -238,7 +276,7 @@ El equipo de AlecTours
                   </td>
                 </tr>
               </table>
-
+{codigo_html}
               <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#73686a;">
                 ¿El botón no funciona? Copia y pega este enlace en tu navegador:
               </p>

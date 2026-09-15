@@ -2,6 +2,7 @@
 Módulo de seguridad: autenticación JWT, hashing de contraseñas y autorización.
 """
 
+import secrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Header, HTTPException
@@ -110,6 +111,26 @@ def verify_verification_token(token: str) -> str | None:
         return payload.get("email")
     except JWTError:
         return None
+
+
+def generate_verification_code() -> str:
+    """Código de 6 dígitos para verificar la cuenta escribiéndolo de vuelta
+    en el formulario, sin depender de abrir el enlace del correo en el
+    mismo dispositivo (ver a54ac89a1f9b_agregar_codigo_verificacion.py).
+    `secrets.randbelow` (no `random`) porque es criptográficamente seguro
+    -- el mismo criterio que ya se sigue para tokens de sesión."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def hash_verification_code(codigo: str) -> str:
+    """Reutiliza el mismo CryptContext (bcrypt) que las contraseñas -- el
+    código nunca se guarda en texto plano en la base de datos, igual que
+    password_hash."""
+    return pwd_context.hash(codigo)
+
+
+def verify_verification_code(codigo: str, codigo_hash: str) -> bool:
+    return pwd_context.verify(codigo, codigo_hash)
 
 
 def get_current_user(authorization: str | None = None) -> int | None:

@@ -94,4 +94,13 @@ export const authService = {
 
   resendVerification: (correo_electronico: string) =>
     authFetch<{ message: string }>('/auth/resend-verification', { correo_electronico }),
+
+  // Verifica la cuenta con el código de 6 dígitos que llega en el mismo
+  // correo que el enlace (ver /auth/verify-email-code en auth_route.py).
+  // A diferencia de verifyEmail (por token), esta sí devuelve tokens de
+  // sesión completos -- RegisterModal.tsx usa esto para loguear a la
+  // persona de inmediato apenas confirma el código, sin pedirle que
+  // además inicie sesión a mano.
+  verifyEmailCode: (correo_electronico: string, codigo: string) =>
+    authFetch<AuthResponse>('/auth/verify-email-code', { correo_electronico, codigo }),
 };

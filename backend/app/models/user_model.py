@@ -20,5 +20,13 @@ class Usuario(Base):
     ultimo_login = Column(TIMESTAMP)
     fecha_creacion = Column(TIMESTAMP, server_default=func.now())
 
+    # Código corto (6 dígitos) para verificar la cuenta sin depender del
+    # enlace del correo -- ver a54ac89a1f9b_agregar_codigo_verificacion.py.
+    # Solo se guarda el hash (igual que password_hash), nunca el código en
+    # texto plano.
+    codigo_verificacion_hash = Column(String(255), nullable=True)
+    codigo_verificacion_expira = Column(TIMESTAMP, nullable=True)
+    intentos_verificacion = Column(Integer, default=0, nullable=False)
+
     cliente = relationship("Cliente", back_populates="usuario", uselist=False)
     empleado = relationship("Empleado", back_populates="usuario", uselist=False)

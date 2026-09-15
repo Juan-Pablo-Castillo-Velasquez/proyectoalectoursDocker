@@ -1,9 +1,10 @@
-import { AlertCircle, Eye, EyeOff, Lock, Mail, Plane, Shield, User, X } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Lock, Mail, Plane, RefreshCw, Shield, User, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import ModalBackdrop from "./ui/ModalBackdrop";
+import OtpCodeInput from "./ui/OtpCodeInput";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/auth.service";
 
@@ -14,6 +15,16 @@ interface LoginModalProps {
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CODE_LENGTH = 6;
+// Mensaje exacto que devuelve login_user() en auth_service.py cuando la
+// cuenta existe y la contraseña es correcta, pero verificado=False --
+// antes esto solo se mostraba como un error de texto plano sin ninguna
+// salida real: la persona quedaba estancada sin saber cómo confirmar su
+// correo desde aquí. Ahora, al detectar este mensaje puntual, se abre el
+// mismo panel de código de 6 dígitos que ya existe en RegisterModal.tsx
+// (mismo componente OtpCodeInput), para no obligar a cerrar este modal,
+// abrir el de registro, y buscar otra vez cómo reenviar el código.
+const MENSAJE_NO_VERIFICADO = "Por favor verifica tu email antes de continuar";
 
 export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalProps) {
     const navigate = useNavigate();
@@ -33,11 +44,25 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
     const [forgotMsg, setForgotMsg] = useState("");
     const [forgotLoading, setForgotLoading] = useState(false);
 
+    // Cuenta sin verificar -- panel de código inline (ver MENSAJE_NO_VERIFICADO)
+    const [needsVerification, setNeedsVerification] = useState(false);
+    const [codeDigits, setCodeDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
+    const [verifying, setVerifying] = useState(false);
+    const [verifyError, setVerifyError] = useState("");
+    const [resending, setResending] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+
     const emailValid = EMAIL_REGEX.test(formData.username.trim());
     const isFormValid = useMemo(
         () => emailValid && formData.password.length > 0,
         [formData, emailValid]
     );
+
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [resendCooldown]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (formError) setFormError("");
@@ -52,45 +77,100 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
         setForgotMsg("");
         setForgotEmail("");
         setWelcomeInfo(null);
+        setNeedsVerification(false);
+        setCodeDigits(Array(CODE_LENGTH).fill(""));
+        setVerifyError("");
+        setResendCooldown(0);
         onClose();
+    };
+
+    const aplicarSesion = (res: {
+        access_token: string; username?: string; user_id?: number; id_cliente?: number;
+        roles?: string[]; foto_perfil?: string | null; verificado?: boolean; activo?: boolean;
+    }) => {
+        login(res.access_token, {
+            username: res.username ?? formData.username,
+            user_id: res.user_id,
+            id_cliente: res.id_cliente,
+            roles: res.roles ?? [],
+            foto_perfil: res.foto_perfil,
+            verificado: res.verificado,
+            activo: res.activo,
+        });
+
+        const roles = res.roles ?? [];
+        const isAdmin = roles.includes("admin");
+        const displayName = res.username ?? formData.username;
+
+        setWelcomeInfo({ username: displayName, isAdmin });
+        toast.success(`¡Bienvenido, ${displayName}!`);
+
+        setTimeout(() => {
+            resetAndClose();
+            navigate(isAdmin ? "/admin" : "/profile");
+        }, 1800);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isFormValid) return;
         setFormError("");
+        setNeedsVerification(false);
         setLoading(true);
         try {
             const res = await authService.login(formData);
-            login(res.access_token, {
-                username: res.username ?? formData.username,
-                user_id: res.user_id,
-                id_cliente: res.id_cliente,
-                roles: res.roles ?? [],
-                foto_perfil: res.foto_perfil,
-                verificado: res.verificado,
-                activo: res.activo,
-            });
-
-            const roles = res.roles ?? [];
-            const isAdmin = roles.includes("admin");
-            const displayName = res.username ?? formData.username;
-
-            // Mostrar pantalla de bienvenida con rol
-            setWelcomeInfo({ username: displayName, isAdmin });
-            toast.success(`¡Bienvenido, ${displayName}!`);
-
-            // Cerrar y navegar después de 1.8s
-            setTimeout(() => {
-                resetAndClose();
-                navigate(isAdmin ? "/admin" : "/profile");
-            }, 1800);
+            aplicarSesion(res);
         } catch (err: any) {
             const message = err?.message || "Usuario o contraseña incorrectos";
-            setFormError(message);
-            toast.error(message);
+            if (message === MENSAJE_NO_VERIFICADO) {
+                setNeedsVerification(true);
+                setResendCooldown(30);
+            } else {
+                setFormError(message);
+                toast.error(message);
+            }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const codigoCompleto = codeDigits.join("");
+
+    const handleVerifyCode = async () => {
+        if (codigoCompleto.length !== CODE_LENGTH || verifying) return;
+        setVerifying(true);
+        setVerifyError("");
+        try {
+            const tokens = await authService.verifyEmailCode(formData.username, codigoCompleto);
+            aplicarSesion(tokens);
+        } catch (err: any) {
+            setVerifyError(err?.message || "Código incorrecto");
+            setCodeDigits(Array(CODE_LENGTH).fill(""));
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    useEffect(() => {
+        if (needsVerification && codigoCompleto.length === CODE_LENGTH && !verifying) {
+            handleVerifyCode();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [codigoCompleto, needsVerification]);
+
+    const handleResendCode = async () => {
+        if (resendCooldown > 0 || resending) return;
+        setResending(true);
+        try {
+            const r = await authService.resendVerification(formData.username);
+            toast.success(r.message || "Código reenviado, revisa tu bandeja de entrada.");
+            setCodeDigits(Array(CODE_LENGTH).fill(""));
+            setVerifyError("");
+            setResendCooldown(30);
+        } catch (err: any) {
+            toast.error(err.message || "No se pudo reenviar el código");
+        } finally {
+            setResending(false);
         }
     };
 
@@ -113,6 +193,9 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
         setForgotEmail("");
     }
 
+    const inputBase =
+        "w-full pl-12 pr-4 py-3 bg-input-background border border-border rounded-lg text-sm outline-none transition-all duration-200 text-foreground placeholder:text-muted-foreground focus:bg-card focus:border-primary focus:ring-4 focus:ring-primary/10";
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -126,24 +209,40 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                         className="relative w-full max-w-md bg-card text-card-foreground rounded-xl shadow-2xl overflow-hidden border border-border my-auto"
                     >
                         {/* Header */}
-                        <div className="relative bg-primary text-primary-foreground px-8 pt-8 pb-12">
+                        <div className="relative bg-primary text-primary-foreground px-8 pt-8 pb-12 overflow-hidden">
+                            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5 blur-xl" />
                             <button
                                 onClick={resetAndClose}
-                                className="absolute top-5 right-5 p-2 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors"
+                                className="absolute top-5 right-5 p-2 text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10 rounded-lg transition-colors"
                             >
                                 <X className="w-5 h-5" />
                             </button>
-                            <div className="w-12 h-12 bg-card text-primary rounded-md flex items-center justify-center shadow-lg mb-4">
-                                <Plane className="w-6 h-6" />
+                            <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center shadow-inner border border-white/10 mb-4">
+                                <Plane className="w-6 h-6 text-primary-foreground transform -rotate-12" />
                             </div>
-                            <h1 className="text-2xl font-bold mb-1 text-primary-foreground">Bienvenido de nuevo</h1>
-                            <p className="text-primary-foreground/80 text-sm">Inicia sesión para continuar tu viaje</p>
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={needsVerification ? "verify" : "login"}
+                                    initial={{ opacity: 0, y: -6 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 6 }}
+                                    transition={{ duration: 0.18 }}
+                                >
+                                    <h1 className="text-2xl font-bold mb-1 text-primary-foreground">
+                                        {needsVerification ? "Confirma tu correo" : "Bienvenido de nuevo"}
+                                    </h1>
+                                    <p className="text-primary-foreground/80 text-sm">
+                                        {needsVerification
+                                            ? "Te enviamos un código de 6 dígitos para activar tu cuenta."
+                                            : "Inicia sesión para continuar tu viaje"}
+                                    </p>
+                                </motion.div>
+                            </AnimatePresence>
                         </div>
 
                         <div className="px-8 pb-8 -mt-6">
                             <div className="bg-card rounded-xl shadow-lg border border-border p-6">
 
-                                {/* FIX 2: Pantalla de bienvenida con rol */}
                                 <AnimatePresence mode="wait">
                                     {welcomeInfo ? (
                                         <motion.div
@@ -172,6 +271,60 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                             </div>
                                             <p className="text-sm text-muted-foreground">Redirigiendo...</p>
                                         </motion.div>
+                                    ) : needsVerification ? (
+                                        <motion.div key="verify-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-2">
+                                            <p className="text-sm text-muted-foreground mb-5">
+                                                Código enviado a <span className="font-bold text-foreground">{formData.username}</span>
+                                            </p>
+
+                                            <OtpCodeInput
+                                                value={codeDigits}
+                                                onChange={setCodeDigits}
+                                                disabled={verifying}
+                                                autoFocus
+                                                error={!!verifyError}
+                                            />
+
+                                            <AnimatePresence>
+                                                {verifyError && (
+                                                    <motion.p
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: "auto" }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                        className="text-[12px] text-destructive font-medium flex items-center justify-center gap-1 mt-3"
+                                                    >
+                                                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                                        {verifyError}
+                                                    </motion.p>
+                                                )}
+                                            </AnimatePresence>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleVerifyCode}
+                                                disabled={verifying || codigoCompleto.length !== CODE_LENGTH}
+                                                className="w-full mt-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:shadow-xl hover:brightness-110 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                {verifying ? "Verificando..." : "Verificar cuenta"}
+                                            </button>
+
+                                            <button
+                                                onClick={handleResendCode}
+                                                disabled={resending || resendCooldown > 0}
+                                                className="w-full py-2.5 mt-2 rounded-lg text-primary font-medium text-xs transition-all hover:bg-muted disabled:opacity-50 flex items-center justify-center gap-2"
+                                            >
+                                                <RefreshCw className={`w-3.5 h-3.5 ${resending ? "animate-spin" : ""}`} />
+                                                {resending ? "Reenviando..." : resendCooldown > 0 ? `Reenviar código (${resendCooldown}s)` : "Reenviar código"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => { setNeedsVerification(false); setFormError(""); }}
+                                                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mt-3"
+                                            >
+                                                ← Volver
+                                            </button>
+                                        </motion.div>
                                     ) : (
                                         <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                             <AnimatePresence>
@@ -180,7 +333,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                         initial={{ opacity: 0, height: 0, marginBottom: 0 }}
                                                         animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
                                                         exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                                                        className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 text-destructive rounded-md p-3 text-sm overflow-hidden"
+                                                        className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 text-sm overflow-hidden"
                                                     >
                                                         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                                                         <span>{formError}</span>
@@ -191,8 +344,8 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                             <form onSubmit={handleSubmit} className="space-y-4">
                                                 <div>
                                                     <label className="block text-sm font-medium text-foreground mb-1.5">Correo electrónico</label>
-                                                    <div className="relative">
-                                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                                                    <div className="relative group">
+                                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                                         <input
                                                             type="email"
                                                             name="username"
@@ -203,10 +356,9 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                             autoComplete="email"
                                                             inputMode="email"
                                                             required
-                                                            // FIX 1: autoFocus eliminado para evitar el scroll
-                                                            className={`w-full pl-12 pr-4 py-3 bg-input-background border rounded-md text-sm focus:ring-2 focus:border-transparent outline-none text-foreground transition-shadow placeholder:text-muted-foreground ${emailTouched && formData.username && !emailValid
-                                                                ? "border-destructive focus:ring-destructive/30"
-                                                                : "border-border focus:ring-ring"
+                                                            className={`${inputBase} ${emailTouched && formData.username && !emailValid
+                                                                ? "!border-destructive focus:!ring-destructive/10"
+                                                                : ""
                                                                 }`}
                                                         />
                                                     </div>
@@ -232,8 +384,8 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                             ¿Olvidaste tu contraseña?
                                                         </button>
                                                     </div>
-                                                    <div className="relative">
-                                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                                                    <div className="relative group">
+                                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                                         <input
                                                             type={showPassword ? "text" : "password"}
                                                             name="password"
@@ -242,12 +394,12 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                             placeholder="••••••••"
                                                             autoComplete="current-password"
                                                             required
-                                                            className="w-full pl-12 pr-12 py-3 bg-input-background border border-border rounded-md text-sm focus:ring-2 focus:ring-ring focus:border-transparent outline-none text-foreground transition-shadow placeholder:text-muted-foreground"
+                                                            className={`${inputBase} pr-12`}
                                                         />
                                                         <button
                                                             type="button"
                                                             onClick={() => setShowPassword((s) => !s)}
-                                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                                                             tabIndex={-1}
                                                         >
                                                             {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -258,7 +410,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                 <button
                                                     type="submit"
                                                     disabled={!isFormValid || loading}
-                                                    className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:shadow-xl hover:brightness-110 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:brightness-100"
+                                                    className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:shadow-xl hover:brightness-110 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:brightness-100"
                                                 >
                                                     {loading ? "Iniciando sesión..." : "Iniciar sesión"}
                                                 </button>
@@ -268,7 +420,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                 </AnimatePresence>
                             </div>
 
-                            {!welcomeInfo && (
+                            {!welcomeInfo && !needsVerification && (
                                 <p className="text-center text-muted-foreground text-sm mt-5">
                                     ¿No tienes cuenta?{" "}
                                     <button
@@ -303,7 +455,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                         className="bg-card text-card-foreground border border-border rounded-xl p-8 w-full max-w-sm shadow-2xl"
                                     >
                                         <div className="flex items-center gap-3 mb-2">
-                                            <div className="w-10 h-10 bg-accent text-accent-foreground rounded-md flex items-center justify-center">
+                                            <div className="w-10 h-10 bg-accent text-accent-foreground rounded-lg flex items-center justify-center">
                                                 <Mail className="w-5 h-5" />
                                             </div>
                                             <h2 className="text-xl font-bold text-foreground">Recuperar contraseña</h2>
@@ -321,22 +473,22 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                 <p className="text-muted-foreground text-sm">{forgotMsg}</p>
                                                 <button
                                                     onClick={closeForgotSub}
-                                                    className="mt-6 w-full py-3 bg-primary text-primary-foreground rounded-md font-semibold hover:brightness-110 transition-all"
+                                                    className="mt-6 w-full py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:brightness-110 transition-all"
                                                 >
                                                     Entendido
                                                 </button>
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="relative mb-4">
-                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                                                <div className="relative mb-4 group">
+                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                                     <input
                                                         type="email"
                                                         placeholder="tu@correo.com"
                                                         value={forgotEmail}
                                                         onChange={(e) => setForgotEmail(e.target.value)}
                                                         onKeyDown={(e) => e.key === "Enter" && handleForgot()}
-                                                        className="w-full pl-12 pr-4 py-3 bg-input-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground"
+                                                        className={inputBase}
                                                     />
                                                 </div>
 
@@ -345,7 +497,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
                                                     whileTap={{ scale: 0.98 }}
                                                     onClick={handleForgot}
                                                     disabled={forgotLoading || !forgotEmail}
-                                                    className="w-full py-3 bg-primary text-primary-foreground rounded-md font-semibold hover:shadow-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:hover:brightness-100"
+                                                    className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:shadow-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:hover:brightness-100"
                                                 >
                                                     {forgotLoading ? "Enviando..." : "Enviar enlace"}
                                                 </motion.button>

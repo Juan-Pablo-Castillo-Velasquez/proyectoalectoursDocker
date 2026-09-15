@@ -15,7 +15,13 @@ from app.schemas.user_schema import (
     UsuarioCreate,
     UsuarioLogin,
 )
-from app.services.auth_service import login_user, register_user, verify_user_email
+from app.services.auth_service import (
+    login_user,
+    regenerar_codigo_verificacion,
+    register_user,
+    verify_email_code,
+    verify_user_email,
+)
 
 # URL del frontend real, para los links de verificación/reset que se
 # mandan por correo — antes estaba fija en "http://localhost:5173", así
@@ -27,7 +33,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-def send_email_in_thread(email: str, token: str, username: str | None = None):
+def send_email_in_thread(email: str, token: str, username: str | None = None, codigo: str | None = None):
     """Corre en un hilo aparte para no bloquear la respuesta de /register
     mientras se envía el correo de verificación.
 
@@ -40,7 +46,9 @@ def send_email_in_thread(email: str, token: str, username: str | None = None):
     MAIL_STARTTLS/MAIL_SSL_TLS/MAIL_USERNAME/MAIL_PASSWORD -- cambiar de
     Mailpit a un servidor real es solo cuestión de env vars, sin tocar
     este código de nuevo. `username` es opcional, solo para personalizar
-    el saludo del correo (ver send_verification_email)."""
+    el saludo del correo (ver send_verification_email). `codigo` (nuevo)
+    es el código de 6 dígitos que se muestra en el mismo correo, para el
+    paso de verificación dentro del propio modal (ver RegisterModal.tsx)."""
     try:
         # send_verification_email() ya atrapa sus propios errores de SMTP
         # y devuelve False en vez de lanzar excepción (ver send_email() en
@@ -48,7 +56,7 @@ def send_email_in_thread(email: str, token: str, username: str | None = None):
         # sin revisar ese resultado, así que un envío fallido (ej. Gmail
         # rechazando la conexión) quedaba registrado en los logs como si
         # hubiera funcionado, ocultando el problema real.
-        enviado = asyncio.run(send_verification_email(email, token, FRONTEND_URL, username))
+        enviado = asyncio.run(send_verification_email(email, token, FRONTEND_URL, username, codigo))
         if enviado:
             print(f"[BACKGROUND] Email enviado a {email}")
         else:
@@ -64,11 +72,14 @@ def register(data: UsuarioCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=result["error"])
 
     verification_token = result.get("verification_token")
+    verification_code = result.get("verification_code")
     email = result.get("email")
 
     try:
         thread = threading.Thread(
-            target=send_email_in_thread, args=(email, verification_token, data.username), daemon=True
+            target=send_email_in_thread,
+            args=(email, verification_token, data.username, verification_code),
+            daemon=True,
         )
         thread.start()
     except Exception as e:
@@ -126,10 +137,15 @@ def resend_verification(data: ResendVerificationRequest, db: Session = Depends(g
     user = db.query(Usuario).filter(Usuario.correo_electronico == data.correo_electronico).first()
     if user and not user.verificado:
         token = create_verification_token(user.correo_electronico)
+        # Código nuevo en cada reenvío (mismo helper que usa el registro
+        # inicial) -- también reinicia el contador de intentos fallidos, así
+        # que pedir un código nuevo es la salida real cuando alguien se
+        # equivoca varias veces tecleándolo (ver verify_email_code).
+        codigo = regenerar_codigo_verificacion(db, user)
         try:
             thread = threading.Thread(
                 target=send_email_in_thread,
-                args=(user.correo_electronico, token, user.username),
+                args=(user.correo_electronico, token, user.username, codigo),
                 daemon=True,
             )
             thread.start()
@@ -137,8 +153,29 @@ def resend_verification(data: ResendVerificationRequest, db: Session = Depends(g
             print(f"[ERROR] {str(e)}")
 
     return {
-        "message": "Si el correo existe y aún no ha sido verificado, te reenviamos el enlace de verificación."
+        "message": "Si el correo existe y aún no ha sido verificado, te reenviamos el código de verificación."
     }
+
+
+class VerifyEmailCodeRequest(BaseModel):
+    correo_electronico: str
+    codigo: str
+
+
+@router.post("/verify-email-code", response_model=dict)
+def verify_email_code_endpoint(data: VerifyEmailCodeRequest, db: Session = Depends(get_db)):
+    """
+    Verifica la cuenta con el código de 6 dígitos que llegó en el mismo
+    correo que el enlace (ver send_verification_email) -- pensado para
+    completarse sin salir del modal de registro (RegisterModal.tsx). A
+    diferencia de /verify-email (por token, en la página aparte /verify),
+    esta sí devuelve tokens de sesión completos en éxito, para dejar a la
+    persona logueada de inmediato apenas confirma el código.
+    """
+    result = verify_email_code(db, data.correo_electronico, data.codigo)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @router.post("/forgot-password", response_model=dict)
