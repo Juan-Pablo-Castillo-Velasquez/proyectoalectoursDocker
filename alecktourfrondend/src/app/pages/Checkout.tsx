@@ -8,7 +8,8 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { useTema } from "../context/TemaContext";
 import { clienteService } from "../services/cliente.service";
-import { HabitacionResponse, HotelDetailResponse, hotelService } from "../services/hotel.service";
+import { HabitacionResponse, HotelDetailResponse, hotelService, RangoOcupado } from "../services/hotel.service";
+import CalendarioOcupacion from "../components/hotel/CalendarioOcupacion";
 import { MetodoPago, pagoService, reservaService } from "../services/reserva.service";
 import { MetodoPagoGuardado, metodoPagoGuardadoService } from "../services/metodoPagoGuardado.service";
 import CardPayment from "../components/payment/CardPayment";
@@ -51,6 +52,12 @@ export default function Checkout() {
 
   const [hotel, setHotel] = useState<HotelDetailResponse | null>(null);
   const [habitacion, setHabitacion] = useState<HabitacionResponse | null>(null);
+  // Rangos ya reservados de ESTA habitación (GET /hoteles/{id}/fechas-ocupadas,
+  // el mismo endpoint que ya usa HotelDetail.tsx) -- antes el checkout dejaba
+  // elegir fechas completamente a ciegas, sin ninguna pista de qué días ya
+  // estaban ocupados, así que un cliente podía llegar hasta el paso de pago
+  // con fechas que el backend iba a rechazar igual al crear la reserva.
+  const [fechasOcupadas, setFechasOcupadas] = useState<RangoOcupado[]>([]);
   const [metodos, setMetodos] = useState<MetodoPago[]>([]);
   // Métodos de pago guardados por el cliente (billetera real, ver
   // MetodoPagoGuardado en el backend) — se usan solo para preseleccionar
@@ -208,7 +215,8 @@ export default function Checkout() {
     Promise.all([
       hotelService.getById(parseInt(id)), // trae hotel + sus habitaciones reales
       pagoService.getMetodos(),
-    ]).then(([h, m]) => {
+      hotelService.getFechasOcupadas(parseInt(id)),
+    ]).then(([h, m, ocupadas]) => {
       setHotel(h);
       setMetodos(m);
       // La preselección real (predeterminado del cliente si tiene uno, si no
@@ -234,6 +242,11 @@ export default function Checkout() {
         return;
       }
       setHabitacion(hab);
+
+      const rangosDeEstaHabitacion = ocupadas.find(
+        (o) => o.id_habitacion === Number(idHabitacion)
+      );
+      setFechasOcupadas(rangosDeEstaHabitacion?.rangos ?? []);
     }).catch((err) => {
       // Si `id` no corresponde a ningún hotel real (por ejemplo, un enlace
       // viejo o mal construido que mandaba aquí un id de paquete en vez de
@@ -505,6 +518,16 @@ export default function Checkout() {
       toast.error('La fecha de salida debe ser después de la entrada');
       return;
     }
+    // Antes esto solo lo detectaba el backend al crear la reserva (ya al
+    // final del paso 4, con todo lo demás lleno) -- ahora se avisa apenas
+    // el cliente elige fechas que chocan con un rango ya ocupado, con el
+    // mismo calendario visual que se muestra arriba (ver CalendarioOcupacion).
+    if (step === 2 && fechasOcupadas.some(
+      (r) => fechaInicio < r.fecha_checkout && r.fecha_checkin < fechaFin
+    )) {
+      toast.error('Esas fechas se cruzan con una reserva ya existente para esta habitación');
+      return;
+    }
     setStep((s) => Math.min(4, s + 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -768,7 +791,10 @@ export default function Checkout() {
                     <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
                       <Calendar className="w-4 h-4 text-primary" />
                     </div>
-                    <h2 className="text-lg font-medium text-foreground">Fechas y huéspedes</h2>
+                    <div>
+                      <h2 className="text-lg font-medium text-foreground">Fechas y huéspedes</h2>
+                      <p className="text-xs text-muted-foreground">Revisa el calendario de abajo: los días en rojo ya están ocupados.</p>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -795,6 +821,18 @@ export default function Checkout() {
                           className="w-full bg-transparent text-foreground text-sm focus:outline-none" />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Disponibilidad real de esta habitación -- mismo componente
+                      que ya usa HotelDetail.tsx, para que el cliente vea qué
+                      días están ocupados ANTES de elegir, en vez de enterarse
+                      recién al intentar pagar. */}
+                  <div className="mt-6">
+                    <p className="text-xs font-semibold text-foreground mb-2">Disponibilidad de esta habitación</p>
+                    <CalendarioOcupacion
+                      rangos={fechasOcupadas}
+                      rangoSeleccionado={{ fechaInicio, fechaFin }}
+                    />
                   </div>
 
                   {/* Info real de la habitación */}
@@ -1202,6 +1240,18 @@ export default function Checkout() {
                   <div className="flex items-center gap-3 p-4 bg-green-500/5 rounded-xl border border-green-500/10 transition-colors">
                     <Shield className="w-4 h-4 text-green-500 flex-shrink-0" />
                     <span className="text-xs text-muted-foreground font-medium">Transacción protegida mediante encriptación SSL de 256 bits</span>
+                  </div>
+
+                  {/* Qué pasa después de pagar -- antes el cliente llegaba a
+                      este último paso sin ninguna idea de qué sigue (¿le
+                      llega algo? ¿puede cancelar?), lo cual generaba dudas
+                      justo antes del momento más sensible del flujo. */}
+                  <div className="flex items-start gap-3 p-4 bg-muted/40 rounded-xl border border-border/60">
+                    <Mail className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-muted-foreground leading-relaxed">
+                      <p className="font-semibold text-foreground mb-1">¿Qué pasa después de pagar?</p>
+                      <p>Te confirmamos por correo de inmediato y tu reserva queda disponible en tu perfil, en "Mis reservas". Puedes solicitar la cancelación desde ahí cuando quieras, sujeta a la política de cada alojamiento.</p>
+                    </div>
                   </div>
                   </>
                   )}

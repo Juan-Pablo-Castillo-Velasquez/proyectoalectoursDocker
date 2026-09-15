@@ -445,7 +445,15 @@ Mensaje:
 </html>
     """.strip()
 
-    ok_interno = await send_email(settings.MAIL_FROM, subject_interno, body_interno, html_interno)
+    # Best-effort: esta copia interna es redundante con la notificación real
+    # que enviar_contacto() ya crea dentro de la plataforma (ver
+    # crear_notificacion en contacto_route.py), así que su resultado se
+    # descarta a propósito -- antes determinaba, junto con la confirmación
+    # de abajo, si el formulario completo "funcionaba" (`ok_interno and
+    # ok_confirmacion`), y un solo correo que Gmail no entregara (algo
+    # transitorio y normal en SMTP) tumbaba TODO el formulario con un error,
+    # aunque el mensaje del cliente sí hubiera llegado bien a la plataforma.
+    await send_email(settings.MAIL_FROM, subject_interno, body_interno, html_interno)
 
     # 2) Confirmación automática al usuario
     subject_confirmacion = "Recibimos tu mensaje - AlecTours"
@@ -470,6 +478,7 @@ El equipo de AlecTours
 </html>
     """.strip()
 
-    ok_confirmacion = await send_email(correo, subject_confirmacion, body_confirmacion, html_confirmacion)
-
-    return ok_interno and ok_confirmacion
+    # Esta sí es la que de verdad le importa a la respuesta que ve el
+    # cliente en el formulario -- su resultado se sigue devolviendo, pero
+    # ya no puede tumbar la solicitud completa (ver enviar_contacto).
+    return await send_email(correo, subject_confirmacion, body_confirmacion, html_confirmacion)

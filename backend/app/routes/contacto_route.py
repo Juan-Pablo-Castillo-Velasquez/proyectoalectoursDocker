@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
@@ -18,26 +18,29 @@ class ContactoRequest(BaseModel):
 
 @router.post("")
 async def enviar_contacto(data: ContactoRequest, db: Session = Depends(get_db)):
-    enviado = await send_contact_email(
-        nombre=data.nombre,
-        correo=data.correo,
-        asunto=data.asunto,
-        mensaje=data.mensaje,
-    )
-
-    if not enviado:
-        raise HTTPException(
-            status_code=502, detail="No pudimos enviar tu mensaje en este momento. Intenta de nuevo más tarde."
-        )
-
-    # Antes este mensaje solo se enviaba por correo y no quedaba registro en
-    # ningún lado dentro de la plataforma — ahora también genera una
-    # notificación real para el admin (ver ModuleNotificaciones).
+    # El mensaje queda registrado como notificación real dentro de la
+    # plataforma primero (ver ModuleNotificaciones) -- esto es lo único que
+    # de verdad garantiza que soporte se entere, sin depender de que un
+    # correo llegue. Antes esto solo pasaba SI el correo se enviaba bien
+    # (`if not enviado: raise ...` cortaba antes de llegar aquí), así que un
+    # correo perdido por Gmail (transitorio, no significa que el formulario
+    # esté roto) también se llevaba consigo el registro del mensaje.
     crear_notificacion(
         db,
         tipo="contacto",
         titulo=f"Nuevo mensaje de contacto: {data.asunto}",
         mensaje=f"{data.nombre} ({data.correo}): {data.mensaje}",
+    )
+
+    # El correo (copia a soporte + confirmación al remitente) es un
+    # complemento best-effort: ya no puede tumbar la solicitud completa con
+    # un 502 -- el mensaje del cliente siempre llega a la plataforma pase lo
+    # que pase con el envío de correo (ver send_contact_email en mail.py).
+    await send_contact_email(
+        nombre=data.nombre,
+        correo=data.correo,
+        asunto=data.asunto,
+        mensaje=data.mensaje,
     )
 
     return {"ok": True, "message": "Mensaje enviado correctamente"}
