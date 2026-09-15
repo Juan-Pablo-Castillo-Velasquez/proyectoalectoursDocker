@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { Plane } from "lucide-react";
 import { Tema, temaService } from "../services/tema.service";
 
 interface TemaContextType {
@@ -138,6 +139,16 @@ ${selector} .navbar-surface::before {
 
 export function TemaProvider({ children }: { children: ReactNode }) {
   const [temaActivo, setTemaActivo] = useState<Tema | null>(null);
+  // Antes el sitio se montaba de inmediato con los colores base de
+  // theme.css (temaActivo aún null) y, apenas resolvía GET /temas/activo,
+  // pegaba el cambio a los colores de la temporada activa (ej. Halloween)
+  // -- ese salto de color en pleno primer render se veía como si la
+  // página hubiera cargado "otra" página por error. cargaInicialLista
+  // (distinto de refrescar el tema después, que si debe verse en vivo sin
+  // volver a tapar el sitio) hace que la app no muestre NADA de contenido
+  // hasta que el tema real (o la ausencia de uno) ya esté aplicado -- así
+  // lo primero que ve el usuario ya es el color definitivo.
+  const [cargaInicialLista, setCargaInicialLista] = useState(false);
 
   const refrescarTemaActivo = useCallback(async () => {
     try {
@@ -154,13 +165,32 @@ export function TemaProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refrescarTemaActivo();
+    refrescarTemaActivo().finally(() => setCargaInicialLista(true));
   }, [refrescarTemaActivo]);
 
   return (
     <TemaContext.Provider value={{ temaActivo, refrescarTemaActivo }}>
-      {children}
+      {cargaInicialLista ? children : <TemaCargando />}
     </TemaContext.Provider>
+  );
+}
+
+// Pantalla de espera mientras se resuelve el tema de temporada real (ver
+// cargaInicialLista arriba) -- usa los tokens base (--background/--primary
+// de theme.css, sin ningún override de temporada) porque su trabajo es
+// justamente no comprometerse todavía con ningún color de temporada.
+// Se autolimita a un instante: en cuanto refrescarTemaActivo resuelve
+// (éxito o error) esta pantalla desaparece y nunca vuelve a aparecer.
+function TemaCargando() {
+  return (
+    <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center animate-pulse">
+          <Plane className="w-6 h-6 text-primary-foreground" />
+        </div>
+        <div className="w-6 h-6 border-2 border-primary/25 border-t-primary rounded-full animate-spin" />
+      </div>
+    </div>
   );
 }
 

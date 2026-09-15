@@ -1,0 +1,82 @@
+"""Middleware de seguridad: límite de intentos (rate limiting) sobre
+endpoints sensibles y headers HTTP de buenas prácticas en toda respuesta.
+
+Antes vivía embebido en app/main.py junto con el registro de FastAPI(),
+Sentry, CORS y el resto del cableado de la app -- se separa acá para que
+main.py quede como lo que debería ser: el punto donde se ARMA la
+aplicación, no donde vive la lógica de cada pieza.
+
+Esto es la alternativa de código a lo que se pidió originalmente como
+"Cisco Secure Web Appliance": eso es un dispositivo de seguridad de
+red/perímetro que se contrata e instala en la infraestructura de la
+empresa, no algo que se pueda agregar a este repositorio. Esto cubre, en
+cambio, lo que sí es código: límite de intentos sobre endpoints sensibles
+(fuerza bruta) y headers de respuesta estándar de buenas prácticas.
+"""
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+from app.core.cache import redis_client
+
+# (ruta exacta o prefijo) -> (máximo de solicitudes, ventana en segundos)
+RATE_LIMITED_PATHS = {
+    "/auth/login": (5, 60),
+    "/auth/register": (5, 60),
+    "/auth/forgot-password": (3, 60),
+    "/auth/reset-password": (5, 60),
+}
+
+
+def _rate_limit_config_for(path: str):
+    if path in RATE_LIMITED_PATHS:
+        limit, window = RATE_LIMITED_PATHS[path]
+        return path, limit, window
+    # /api/reservas/{id}/pagar es dinámica (el id varía) — se agrupa bajo
+    # una sola clave "/pagar" para que el límite sea real por IP, no por id.
+    if path.startswith("/api/reservas/") and path.endswith("/pagar"):
+        return "/pagar", 10, 60
+    # /api/metodos-pago-guardados/{id}/verificar valida un PIN de 4-6
+    # dígitos (solo 10,000-1,000,000 combinaciones) contra un hash bcrypt —
+    # sin límite de intentos, alguien con un token de sesión robado podía
+    # forzarlo por fuerza bruta para autorizar pagos con el método guardado
+    # de la víctima. Mismo agrupamiento por prefijo que "/pagar".
+    if path.startswith("/api/metodos-pago-guardados/") and path.endswith("/verificar"):
+        return "/verificar-metodo-pago", 5, 60
+    return None
+
+
+async def seguridad_middleware(request: Request, call_next):
+    config = _rate_limit_config_for(request.url.path)
+    if config:
+        bucket, limit, window = config
+        ip = request.client.host if request.client else "desconocido"
+        key = f"ratelimit:{bucket}:{ip}"
+        try:
+            intentos = redis_client.incr(key)
+            if intentos == 1:
+                redis_client.expire(key, window)
+            if intentos > limit:
+                response = JSONResponse(
+                    status_code=429,
+                    content={"detail": "Demasiadas solicitudes. Intenta de nuevo en un momento."},
+                )
+                response.headers["X-Content-Type-Options"] = "nosniff"
+                response.headers["X-Frame-Options"] = "DENY"
+                return response
+        except Exception:
+            # Si Redis no responde, no se bloquea tráfico real (login,
+            # registro) por un problema de infraestructura ajeno al
+            # usuario — el rate limit es una capa extra, no la única.
+            pass
+
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # HSTS no tiene efecto sobre HTTP plano (dev en localhost) — el
+    # navegador la ignora ahí y queda lista para cuando haya HTTPS real en
+    # producción, sin necesidad de un segundo cambio después.
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
