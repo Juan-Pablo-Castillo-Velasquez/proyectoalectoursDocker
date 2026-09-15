@@ -15,6 +15,14 @@ class Cliente(Base):
     correo = Column(String(100), unique=True)
     celular = Column(String(20))
     direccion = Column(String(255))
+    # Formato colombiano real de dirección ("Calle 45 #12-34", validado en
+    # el frontend, ver RegisterModal.tsx) más los datos que ese formato NO
+    # incluye por sí solo: barrio/localidad y departamento. Antes solo
+    # existían ciudad/país, así que una misma "Bogotá" no distinguía entre
+    # barrios ni permitía filtrar/mostrar el departamento real.
+    barrio = Column(String(100))
+    departamento = Column(String(100))
+    codigo_postal = Column(String(10))
     ciudad = Column(String(100))
     pais = Column(String(100))
     fecha_nacimiento = Column(Date)

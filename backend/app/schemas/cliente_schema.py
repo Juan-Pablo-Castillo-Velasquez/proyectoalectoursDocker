@@ -10,6 +10,13 @@ class ClienteCreate(BaseModel):
     correo: EmailStr | None = None
     celular: str | None = Field(None, max_length=20)
     direccion: str | None = Field(None, max_length=255)
+    # El formato correcto ("Calle 45 #12-34") se valida en el frontend
+    # (RegisterModal.tsx) -- acá solo se acota longitud, mismo criterio ya
+    # usado para el resto de estos campos (cedula/celular tampoco llevan
+    # regex en el backend).
+    barrio: str | None = Field(None, max_length=100)
+    departamento: str | None = Field(None, max_length=100)
+    codigo_postal: str | None = Field(None, max_length=10)
     ciudad: str | None = Field(None, max_length=100)
     pais: str | None = Field(None, max_length=100)
     fecha_nacimiento: date | None = None
@@ -21,6 +28,9 @@ class ClienteUpdate(BaseModel):
     correo: EmailStr | None = None
     celular: str | None = None
     direccion: str | None = None
+    barrio: str | None = None
+    departamento: str | None = None
+    codigo_postal: str | None = None
     ciudad: str | None = None
     pais: str | None = None
     fecha_nacimiento: date | None = None
@@ -34,6 +44,9 @@ class ClienteResponse(BaseModel):
     correo: str | None
     celular: str | None
     direccion: str | None
+    barrio: str | None = None
+    departamento: str | None = None
+    codigo_postal: str | None = None
     ciudad: str | None
     pais: str | None
     fecha_nacimiento: date | None

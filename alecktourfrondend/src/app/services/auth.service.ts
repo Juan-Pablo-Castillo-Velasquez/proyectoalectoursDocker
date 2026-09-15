@@ -18,7 +18,12 @@ export interface RegisterResponse {
   message: string;
   user_id: number;
   email: string;
-  verification_token: string;
+  // El backend NUNCA devuelve el token de verificación acá a propósito
+  // (ver /auth/resend-verification en auth_route.py): si lo hiciera, el
+  // frontend podría "auto-verificar" la cuenta sin que el usuario abriera
+  // su correo, que es justo lo que este flujo existe para exigir. Antes
+  // este campo se declaraba como si sí llegara (nunca llegó) y RegisterModal
+  // lo usaba para un botón que en realidad siempre fallaba en producción.
   access_token?: string;
   token_type?: string;
 }
@@ -86,4 +91,7 @@ export const authService = {
 
   resetPassword: (token: string, new_password: string) =>
     authFetch<{ message: string }>('/auth/reset-password', { token, new_password }),
+
+  resendVerification: (correo_electronico: string) =>
+    authFetch<{ message: string }>('/auth/resend-verification', { correo_electronico }),
 };

@@ -3,6 +3,7 @@ import os
 import threading
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -98,6 +99,46 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+class ResendVerificationRequest(BaseModel):
+    correo_electronico: str
+
+
+@router.post("/resend-verification", response_model=dict)
+def resend_verification(data: ResendVerificationRequest, db: Session = Depends(get_db)):
+    """
+    Reenvía el correo de verificación. Antes, si el primer correo no
+    llegaba (spam, o el bug de credenciales de Gmail encontrado en esta
+    sesión), la única salida para el usuario era registrarse de nuevo --
+    lo cual falla con "correo ya registrado". `/register` nunca expone el
+    verification_token al frontend (a propósito: si lo hiciera, cualquiera
+    podría "verificarse" sin abrir su correo, que es justo lo que este
+    flujo existe para exigir) -- por eso el único botón útil en la pantalla
+    de éxito del registro es este, para pedir un envío nuevo.
+
+    Mismo criterio de privacidad que /forgot-password: la respuesta nunca
+    revela si el correo existe ni si ya estaba verificado, para no dejar
+    enumerar correos registrados desde este endpoint público.
+    """
+    from app.models.user_model import Usuario
+
+    user = db.query(Usuario).filter(Usuario.correo_electronico == data.correo_electronico).first()
+    if user and not user.verificado:
+        token = create_verification_token(user.correo_electronico)
+        try:
+            thread = threading.Thread(
+                target=send_email_in_thread,
+                args=(user.correo_electronico, token, user.username),
+                daemon=True,
+            )
+            thread.start()
+        except Exception as e:
+            print(f"[ERROR] {str(e)}")
+
+    return {
+        "message": "Si el correo existe y aún no ha sido verificado, te reenviamos el enlace de verificación."
+    }
 
 
 @router.post("/forgot-password", response_model=dict)

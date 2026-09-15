@@ -1,6 +1,6 @@
-import { AlertCircle, Calendar, CheckCircle, CreditCard, Eye, EyeOff, Lock, Mail, MapPin, Phone, Plane, User, X } from "lucide-react";
+import { AlertCircle, Building2, Calendar, CheckCircle, CreditCard, Eye, EyeOff, Lock, Mail, MapPin, Phone, Plane, RefreshCw, User, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "../api/v1/api";
 import { authService } from "../services/auth.service";
@@ -17,12 +17,27 @@ interface RegisterModalProps {
 const initialFormData = {
     correo_electronico: "", password: "", confirmPassword: "",
     nombre: "", apellido: "", cedula: "", celular: "",
-    direccion: "", ciudad: "", pais: "Colombia", fecha_nacimiento: "",
+    direccion: "", barrio: "", departamento: "", codigo_postal: "",
+    ciudad: "", pais: "Colombia", fecha_nacimiento: "",
 };
+
+const DEPARTAMENTOS_COLOMBIA = [
+    "Amazonas", "Antioquia", "Arauca", "Atlántico", "Bogotá D.C.", "Bolívar",
+    "Boyacá", "Caldas", "Caquetá", "Casanare", "Cauca", "Cesar", "Chocó",
+    "Córdoba", "Cundinamarca", "Guainía", "Guaviare", "Huila", "La Guajira",
+    "Magdalena", "Meta", "Nariño", "Norte de Santander", "Putumayo", "Quindío",
+    "Risaralda", "San Andrés y Providencia", "Santander", "Sucre", "Tolima",
+    "Valle del Cauca", "Vaupés", "Vichada",
+];
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Mínimo 6 caracteres, al menos 1 mayúscula, 1 minúscula y 1 número
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
+// Formato real de dirección colombiana: tipo de vía + número + '#' +
+// número-número (ej. "Calle 45 #12-34", "Cra. 10 # 20-30B", "Av 68#15-40").
+// Se valida solo si el usuario escribió algo -- el campo sigue siendo
+// opcional en su conjunto, igual que antes.
+const DIRECCION_REGEX = /^(calle|cl|carrera|cra|avenida|av|diagonal|dg|transversal|tv)\.?\s*\d+\w{0,3}\s*#\s*\d+\w{0,3}\s*-\s*\d+\w{0,3}/i;
 
 function calcAge(dateStr: string) {
     if (!dateStr) return 0;
@@ -112,10 +127,15 @@ function PasswordStrength({ password }: { password: string }) {
 
 export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: RegisterModalProps) {
     const [loading, setLoading] = useState(false);
-    const [verifying, setVerifying] = useState(false);
     const [success, setSuccess] = useState(false);
-    const [verificationToken, setVerificationToken] = useState("");
     const [email, setEmail] = useState("");
+    // Reenvío del correo de verificación -- reemplaza al viejo botón
+    // "Verificar mi cuenta" que llamaba a verifyEmail con un token que el
+    // backend nunca devuelve (a propósito, ver auth.service.ts): ese botón
+    // siempre fallaba en producción. `resendCooldown` evita spamear el
+    // botón (y el buzón del usuario) con reenvíos seguidos.
+    const [resending, setResending] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
     const [formData, setFormData] = useState(initialFormData);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -148,8 +168,18 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
             e.celular = "Solo números, 7–10 dígitos";
         if (formData.fecha_nacimiento && calcAge(formData.fecha_nacimiento) < 18)
             e.fecha_nacimiento = "Debes ser mayor de 18 años";
+        if (formData.direccion && !DIRECCION_REGEX.test(formData.direccion.trim()))
+            e.direccion = "Formato: Calle/Carrera/Avenida + número #número-número (ej. Calle 45 #12-34)";
         return e;
     }, [formData]);
+
+    // Cuenta regresiva del botón de reenvío -- se resetea cada vez que se
+    // abre el modal (resetState) y baja de a 1 por segundo hasta 0.
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [resendCooldown]);
 
     const requiredFilled =
         EMAIL_REGEX.test(formData.correo_electronico) &&
@@ -160,7 +190,8 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
         /^\d{6,12}$/.test(formData.cedula) &&
         formData.fecha_nacimiento.length > 0 &&
         calcAge(formData.fecha_nacimiento) >= 18 &&
-        (formData.celular === "" || /^\d{7,10}$/.test(formData.celular));
+        (formData.celular === "" || /^\d{7,10}$/.test(formData.celular)) &&
+        (formData.direccion.trim() === "" || DIRECCION_REGEX.test(formData.direccion.trim()));
 
     const isFormValid = requiredFilled && acceptedTerms;
     const fieldError = (name: string) => (touched[name] ? errors[name] : undefined);
@@ -168,13 +199,14 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
     const resetState = () => {
         setFormData(initialFormData);
         setSuccess(false);
-        setVerificationToken("");
         setEmail("");
         setAcceptedTerms(false);
         setTouched({});
         setFormError("");
         setShowPassword(false);
         setShowConfirmPassword(false);
+        setResending(false);
+        setResendCooldown(0);
     };
 
     const handleClose = () => { resetState(); onClose(); };
@@ -205,6 +237,8 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                     nombre: formData.nombre, apellido: formData.apellido,
                     cedula: formData.cedula, correo: formData.correo_electronico,
                     celular: formData.celular, direccion: formData.direccion,
+                    barrio: formData.barrio, departamento: formData.departamento,
+                    codigo_postal: formData.codigo_postal,
                     ciudad: formData.ciudad, pais: formData.pais,
                     fecha_nacimiento: formData.fecha_nacimiento,
                 },
@@ -213,9 +247,12 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                 method: "PUT",
                 body: { id_cliente: cliente.id_cliente },
             });
-            setVerificationToken(res.verification_token);
             setEmail(res.email);
             setSuccess(true);
+            // El primer correo ya se dispara solo desde el backend
+            // (POST /auth/register) -- este cooldown es solo para el botón
+            // de REENVÍO, para que no se pueda golpear de inmediato.
+            setResendCooldown(30);
         } catch (err: any) {
             const message = err?.message || "Error al crear la cuenta";
             setFormError(message);
@@ -225,17 +262,17 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
         }
     };
 
-    const handleVerify = async () => {
-        setVerifying(true);
+    const handleResend = async () => {
+        if (resendCooldown > 0 || resending) return;
+        setResending(true);
         try {
-            await authService.verifyEmail(verificationToken);
-            toast.success("¡Cuenta verificada! Ya puedes iniciar sesión.");
-            handleClose();
-            setTimeout(() => onSwitchToLogin?.(), 300);
+            const r = await authService.resendVerification(email);
+            toast.success(r.message || "Correo reenviado, revisa tu bandeja de entrada.");
+            setResendCooldown(30);
         } catch (err: any) {
-            toast.error(err.message || "Error al verificar");
+            toast.error(err.message || "No se pudo reenviar el correo");
         } finally {
-            setVerifying(false);
+            setResending(false);
         }
     };
 
@@ -313,22 +350,30 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                         <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 bg-accent text-accent-foreground shadow-xl ring-4 ring-primary/5">
                                             <CheckCircle className="w-10 h-10" />
                                         </div>
-                                        <h2 className="text-2xl font-medium text-foreground mb-2 tracking-tight">¡Todo listo!</h2>
-                                        <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-8 leading-relaxed">
-                                            Cuenta creada exitosamente bajo el correo: <br />
+                                        <h2 className="text-2xl font-medium text-foreground mb-2 tracking-tight">Revisa tu correo</h2>
+                                        <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-6 leading-relaxed">
+                                            Te enviamos un enlace de verificación a: <br />
                                             <span className="font-bold text-foreground underline decoration-primary decoration-2">{email}</span>
+                                            <br />Ábrelo para activar tu cuenta -- luego ya puedes iniciar sesión.
+                                        </p>
+                                        <p className="text-[11px] font-medium text-muted-foreground mb-6 bg-muted py-1.5 px-3 rounded-lg border border-border">
+                                            ¿No te llegó? Revisa también la carpeta de spam/promociones.
                                         </p>
                                         <button
-                                            onClick={handleVerify}
-                                            disabled={verifying}
-                                            className="w-full py-3.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm tracking-wide transition-all shadow-md hover:opacity-95 active:scale-[0.99] disabled:opacity-50"
+                                            onClick={handleResend}
+                                            disabled={resending || resendCooldown > 0}
+                                            className="w-full py-3.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm tracking-wide transition-all shadow-md hover:opacity-95 active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
-                                            {verifying ? "Verificando..." : "✓ Verificar mi cuenta"}
+                                            <RefreshCw className={`w-4 h-4 ${resending ? "animate-spin" : ""}`} />
+                                            {resending
+                                                ? "Reenviando..."
+                                                : resendCooldown > 0
+                                                    ? `Reenviar correo (${resendCooldown}s)`
+                                                    : "Reenviar correo de verificación"}
                                         </button>
-                                        <p className="text-[11px] font-medium text-muted-foreground mt-3 mb-6 bg-muted py-1.5 rounded-lg border border-border">En producción esto llegará de manera directa por email</p>
                                         <button
                                             onClick={() => { handleClose(); onSwitchToLogin?.(); }}
-                                            className="text-sm font-medium text-primary hover:underline transition-colors"
+                                            className="text-sm font-medium text-primary hover:underline transition-colors mt-4"
                                         >
                                             Ir a iniciar sesión →
                                         </button>
@@ -502,11 +547,41 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                         </Field>
                                                     </div>
 
-                                                    <Field icon={<MapPin className="w-4 h-4" />}>
+                                                    <Field icon={<MapPin className="w-4 h-4" />} error={fieldError("direccion")}>
                                                         <input type="text" name="direccion" value={formData.direccion}
-                                                            onChange={handleChange} placeholder="Dirección (opcional)"
+                                                            onChange={handleChange} onBlur={handleBlur}
+                                                            placeholder="Dirección, ej. Calle 45 #12-34 (opcional)"
                                                             autoComplete="street-address"
                                                             className={inputBase("direccion")} />
+                                                    </Field>
+
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <Field icon={<Building2 className="w-4 h-4" />}>
+                                                            <input type="text" name="barrio" value={formData.barrio}
+                                                                onChange={handleChange}
+                                                                placeholder="Barrio / Localidad (opcional)"
+                                                                className={inputBase("barrio")} />
+                                                        </Field>
+                                                        <Field icon={<MapPin className="w-4 h-4" />}>
+                                                            <select
+                                                                name="departamento"
+                                                                value={formData.departamento}
+                                                                onChange={handleChange}
+                                                                className={inputBase("departamento")}
+                                                            >
+                                                                <option value="">Departamento (opcional)</option>
+                                                                {DEPARTAMENTOS_COLOMBIA.map((d) => (
+                                                                    <option key={d} value={d}>{d}</option>
+                                                                ))}
+                                                            </select>
+                                                        </Field>
+                                                    </div>
+
+                                                    <Field icon={<MapPin className="w-4 h-4" />}>
+                                                        <input type="text" name="codigo_postal" value={formData.codigo_postal}
+                                                            onChange={handleChange} placeholder="Código postal (opcional)"
+                                                            inputMode="numeric" autoComplete="postal-code"
+                                                            className={inputBase("codigo_postal")} />
                                                     </Field>
                                                 </div>
                                             </div>
