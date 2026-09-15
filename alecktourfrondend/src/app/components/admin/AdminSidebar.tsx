@@ -77,7 +77,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Administración",
     items: [
       { id: "usuarios", label: "Usuarios", icon: UserPlus, ready: true },
-      { id: "roles", label: "Roles y permisos", icon: ShieldCheck, ready: false },
+      { id: "roles", label: "Roles y permisos", icon: ShieldCheck, ready: true },
       { id: "actividad", label: "Actividad del sistema", icon: Activity, ready: true },
       { id: "configuracion", label: "Configuración", icon: Settings, ready: true },
       { id: "mi-cuenta", label: "Mi cuenta", icon: UserCircle, ready: true },

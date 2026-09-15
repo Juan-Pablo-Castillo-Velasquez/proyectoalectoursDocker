@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   PlusCircle, Hotel, Package, Users,
-  ShieldCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -18,6 +17,7 @@ import ModuleHoteles from "../components/admin/ModuleHoteles";
 import ModulePaquetes from "../components/admin/ModulePaquetes";
 import ModuleClientes from "../components/admin/ModuleClientes";
 import ModuleUsuarios from "../components/admin/ModuleUsuarios";
+import ModuleRoles from "../components/admin/ModuleRoles";
 import ModulePagos, { type MetodoPago } from "../components/admin/ModulePagos";
 import ModuleActividad from "../components/admin/ModuleActividad";
 import ModuleConfiguracion from "../components/admin/ModuleConfiguracion";
@@ -26,9 +26,8 @@ import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import AdminFooter from "../components/admin/AdminFooter";
 import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
-import EmptyState from "../components/admin/ui/EmptyState";
 import type { QuickAction } from "../components/admin/ui/QuickActions";
-import { usuarioAdminService } from "../services/usuarioAdmin.service";
+import { usuarioAdminService, type PermisoResponse, type RolConPermisosResponse } from "../services/usuarioAdmin.service";
 import { solicitudCancelacionService, type SolicitudCancelacionResponse } from "../services/solicitudCancelacion.service";
 import { reservaDetailService, type ActividadRecienteItem } from "../services/reserva.service";
 import ModuleNotificaciones from "../components/admin/ModuleNotificaciones";
@@ -48,6 +47,7 @@ type PendingDelete =
   | { kind: "paquete"; id: number; label: string }
   | { kind: "cliente"; id: number; label: string }
   | { kind: "usuario"; id: number; label: string }
+  | { kind: "rol"; id: number; label: string }
   | { kind: "pago"; id: number; label: string }
   | { kind: "empresa"; id: number; label: string }
   | { kind: "banner"; id: number; label: string }
@@ -71,6 +71,10 @@ export default function AdminDashboard() {
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
   const [roles,     setRoles]     = useState<Rol[]>([]);
+  // Catálogo fijo de permisos que el backend conoce (ver Permiso en
+  // auth_model.py / GET /api/permisos) -- se carga una sola vez, igual que
+  // el resto de listados de referencia del panel.
+  const [permisos,  setPermisos]  = useState<PermisoResponse[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudCancelacionResponse[]>([]);
   const [actividadReciente, setActividadReciente] = useState<ActividadRecienteItem[]>([]);
   const [actividadLimit, setActividadLimit] = useState(50);
@@ -144,6 +148,7 @@ export default function AdminDashboard() {
     fetchPagos();
     fetchMetodosPago();
     fetchUsuarios();
+    fetchPermisos();
     fetchSolicitudes();
     fetchActividad(actividadLimit);
     fetchNotificaciones();
@@ -197,6 +202,43 @@ export default function AdminDashboard() {
       setUsuarios(u); setRoles(r);
     } catch { /* no crítico */ }
   };
+  // Catálogo de permisos para el módulo "Roles y permisos" -- fijo (no
+  // cambia por acción del admin, solo agregando una fila al catálogo en el
+  // backend), se pide una sola vez igual que roles/metodosPago.
+  const fetchPermisos = async () => {
+    try { setPermisos(await usuarioAdminService.getPermisos()); } catch { /* no crítico */ }
+  };
+
+  const createRol = async (nombre: string) => {
+    setLoading(true);
+    try {
+      await usuarioAdminService.createRol(nombre);
+      await fetchUsuarios(); // el mismo fetch ya trae usuarios + roles juntos
+      toast.success("Rol creado correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo crear el rol");
+      throw e;
+    } finally { setLoading(false); }
+  };
+
+  const deleteRol = (id: number) => setConfirmDelete({ kind: "rol", id, label: "este rol" });
+
+  // Los permisos de UN rol se piden recién al abrir su modal en
+  // ModuleRoles.tsx (no de entrada para todos los roles) -- por eso esto
+  // no guarda el resultado en un estado acá, solo reenvía la llamada.
+  const cargarPermisosDeRol = (id: number): Promise<RolConPermisosResponse> =>
+    usuarioAdminService.getPermisosDeRol(id);
+
+  const submitPermisosDeRol = async (id: number, permisosSeleccionados: string[]) => {
+    try {
+      await usuarioAdminService.setPermisosDeRol(id, permisosSeleccionados);
+      toast.success("Permisos actualizados correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudieron actualizar los permisos");
+      throw e;
+    }
+  };
+
   // Todas las solicitudes de cancelación (no solo pendientes) — el módulo
   // de Cancelaciones necesita ver también las ya resueltas, y de acá se
   // deriva `pendingCancelaciones` para la campana del header.
@@ -435,6 +477,10 @@ export default function AdminDashboard() {
         await usuarioAdminService.delete(id);
         await fetchUsuarios();
         toast.success("Usuario eliminado correctamente");
+      } else if (kind === "rol") {
+        await usuarioAdminService.deleteRol(id);
+        await fetchUsuarios(); // refresca la lista de roles también
+        toast.success("Rol eliminado correctamente");
       } else if (kind === "pago") {
         await apiFetch(`/pagos/${id}`, { method: "DELETE" });
         await fetchPagos();
@@ -714,10 +760,14 @@ export default function AdminDashboard() {
       />
     ),
     roles: (
-      <EmptyState
-        icon={ShieldCheck}
-        title="Roles y permisos"
-        description="La gestión detallada de permisos por rol se habilita en una próxima actualización. Los roles de cada usuario ya pueden asignarse desde Usuarios."
+      <ModuleRoles
+        roles={roles}
+        permisos={permisos}
+        onCreateRol={createRol}
+        onDeleteRol={deleteRol}
+        onCargarPermisosDeRol={cargarPermisosDeRol}
+        onSubmitPermisosDeRol={submitPermisosDeRol}
+        loading={loading}
       />
     ),
     actividad: (

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_token, get_user_from_token
+from app.models.auth_model import Permiso, Rol, RolPermiso
 from app.models.user_model import Usuario
 
 
@@ -85,3 +86,64 @@ def exigir_propietario_o_admin(
     if usuario_es_admin(authorization):
         return
     raise HTTPException(status_code=403, detail="No tienes permiso para acceder a estos datos")
+
+
+def require_permission(*claves: str):
+    """
+    Dependency factory para permisos granulares (ver Permiso/RolPermiso en
+    auth_model.py, sección "Roles y permisos" del panel de admin). Deja
+    pasar siempre a quien tenga el rol 'admin' en su JWT -- igual que
+    require_admin (security.py), sin siquiera consultar la tabla
+    roles_permisos -- y además a cualquiera cuyo rol tenga asignada AL
+    MENOS UNA de las `claves` pedidas.
+
+    Aceptar varias claves (no solo una) es para endpoints que sirven a más
+    de una pantalla del panel con distintos permisos -- ej. GET /api/roles
+    lo usan tanto el módulo de Usuarios (para el selector de roles) como el
+    de Roles y permisos, así que pide
+    require_permission("usuarios.gestionar", "roles.gestionar") en vez de
+    forzar un único permiso que dejaría a uno de los dos módulos sin poder
+    listar roles.
+
+    Por ahora solo lo usan los endpoints de /api/usuarios y /api/roles
+    (ver usuario_route.py) -- el resto de rutas de administración sigue
+    con require_admin sin cambios, a propósito: retroaplicar permisos
+    granulares a todos los módulos existentes es un alcance más grande,
+    fuera de esta ronda.
+    """
+
+    def _dep(
+        authorization: str | None = Header(None),
+        db: Session = Depends(get_db),
+    ) -> int:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No autenticado")
+        parts = authorization.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Token inválido")
+
+        payload = decode_token(parts[1])
+        if payload is None:
+            raise HTTPException(status_code=401, detail="Token expirado o inválido")
+
+        roles = payload.get("roles") or []
+        if "admin" in roles:
+            return int(payload["sub"])
+
+        if roles and claves:
+            tiene_permiso = (
+                db.query(RolPermiso)
+                .join(Rol, Rol.id_rol == RolPermiso.id_rol)
+                .join(Permiso, Permiso.id_permiso == RolPermiso.id_permiso)
+                .filter(Rol.nombre_rol.in_(roles), Permiso.clave.in_(claves))
+                .first()
+            )
+            if tiene_permiso:
+                return int(payload["sub"])
+
+        raise HTTPException(
+            status_code=403,
+            detail=f"Requiere alguno de estos permisos: {', '.join(claves)}",
+        )
+
+    return _dep

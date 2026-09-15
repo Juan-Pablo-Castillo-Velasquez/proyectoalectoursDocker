@@ -43,7 +43,7 @@ from app.routes.reserva_route import router as reserva_router
 from app.routes.servicio_route import router as servicio_router
 from app.routes.solicitud_cancelacion_route import router as solicitud_cancelacion_router
 from app.routes.tema_route import router as tema_router
-from app.routes.usuario_route import roles_router
+from app.routes.usuario_route import permisos_router, roles_router
 from app.routes.usuario_route import router as usuario_router
 
 # ============================================================================
@@ -166,6 +166,7 @@ app.include_router(contacto_router)
 app.include_router(resena_route)
 app.include_router(usuario_router)
 app.include_router(roles_router)
+app.include_router(permisos_router)
 app.include_router(destino_router)
 app.include_router(servicio_router)
 app.include_router(solicitud_cancelacion_router)

@@ -43,3 +43,32 @@ class RolResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RolCreate(BaseModel):
+    nombre_rol: str = Field(..., min_length=2, max_length=50)
+
+
+class PermisoResponse(BaseModel):
+    id_permiso: int
+    clave: str
+    nombre: str
+    categoria: str
+
+    class Config:
+        from_attributes = True
+
+
+class RolConPermisosResponse(BaseModel):
+    id_rol: int
+    nombre_rol: str
+    permisos: list[str] = []
+    # Cuántos usuarios tienen este rol asignado hoy -- para que el admin
+    # sepa, antes de intentar borrarlo, si primero tiene que quitárselo a
+    # alguien desde Usuarios (ver eliminar_rol en usuario_route.py, que
+    # bloquea el borrado mientras este número sea mayor que 0).
+    total_usuarios: int = 0
+
+
+class AsignarPermisosRequest(BaseModel):
+    permisos: list[str] = []

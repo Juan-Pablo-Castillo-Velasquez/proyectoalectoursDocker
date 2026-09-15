@@ -4,14 +4,18 @@ from sqlalchemy.orm import Session
 
 from app.core.cache import delete_pattern
 from app.core.database import get_db
-from app.core.deps import get_current_usuario
+from app.core.deps import get_current_usuario, require_permission
 from app.core.file_validation import validar_y_leer_archivo
 from app.core.image_storage import borrar_imagen, guardar_imagen
-from app.core.security import hash_password, require_admin, verify_password
-from app.models.auth_model import Rol, UsuarioRol
+from app.core.security import hash_password, verify_password
+from app.models.auth_model import Permiso, Rol, RolPermiso, UsuarioRol
 from app.models.user_model import Usuario
 from app.schemas.user_schema import UsuarioResponse
 from app.schemas.usuario_admin_schema import (
+    AsignarPermisosRequest,
+    PermisoResponse,
+    RolConPermisosResponse,
+    RolCreate,
     RolResponse,
     UsuarioAdminCreate,
     UsuarioAdminResponse,
@@ -20,6 +24,11 @@ from app.schemas.usuario_admin_schema import (
 
 router = APIRouter(prefix="/api/usuarios", tags=["Usuarios"])
 roles_router = APIRouter(prefix="/api/roles", tags=["Roles"])
+# Catálogo de permisos -- ruta propia (no bajo /api/roles) porque no es
+# información de UN rol en particular, es la lista fija de permisos que el
+# backend conoce (ver Permiso en auth_model.py). La usa el módulo "Roles y
+# permisos" del panel para pintar los checkboxes agrupados por categoría.
+permisos_router = APIRouter(prefix="/api/permisos", tags=["Permisos"])
 
 PUBLIC_PATH_PREFIX = "/uploads/perfiles"
 PERFILES_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
@@ -58,13 +67,13 @@ def _shape_usuario_admin(db: Session, usuario: Usuario) -> UsuarioAdminResponse:
 
 
 @router.get("", response_model=list[UsuarioAdminResponse])
-def admin_get_usuarios(db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
+def admin_get_usuarios(db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))):
     usuarios = db.query(Usuario).order_by(Usuario.id_usuario.asc()).all()
     return [_shape_usuario_admin(db, u) for u in usuarios]
 
 
 @router.post("", response_model=UsuarioAdminResponse, status_code=201)
-def admin_create_usuario(data: UsuarioAdminCreate, db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
+def admin_create_usuario(data: UsuarioAdminCreate, db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))):
     if db.query(Usuario).filter(Usuario.username == data.username).first():
         raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
     if db.query(Usuario).filter(Usuario.correo_electronico == data.correo_electronico).first():
@@ -102,7 +111,7 @@ def admin_update_usuario(
     usuario_id: int,
     data: UsuarioAdminUpdate,
     db: Session = Depends(get_db),
-    _admin: int = Depends(require_admin),
+    _u: int = Depends(require_permission("usuarios.gestionar")),
 ):
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
     if not usuario:
@@ -133,7 +142,7 @@ def admin_update_usuario(
 
 
 @router.delete("/{usuario_id}")
-def admin_delete_usuario(usuario_id: int, db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
+def admin_delete_usuario(usuario_id: int, db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))):
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -143,8 +152,121 @@ def admin_delete_usuario(usuario_id: int, db: Session = Depends(get_db), _admin:
 
 
 @roles_router.get("", response_model=list[RolResponse])
-def get_roles(db: Session = Depends(get_db), _admin: int = Depends(require_admin)):
+def get_roles(
+    db: Session = Depends(get_db),
+    # Lo usan tanto el selector de roles del módulo Usuarios como el
+    # listado del módulo Roles y permisos -- cualquiera de los dos permisos
+    # basta (ver require_permission en deps.py).
+    _u: int = Depends(require_permission("usuarios.gestionar", "roles.gestionar")),
+):
     return db.query(Rol).order_by(Rol.nombre_rol.asc()).all()
+
+
+@roles_router.post("", response_model=RolResponse, status_code=201)
+def crear_rol(data: RolCreate, db: Session = Depends(get_db), _u: int = Depends(require_permission("roles.gestionar"))):
+    nombre = data.nombre_rol.strip().lower()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre del rol no puede estar vacío")
+    if db.query(Rol).filter(Rol.nombre_rol == nombre).first():
+        raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre")
+    rol = Rol(nombre_rol=nombre)
+    db.add(rol)
+    db.commit()
+    db.refresh(rol)
+    return rol
+
+
+@roles_router.delete("/{rol_id}")
+def eliminar_rol(rol_id: int, db: Session = Depends(get_db), _u: int = Depends(require_permission("roles.gestionar"))):
+    rol = db.query(Rol).filter(Rol.id_rol == rol_id).first()
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+
+    # 'admin' es el único rol que el backend reconoce por su nombre
+    # literal (ver require_admin en security.py y el bypass de
+    # require_permission en deps.py) -- borrarlo dejaría sin forma de
+    # volver a asignarlo desde el panel, aunque las sesiones ya abiertas
+    # sigan funcionando hasta que su token expire.
+    if rol.nombre_rol == "admin":
+        raise HTTPException(status_code=400, detail="El rol 'admin' no se puede eliminar")
+
+    tiene_usuarios = db.query(UsuarioRol).filter(UsuarioRol.id_rol == rol_id).first()
+    if tiene_usuarios:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar un rol que todavía tiene usuarios asignados. Quítaselo primero desde Usuarios.",
+        )
+
+    db.delete(rol)
+    db.commit()
+    return {"message": "Rol eliminado correctamente"}
+
+
+@roles_router.get("/{rol_id}/permisos", response_model=RolConPermisosResponse)
+def obtener_permisos_rol(
+    rol_id: int, db: Session = Depends(get_db), _u: int = Depends(require_permission("roles.gestionar"))
+):
+    rol = db.query(Rol).filter(Rol.id_rol == rol_id).first()
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+
+    claves = [
+        p.clave
+        for p in db.query(Permiso)
+        .join(RolPermiso, RolPermiso.id_permiso == Permiso.id_permiso)
+        .filter(RolPermiso.id_rol == rol_id)
+        .all()
+    ]
+    total_usuarios = db.query(UsuarioRol).filter(UsuarioRol.id_rol == rol_id).count()
+    return RolConPermisosResponse(id_rol=rol.id_rol, nombre_rol=rol.nombre_rol, permisos=claves, total_usuarios=total_usuarios)
+
+
+@roles_router.put("/{rol_id}/permisos", response_model=RolConPermisosResponse)
+def asignar_permisos_rol(
+    rol_id: int,
+    data: AsignarPermisosRequest,
+    db: Session = Depends(get_db),
+    _u: int = Depends(require_permission("roles.gestionar")),
+):
+    """Reemplaza por completo el conjunto de permisos de un rol (mismo
+    patrón 'borrar todo y reinsertar' que admin_update_usuario ya usa para
+    los roles de un usuario, ver arriba). Para 'admin' esto es meramente
+    informativo -- require_permission igual lo deja pasar siempre, sin
+    consultar esta tabla -- pero se permite editarlo para que el panel no
+    tenga un caso especial oculto."""
+    rol = db.query(Rol).filter(Rol.id_rol == rol_id).first()
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+
+    permisos_validos = (
+        {p.clave: p.id_permiso for p in db.query(Permiso).filter(Permiso.clave.in_(data.permisos)).all()}
+        if data.permisos
+        else {}
+    )
+    faltantes = set(data.permisos) - set(permisos_validos.keys())
+    if faltantes:
+        raise HTTPException(status_code=400, detail=f"Permiso(s) inexistente(s): {', '.join(faltantes)}")
+
+    db.query(RolPermiso).filter(RolPermiso.id_rol == rol_id).delete()
+    for id_permiso in permisos_validos.values():
+        db.add(RolPermiso(id_rol=rol_id, id_permiso=id_permiso))
+    db.commit()
+
+    total_usuarios = db.query(UsuarioRol).filter(UsuarioRol.id_rol == rol_id).count()
+    return RolConPermisosResponse(
+        id_rol=rol.id_rol, nombre_rol=rol.nombre_rol, permisos=list(permisos_validos.keys()), total_usuarios=total_usuarios
+    )
+
+
+@permisos_router.get("", response_model=list[PermisoResponse])
+def listar_permisos(db: Session = Depends(get_db), _u: int = Depends(require_permission("roles.gestionar"))):
+    """Catálogo completo de permisos que el backend conoce, agrupable por
+    `categoria` en el frontend -- para pintar los checkboxes del módulo
+    Roles y permisos. No hay endpoint para crear permisos nuevos: la lista
+    solo cambia agregando una fila a PERMISOS en la migración
+    5d2370d4474f_crear_tablas_permisos.py junto con el chequeo real en el
+    código (ver require_permission)."""
+    return db.query(Permiso).order_by(Permiso.categoria.asc(), Permiso.nombre.asc()).all()
 
 
 def _borrar_archivo_si_existe(foto_perfil: str | None) -> None:

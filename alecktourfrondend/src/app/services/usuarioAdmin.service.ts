@@ -18,6 +18,26 @@ export interface RolResponse {
   nombre_rol: string;
 }
 
+// Catálogo fijo de permisos que el backend conoce (ver Permiso en
+// auth_model.py / GET /api/permisos) -- agrupado por `categoria` en
+// ModuleRoles.tsx para pintar los checkboxes.
+export interface PermisoResponse {
+  id_permiso: number;
+  clave: string;
+  nombre: string;
+  categoria: string;
+}
+
+// Permisos asignados a UN rol en particular (GET/PUT /api/roles/{id}/permisos).
+// total_usuarios viaja para que el panel pueda avisar antes de dejar
+// eliminar un rol que todavía tiene gente asignada.
+export interface RolConPermisosResponse {
+  id_rol: number;
+  nombre_rol: string;
+  permisos: string[];
+  total_usuarios: number;
+}
+
 export const usuarioAdminService = {
   getAll: () =>
     apiFetch<UsuarioAdminResponse[]>('/usuarios'),
@@ -29,4 +49,14 @@ export const usuarioAdminService = {
     apiFetch<{ message: string }>(`/usuarios/${id}`, { method: 'DELETE' }),
   getRoles: () =>
     apiFetch<RolResponse[]>('/roles'),
+  createRol: (nombre_rol: string) =>
+    apiFetch<RolResponse>('/roles', { method: 'POST', body: { nombre_rol } }),
+  deleteRol: (id: number) =>
+    apiFetch<{ message: string }>(`/roles/${id}`, { method: 'DELETE' }),
+  getPermisos: () =>
+    apiFetch<PermisoResponse[]>('/permisos'),
+  getPermisosDeRol: (id: number) =>
+    apiFetch<RolConPermisosResponse>(`/roles/${id}/permisos`),
+  setPermisosDeRol: (id: number, permisos: string[]) =>
+    apiFetch<RolConPermisosResponse>(`/roles/${id}/permisos`, { method: 'PUT', body: { permisos } }),
 };
