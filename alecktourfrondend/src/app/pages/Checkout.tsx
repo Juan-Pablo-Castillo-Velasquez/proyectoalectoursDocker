@@ -1,4 +1,4 @@
-import { Bed, Calendar, CheckCircle2, CreditCard, IdCard, Lock, Mail, MapPin, Phone, Shield, ShieldCheck, Sparkles, User, Users, Zap } from "lucide-react";
+import { Bed, Calendar, CheckCircle2, CreditCard, Eye, EyeOff, IdCard, Lock, Mail, MapPin, Phone, Shield, ShieldCheck, Smartphone, Sparkles, User, Users, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -104,6 +104,13 @@ export default function Checkout() {
   const [pseValue, setPseValue] = useState<PSEPaymentValue>(emptyPSEValue);
   const [nequiValue, setNequiValue] = useState<NequiPaymentValue>(emptyNequiValue);
   const [securityPin, setSecurityPin] = useState('');
+  // Mejora de UX: antes el PIN se creaba con un solo campo, sin poder verlo
+  // ni repetirlo -- un typo al crear un PIN nuevo dejaba al cliente sin
+  // saber cuál PIN quedó guardado. `securityPinConfirm` solo se exige
+  // cuando es la PRIMERA vez que paga con este tipo (ver metodoGuardadoDelTipo
+  // más abajo); para verificar un PIN ya existente basta con escribirlo una vez.
+  const [securityPinConfirm, setSecurityPinConfirm] = useState('');
+  const [showPin, setShowPin] = useState(false);
 
   // ── Estado visual del pago: idle mientras se llena el formulario,
   //    processing/approved/rejected una vez enviado (ver PaymentStatus) ──
@@ -118,7 +125,15 @@ export default function Checkout() {
   const totalPrice = precioPorNoche * nights;
   const paymentAmount = paymentOption === 'full' ? totalPrice : totalPrice * 0.5;
 
-  const metodoSeleccionado = metodos.find((m) => m.id_metodo === metodoPago);
+  // Restricción pedida por el negocio: en el checkout de autoservicio del
+  // cliente solo se acepta Nequi o PayPal (nunca tarjeta/PSE/otro). El
+  // catálogo completo (GET /metodos-pago) no cambia -- ModuleCrearReserva.tsx
+  // (reservas creadas por un asesor) sigue pudiendo usar cualquier método;
+  // esta restricción es solo para este flujo.
+  const metodosPermitidos = metodos.filter((m) => m.codigo === 'nequi' || m.codigo === 'paypal');
+  const sinMetodosPermitidos = !loading && metodos.length > 0 && metodosPermitidos.length === 0;
+
+  const metodoSeleccionado = metodosPermitidos.find((m) => m.id_metodo === metodoPago);
   const codigoMetodo = metodoSeleccionado?.codigo ?? 'otro';
   const esTarjeta = codigoMetodo === 'tarjeta_credito' || codigoMetodo === 'tarjeta_debito';
   const esPSE = codigoMetodo === 'pse';
@@ -139,26 +154,50 @@ export default function Checkout() {
   // tarjeta nunca se guardó ni se muestra (solo los últimos 4).
   const usandoMetodoGuardado = !!metodoGuardadoDelTipo;
 
-  // PayPal y el resto de métodos (efectivo, transferencia, etc.) no piden
-  // datos adicionales en este entorno simulado — se consideran válidos.
+  // Antes el último OR (!esTarjeta && !esPSE && !esNequi) daba por válido
+  // CUALQUIER método sin datos extra, incluido el caso "no hay ningún
+  // método seleccionado" (metodoSeleccionado undefined => los 4 son
+  // false) -- con tarjeta/PSE ya fuera de este flujo eso se había vuelto
+  // un hueco real: dejaba enviar el formulario sin Nequi/PayPal
+  // realmente elegidos. Ahora exige explícitamente esNequi o esPayPal.
   const metodoValido =
     usandoMetodoGuardado ||
-    (esTarjeta && isCardValueValid(cardValue)) ||
-    (esPSE && isPSEValueValid(pseValue)) ||
     (esNequi && isNequiValueValid(nequiValue)) ||
-    (!esTarjeta && !esPSE && !esNequi);
+    esPayPal; // PayPal no pide datos adicionales en este entorno simulado
 
   // Fase 2 del plan de mejora: antes esto comparaba contra un PIN fijo
   // ('1234', visible en la propia pantalla) — cero seguridad real. Acá
   // solo se valida el formato; la verificación real (o su creación, si es
   // la primera vez que el cliente paga con este tipo de método) pasa por
   // el backend dentro de handleSubmit, contra metodoGuardadoDelTipo.
-  const pinCompletado = securityPin.length >= 4;
+  // Si es un método guardado ya existente, basta con escribir el PIN una
+  // vez (se verifica contra el hash en el backend); si es la primera vez,
+  // exige que las dos casillas coincidan antes de dejar avanzar.
+  const pinCompletado = usandoMetodoGuardado
+    ? securityPin.length >= 4
+    : securityPin.length >= 4 && securityPin === securityPinConfirm;
+
+  // Datos del viajero (Paso 1) — antes no había ninguna validación acá:
+  // se podía pasar a "Fechas y huéspedes" con nombre, correo, celular o
+  // cédula vacíos. Validación básica de formato, no exhaustiva.
+  const paso1Valido =
+    nombres.trim().length > 1 &&
+    apellidos.trim().length > 1 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim()) &&
+    celular.replace(/\D/g, '').length >= 7 &&
+    cedula.trim().length >= 5;
 
   const construirDatosMetodo = () => {
     if (esTarjeta) return { ultimos4: cardLast4(cardValue) };
     if (esPSE) return { banco: pseValue.banco, documento: pseValue.documento };
-    if (esNequi) return { celular: nequiValue.celular };
+    // BUG real corregido: antes esto solo mandaba `celular` y nunca
+    // `ultimos4`, así que el método guardado que se crea más abajo (ver
+    // handleSubmit, metodoPagoGuardadoService.create) quedaba con
+    // ultimos4=null para Nequi -- el número nunca quedaba realmente
+    // identificable en la billetera del cliente para su próxima reserva.
+    // Igual que con la tarjeta, nunca se guarda el número completo: solo
+    // los últimos 4 dígitos del celular.
+    if (esNequi) return { celular: nequiValue.celular, ultimos4: nequiValue.celular.slice(-4) };
     return {};
   };
 
@@ -173,9 +212,12 @@ export default function Checkout() {
       setHotel(h);
       setMetodos(m);
       // La preselección real (predeterminado del cliente si tiene uno, si no
-      // el primero) la resuelve el useEffect de más abajo una vez también
-      // cargan metodosGuardados — acá solo evitamos dejar 0 seleccionado.
-      if (m.length > 0) setMetodoPago(m[0].id_metodo);
+      // el primero de los permitidos) la resuelve el useEffect de más abajo
+      // una vez también cargan metodosGuardados — acá solo evitamos dejar
+      // seleccionado, aunque sea un instante, un id que no sea Nequi/PayPal
+      // (ver metodosPermitidos más arriba).
+      const permitidosIniciales = m.filter((mp) => mp.codigo === 'nequi' || mp.codigo === 'paypal');
+      if (permitidosIniciales.length > 0) setMetodoPago(permitidosIniciales[0].id_metodo);
 
       // Buscamos la habitación exacta que el usuario eligió en HotelDetail
       const hab = h.habitaciones?.find(
@@ -258,11 +300,25 @@ export default function Checkout() {
   // queda preseleccionado en vez del primero de la lista — así el checkout
   // usa de verdad la información que el cliente ya registró.
   useEffect(() => {
-    if (metodos.length === 0) return;
-    const predeterminado = metodosGuardados.find((g) => g.predeterminado);
-    const match = predeterminado ? metodos.find((m) => m.codigo === predeterminado.tipo) : undefined;
-    setMetodoPago(match ? match.id_metodo : metodos[0].id_metodo);
+    // Filtra acá adentro (no usa el `metodosPermitidos` derivado del
+    // render) para no depender de un arreglo que cambia de referencia en
+    // cada render -- este efecto solo debe reaccionar cuando `metodos` o
+    // `metodosGuardados` (estado real) cambian, igual que antes.
+    const permitidos = metodos.filter((m) => m.codigo === 'nequi' || m.codigo === 'paypal');
+    if (permitidos.length === 0) return;
+    const predeterminado = metodosGuardados.find((g) => g.predeterminado && (g.tipo === 'nequi' || g.tipo === 'paypal'));
+    const match = predeterminado ? permitidos.find((m) => m.codigo === predeterminado.tipo) : undefined;
+    setMetodoPago(match ? match.id_metodo : permitidos[0].id_metodo);
   }, [metodos, metodosGuardados]);
+
+  // Limpia el PIN al cambiar entre Nequi y PayPal -- cada tipo tiene su
+  // propio método guardado (y por tanto su propio PIN); sin esto, un PIN
+  // escrito para Nequi quedaba visible/reutilizable si el cliente cambiaba
+  // a PayPal a mitad del formulario.
+  useEffect(() => {
+    setSecurityPin('');
+    setSecurityPinConfirm('');
+  }, [codigoMetodo]);
 
   // Aplica el resultado final del pago (ya sea inmediato -tarjeta/PayPal- o
   // tras confirmar uno asíncrono -PSE/Nequi-): navega a la confirmación si
@@ -320,6 +376,14 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Los 4 pasos viven dentro de un único <form> (ver más abajo) -- sin
+    // esto, presionar Enter con el foco en cualquier campo de un paso
+    // anterior (ej. escribiendo el correo en el Paso 1) disparaba este
+    // mismo submit antes de tiempo, con datos de pago todavía vacíos o
+    // desactualizados. e.preventDefault() ya evita que la página navegue,
+    // pero sin este corte el resto de la función seguía ejecutándose igual.
+    if (step !== 4) return;
+
     if (!fechaInicio || !fechaFin) {
       toast.error('Selecciona las fechas de tu estadía');
       setStep(2);
@@ -338,12 +402,20 @@ export default function Checkout() {
       toast.error('No hay una habitación válida seleccionada.');
       return;
     }
+    if (sinMetodosPermitidos) {
+      toast.error('Nequi y PayPal no están disponibles como método de pago en este momento.');
+      return;
+    }
     if (!metodoValido) {
       toast.error('Revisa los datos del método de pago elegido.');
       return;
     }
     if (securityPin.length < 4) {
       toast.error('Ingresa tu PIN de seguridad (mínimo 4 dígitos).');
+      return;
+    }
+    if (!usandoMetodoGuardado && securityPin !== securityPinConfirm) {
+      toast.error('Los dos PIN que escribiste no coinciden.');
       return;
     }
 
@@ -421,6 +493,10 @@ export default function Checkout() {
   const handleRetryPago = () => setPaymentStatus('idle');
 
   const goNext = () => {
+    if (step === 1 && !paso1Valido) {
+      toast.error('Completa tu nombre, correo, celular y cédula antes de continuar');
+      return;
+    }
     if (step === 2 && (!fechaInicio || !fechaFin)) {
       toast.error('Selecciona las fechas de tu estadía');
       return;
@@ -503,23 +579,37 @@ export default function Checkout() {
             animate={{ width: `${((step - 1) / (STEPS.length - 1)) * 75}%` }}
             transition={{ duration: 0.35 }}
           />
-          {STEPS.map((s) => (
-            <div key={s.n} className="relative z-10 text-center">
-              <div
-                className={`w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xs font-extrabold transition-colors ${step > s.n
-                  ? "bg-green-500 text-white"
-                  : step === s.n
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                  }`}
+          {STEPS.map((s) => {
+            // Antes el indicador de progreso se veía clickeable pero no lo
+            // era -- solo se podía retroceder de a un paso con "← Volver".
+            // Ahora un paso ya completado se puede reabrir directo desde
+            // acá; nunca se permite saltar HACIA ADELANTE a un paso que
+            // todavía no se validó.
+            const completado = step > s.n;
+            return (
+              <button
+                key={s.n}
+                type="button"
+                disabled={!completado}
+                onClick={() => { setStep(s.n); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`relative z-10 text-center bg-transparent border-0 p-0 focus:outline-none ${completado ? "cursor-pointer focus-visible:ring-2 focus-visible:ring-primary/40 rounded-lg" : "cursor-default"}`}
               >
-                {step > s.n ? <CheckCircle2 className="w-4 h-4" /> : s.n}
-              </div>
-              <span className={`text-[10px] font-bold ${step === s.n ? "text-primary" : step > s.n ? "text-foreground" : "text-muted-foreground"}`}>
-                {s.label}
-              </span>
-            </div>
-          ))}
+                <div
+                  className={`w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xs font-extrabold transition-colors ${completado
+                    ? "bg-green-500 text-white"
+                    : step === s.n
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                    }`}
+                >
+                  {completado ? <CheckCircle2 className="w-4 h-4" /> : s.n}
+                </div>
+                <span className={`text-[10px] font-bold ${step === s.n ? "text-primary" : completado ? "text-foreground" : "text-muted-foreground"}`}>
+                  {s.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -845,6 +935,34 @@ export default function Checkout() {
                         <strong className="text-foreground">{hotel.correo_electronico ?? "—"}</strong>
                       </div>
                     </div>
+
+                    {/* Antes el precio y el método de pago solo aparecían ya
+                        adentro del Paso 4 -- el cliente llegaba a "revisar" su
+                        reserva sin ver cuánto iba a pagar ni con qué. */}
+                    <div className="border border-border rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <b className="text-xs flex items-center gap-1.5 text-foreground">
+                          <CreditCard className="w-3.5 h-3.5 text-primary" /> Pago
+                        </b>
+                        <button type="button" onClick={() => setStep(4)} className="text-primary text-[11px] font-bold hover:underline">
+                          Editar
+                        </button>
+                      </div>
+                      <div className="flex justify-between text-xs py-1">
+                        <span className="text-muted-foreground">Modalidad</span>
+                        <strong className="text-foreground">{paymentOption === 'full' ? 'Pago completo' : 'Anticipo (50%)'}</strong>
+                      </div>
+                      {metodoSeleccionado && (
+                        <div className="flex justify-between text-xs py-1">
+                          <span className="text-muted-foreground">Método</span>
+                          <strong className="text-foreground">{metodoSeleccionado.nombre_metodo}</strong>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs py-1.5 mt-1 border-t border-border/60">
+                        <span className="text-muted-foreground">Total a pagar</span>
+                        <strong className="text-primary text-sm">${paymentAmount.toLocaleString('es-CO')}</strong>
+                      </div>
+                    </div>
                   </div>
                 </motion.section>
               )}
@@ -932,13 +1050,25 @@ export default function Checkout() {
                         <p className="text-xs text-muted-foreground">Selecciona cómo quieres pagar {paymentOption === 'partial' ? 'el anticipo' : 'tu reserva'}.</p>
                       </div>
                     </div>
-                    {metodosGuardados.some((g) => g.predeterminado) && (
-                      <p className="text-[11px] text-muted-foreground mb-3 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                        Preseleccionamos tu método de pago predeterminado — puedes cambiarlo si prefieres usar otro.
-                      </p>
+                    {sinMetodosPermitidos ? (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                        Nequi y PayPal no están disponibles como método de pago en este momento. Contáctanos para completar tu reserva.
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[11px] text-muted-foreground mb-3 flex items-center gap-1.5">
+                          {metodosGuardados.some((g) => g.predeterminado && (g.tipo === 'nequi' || g.tipo === 'paypal')) ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                              Preseleccionamos tu método de pago predeterminado — puedes cambiarlo si prefieres usar otro.
+                            </>
+                          ) : (
+                            'Por ahora aceptamos pagos con Nequi o PayPal.'
+                          )}
+                        </p>
+                        <PaymentSelector metodos={metodosPermitidos} selectedId={metodoPago} onSelect={setMetodoPago} />
+                      </>
                     )}
-                    <PaymentSelector metodos={metodos} selectedId={metodoPago} onSelect={setMetodoPago} />
                   </div>
 
                   {/* Datos específicos del método elegido — cada uno vive en su propio
@@ -981,7 +1111,29 @@ export default function Checkout() {
                             <CardPayment value={cardValue} onChange={setCardValue} brand={metodoSeleccionado?.nombre_metodo} />
                           )}
                           {esPSE && <PSEPayment value={pseValue} onChange={setPseValue} />}
-                          {esNequi && <NequiPayment value={nequiValue} onChange={setNequiValue} />}
+                          {/* Mismo tratamiento que la tarjeta guardada de arriba: si el
+                              cliente ya tiene un Nequi guardado CON últimos4 (ver el
+                              fix de construirDatosMetodo más arriba), se muestra ese
+                              número en vez de pedirle que lo vuelva a escribir -- esto
+                              es justo lo pedido: que al hacer la reserva, el número de
+                              Nequi ya esté ahí. */}
+                          {esNequi && usandoMetodoGuardado && metodoGuardadoDelTipo?.ultimos4 && (
+                            <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
+                              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                                <Smartphone className="w-5 h-5 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-foreground truncate">{metodoGuardadoDelTipo.alias}</p>
+                                <p className="text-xs text-muted-foreground">Nequi ·•••• {metodoGuardadoDelTipo.ultimos4}</p>
+                              </div>
+                              <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded-full shrink-0">
+                                Número guardado
+                              </span>
+                            </div>
+                          )}
+                          {esNequi && (!usandoMetodoGuardado || !metodoGuardadoDelTipo?.ultimos4) && (
+                            <NequiPayment value={nequiValue} onChange={setNequiValue} />
+                          )}
                           {esPayPal && <PayPalPayment amount={paymentAmount} />}
                         </div>
                       </motion.div>
@@ -1003,13 +1155,47 @@ export default function Checkout() {
                         </p>
                       </div>
                     </div>
-                    <input
-                      type="password" inputMode="numeric" placeholder="••••"
-                      value={securityPin}
-                      onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      maxLength={6}
-                      className="w-full max-w-[160px] px-4 py-3 rounded-xl border border-border bg-input-background text-foreground text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none"
-                    />
+                    <div className="relative w-full max-w-[160px]">
+                      <input
+                        type={showPin ? 'text' : 'password'} inputMode="numeric" placeholder="••••"
+                        value={securityPin}
+                        onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        maxLength={6}
+                        className="w-full pl-4 pr-10 py-3 rounded-xl border border-border bg-input-background text-foreground text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setShowPin((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
+                      >
+                        {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {/* Repetir PIN: solo al crear uno nuevo (primer pago con este
+                        método) -- si ya hay un método guardado, el PIN ya existe y
+                        solo se está re-verificando, no hace falta confirmarlo dos
+                        veces. */}
+                    {!usandoMetodoGuardado && (
+                      <div className="mt-3">
+                        <input
+                          type={showPin ? 'text' : 'password'} inputMode="numeric" placeholder="Repite el PIN"
+                          value={securityPinConfirm}
+                          onChange={(e) => setSecurityPinConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength={6}
+                          className={`w-full max-w-[160px] px-4 py-3 rounded-xl border bg-input-background text-foreground text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-primary/40 focus:outline-none ${
+                            securityPinConfirm && securityPin !== securityPinConfirm
+                              ? 'border-destructive'
+                              : 'border-border'
+                          }`}
+                        />
+                        {securityPinConfirm && securityPin !== securityPinConfirm && (
+                          <p className="text-[11px] text-destructive mt-1.5">Los PIN no coinciden.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Badge SSL */}
