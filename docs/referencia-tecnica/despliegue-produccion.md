@@ -14,6 +14,31 @@ El pipeline de CI (`.github/workflows/ci.yml`) solo valida: lint (ruff + eslint)
 
 ---
 
+## El hueco real entre CI y CD
+
+Esto es distinto de "el CI no despliega nada" (arriba) — es sobre qué pasa cuando el CI **falla**.
+
+Si usas Vercel (frontend) y/o Render (backend) conectados directo a GitHub (que es justo lo que recomiendan Parte 1/Parte 2 y `despliegue-produccion-servicios-gestionados.md`), cada uno tiene su propia integración de Git que redespliega en cada `git push` a `main` **sin esperar a que termine `.github/workflows/ci.yml`** — son dos sistemas completamente independientes. En la práctica: puedes hacer push de un cambio que rompe el lint o un test, ver el workflow de GitHub Actions en rojo unos minutos después, y para entonces Vercel/Render ya sirvieron ese mismo código roto en producción. El CI de este repo hoy es solo informativo, no es un gate real.
+
+Dos formas de cerrar esto, de más simple a más completa:
+
+1. **Branch protection en GitHub (rápido, pero con una condición):** en Settings → Branches → agregar una regla para `main` que exija "Require status checks to pass" con los jobs `lint`, `test` y `docker`. Esto bloquea que un Pull Request se pueda mezclar a `main` si el CI no pasó. **La condición:** esta protección solo aplica a Pull Requests — un `git push` directo a `main` (el flujo que este mismo repo usa hoy, al ser un proyecto de una sola persona) la salta por completo, salvo que en la misma regla también actives "Restrict who can push to matching branches" y trabajes siempre por rama+PR en vez de empujar directo a `main`.
+
+2. **Deploy Hooks gatillados desde el propio CI (más trabajo, pero cierra el hueco de verdad incluso empujando directo a `main`):** tanto Render como Vercel ofrecen una "Deploy Hook" — una URL única que, al recibir un `POST`, dispara un deploy — y ambos permiten desactivar el auto-deploy de su integración de Git nativa. La idea: desactivar el auto-deploy en cada plataforma, guardar sus URLs de Deploy Hook como secrets de GitHub (`RENDER_DEPLOY_HOOK_URL`, `VERCEL_DEPLOY_HOOK_URL`), y agregar un job `deploy` nuevo a `ci.yml` con `needs: [lint, test, docker]` y `if: github.ref == 'refs/heads/main'` que simplemente haga:
+   ```yaml
+   - run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+     env:
+       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+   - run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+     env:
+       VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+   ```
+   Así, el propio `needs` de GitHub Actions garantiza que ese `curl` nunca corre si `lint`/`test`/`docker` fallaron antes — el despliegue queda condicionado al CI sin depender de que nadie use Pull Requests.
+
+No se implementó ninguna de las dos en este repo todavía: la opción 1 es una configuración de GitHub (Settings del repo, no código), y la opción 2 necesita las URLs reales de Deploy Hook de tus propias cuentas de Render/Vercel — ambas cosas solo las puedes crear tú desde los dashboards correspondientes. Si quieres, en la próxima sesión puedo dejar el job `deploy` de la opción 2 ya escrito en `ci.yml`, listo para que solo pegues las dos URLs como secrets.
+
+---
+
 ## Parte 1 — Backend en un VPS con Docker
 
 ### Requisitos del servidor
@@ -43,7 +68,7 @@ nano backend/.env
   ```
 - `DATABASE_URL`: apuntando al Postgres de este mismo compose (host `postgres`, mismo usuario/clave/DB que definas en el paso 3) — nunca `admin`/`admin123`.
 - `REDIS_URL=redis://redis:6379/0` — el host `redis` es el nombre del servicio en `docker-compose.prod.yml`, no lo cambies.
-- `MAIL_*`: credenciales de un proveedor SMTP real (Mailpit no existe en este compose, solo en desarrollo). Sin esto, los correos de verificación/reset de contraseña no salen.
+- `MAIL_*`: credenciales de Brevo, el proveedor SMTP real que usa este proyecto (Mailpit no existe en este compose, solo en desarrollo) — servidor `smtp-relay.brevo.com`, puerto `587`, usuario tipo `xxxxx@smtp-brevo.com` y como contraseña tu API key de Brevo (empieza con `xkeysib-`). Pasos completos para crear el remitente y encontrar estas credenciales en `backend/.env.example`. Sin esto, los correos de verificación/reset de contraseña no salen.
 - `FRONTEND_URL` y `CORS_ORIGINS`: el dominio real donde publiques el frontend (Vercel u otro, ver Parte 2) — ej. `https://tudominio.com`. Sin esto los links de esos correos siguen apuntando a `localhost` y el navegador bloquea las llamadas por CORS.
 - `CLOUDINARY_URL` (opcional): si no la defines, las fotos se guardan en disco local dentro del volumen `backend_uploads_prod` (ver más abajo).
 - `SENTRY_DSN` (opcional): déjalo vacío si no vas a usar monitoreo de errores todavía.
@@ -159,6 +184,6 @@ docker run -d --name alectours_frontend -p 80:80 --restart unless-stopped alecto
 ## Resumen de lo que falta decidir de tu lado
 
 - Un dominio (o subdominio) real para el backend, y otro para el frontend si no vas a usar el gratuito de Vercel.
-- Un proveedor SMTP real para `MAIL_*` (Mailpit no sirve fuera de desarrollo).
+- Proveedor SMTP para `MAIL_*`: ya resuelto con Brevo (ver Parte 1, paso 2) — solo falta que crees tu propia cuenta y tu propio remitente verificado, salvo que prefieras otro proveedor.
 - Si vas a usar Cloudinary para las fotos o dejarlas en el volumen `backend_uploads_prod` (ambas opciones ya están soportadas por el código, es solo definir o no `CLOUDINARY_URL`).
 - Elegir el VPS — cualquiera con Docker sirve, nada en el repo está atado a un proveedor específico.

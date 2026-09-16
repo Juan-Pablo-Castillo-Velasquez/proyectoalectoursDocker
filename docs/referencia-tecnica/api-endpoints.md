@@ -58,13 +58,15 @@ Registra un nuevo usuario con rol `cliente` por defecto.
 
 ```json
 {
-  "id_usuario": 1,
-  "username": "juanp",
-  "correo_electronico": "juan@example.com",
-  "activo": true,
-  "verificado": false
+  "message": "Usuario registrado exitosamente. Revisa tu correo para verificar tu cuenta.",
+  "user_id": 1,
+  "email": "juan@example.com",
+  "access_token": "eyJ...",
+  "token_type": "bearer"
 }
 ```
+
+Envía en segundo plano (no bloquea la respuesta) un correo con un enlace de verificación y un código de 6 dígitos — ver `POST /auth/verify-email-code` más abajo. El `access_token` ya viene en esta respuesta, pero la cuenta queda `verificado: false` hasta completar uno de los dos flujos de verificación.
 
 ### POST /auth/login
 
@@ -93,9 +95,65 @@ username=juanp&password=MiContrasena1
 
 ### POST /auth/verify-email
 
-Verifica la dirección de email del usuario.
+Verifica la dirección de email del usuario a partir del enlace del correo (página aparte `/verify` en el frontend). No devuelve tokens de sesión nuevos — solo confirma la cuenta.
 
 **Query param**: `?token=<token>`
+
+### POST /auth/resend-verification
+
+Reenvía el correo de verificación con un código de 6 dígitos nuevo (invalida el anterior y reinicia el contador de intentos fallidos). Pensado para cuando el primer correo no llegó o el código anterior quedó bloqueado por demasiados intentos — reintentar `/register` con el mismo correo fallaría con "correo ya registrado".
+
+Por privacidad, la respuesta nunca revela si el correo existe ni si la cuenta ya estaba verificada (mismo criterio que `/forgot-password`), para no dejar enumerar correos registrados desde un endpoint público.
+
+**Request body:**
+
+```json
+{
+  "correo_electronico": "juan@example.com"
+}
+```
+
+**Respuesta (200 OK), siempre igual sin importar si el correo existe:**
+
+```json
+{
+  "message": "Si el correo existe y aún no ha sido verificado, te reenviamos el código de verificación."
+}
+```
+
+### POST /auth/verify-email-code
+
+Verifica la cuenta con el código de 6 dígitos que llega en el mismo correo que el enlace de verificación — pensado para completarse sin salir del modal de registro, a diferencia de `/verify-email` (que requiere abrir el enlace en una página aparte). En éxito, deja a la persona logueada de inmediato con tokens de sesión completos.
+
+El código expira a los 15 minutos y admite un máximo de 5 intentos fallidos; agotados los intentos, ni siquiera el código correcto es aceptado — hay que pedir uno nuevo con `/auth/resend-verification`. Un segundo intento sobre una cuenta ya verificada no da error: devuelve tokens igual, para no romper un doble clic o volver al modal después de verificar por el enlace.
+
+**Request body:**
+
+```json
+{
+  "correo_electronico": "juan@example.com",
+  "codigo": "042917"
+}
+```
+
+**Respuesta (200 OK):**
+
+```json
+{
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "verificado": true,
+  "roles": ["cliente"]
+}
+```
+
+**Respuesta de error (400 Bad Request)** — mismo mensaje genérico para código incorrecto, expirado, o correo inexistente (no filtra cuál de los tres fue):
+
+```json
+{
+  "detail": "Código incorrecto o expirado"
+}
+```
 
 ### POST /auth/forgot-password
 
@@ -418,6 +476,8 @@ Implementado con Redis token-bucket middleware:
 | `POST /auth/register` | 5/60s | Prevenir creación masiva |
 | `POST /auth/forgot-password` | 3/60s | Prevenir spam de emails |
 | `POST /auth/reset-password` | 5/60s | Prevenir abuso |
+| `POST /auth/verify-email-code` | 5/60s | Defensa en profundidad sobre el código de 6 dígitos, además del límite de intentos a nivel de cuenta |
+| `POST /auth/resend-verification` | 3/60s | Prevenir spam de emails / agotar la cuota diaria del proveedor SMTP |
 | `POST /api/reservas/*/pagar` | 10/60s | Prevenir fraude de pagos |
 | `POST /api/metodos-pago-guardados/*/verificar` | 5/60s | Prevenir fuerza bruta sobre el PIN (4-6 dígitos) de un método de pago guardado |
 

@@ -68,11 +68,11 @@ Render construye la imagen directo desde `backend/Dockerfile`, usando el stage `
    SECRET_KEY=<genera una con: python3 -c "import secrets; print(secrets.token_urlsafe(48))">
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
-   MAIL_USERNAME=...
-   MAIL_PASSWORD=...
-   MAIL_FROM=noreply@tudominio.com
+   MAIL_USERNAME=xxxxx@smtp-brevo.com
+   MAIL_PASSWORD=<tu API key de Brevo, empieza con "xkeysib-">
+   MAIL_FROM=<el correo que verificaste en Brevo>
    MAIL_PORT=587
-   MAIL_SERVER=smtp.tuproveedor.com
+   MAIL_SERVER=smtp-relay.brevo.com
    MAIL_FROM_NAME=AlecTours
    MAIL_STARTTLS=True
    MAIL_SSL_TLS=False
@@ -80,6 +80,12 @@ Render construye la imagen directo desde `backend/Dockerfile`, usando el stage `
    CORS_ORIGINS=https://tu-proyecto.vercel.app
    CLOUDINARY_URL=cloudinary://...   (opcional)
    ```
+   Brevo es el proveedor SMTP real que usa este proyecto (plan gratis, sin
+   tarjeta, 300 correos/día — de sobra para verificación de cuenta, reset
+   de contraseña y confirmaciones de reserva). Los pasos completos para
+   crear el remitente y encontrar estas credenciales están en
+   `backend/.env.example`. Cualquier otro proveedor SMTP (Gmail, SendGrid)
+   funciona igual sin tocar código — solo cambian estas variables.
 7. Deploy. Render te da una URL tipo `https://alectours-backend.onrender.com` — ese es tu `VITE_API_BASE_URL` para el Paso 4.
 8. Sobre las fotos/comprobantes/banners subidos en runtime: el plan free de Render no tiene disco persistente, así que cualquier archivo guardado en `app/static/uploads` se perdería si el contenedor se reinicia. Como ya tienes `CLOUDINARY_URL` soportado en el código (`backend/app/core/config.py`), en este escenario SÍ te conviene definirlo — así las imágenes se van a Cloudinary en vez de al disco del contenedor.
 
@@ -124,6 +130,6 @@ Cada `git push` a `main` después de esto, Vercel redespliega el frontend solo.
 
 ## Qué falta decidir de tu lado
 
-- Un proveedor SMTP real para los correos (verificación de cuenta, reset de contraseña) — Mailpit no existe fuera de desarrollo.
+- Proveedor SMTP: este proyecto ya usa Brevo (ver Paso 3) — solo hace falta crear tu propia cuenta gratis y tu propio remitente verificado, no hay nada más que decidir salvo que prefieras otro proveedor (Gmail, SendGrid) en su lugar.
 - Si usas el plan free de Render (sin disco persistente), definir `CLOUDINARY_URL` para que las fotos/banners no se pierdan en cada reinicio.
 - Si en algún momento el tráfico crece y el "dormir" de Render se vuelve molesto, migrar el backend a Railway es solo cambiar de plataforma — el Dockerfile y las variables de entorno son las mismas.

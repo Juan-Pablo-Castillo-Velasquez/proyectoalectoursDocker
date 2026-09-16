@@ -25,6 +25,19 @@ RATE_LIMITED_PATHS = {
     "/auth/register": (5, 60),
     "/auth/forgot-password": (3, 60),
     "/auth/reset-password": (5, 60),
+    # Mismo caso que /api/metodos-pago-guardados/{id}/verificar más abajo:
+    # un código de 6 dígitos (1,000,000 combinaciones) protegido solo por
+    # un límite de intentos a nivel de cuenta (CODIGO_VERIFICACION_MAX_INTENTOS
+    # en auth_service.py) es más débil sin un límite por IP encima -- esto
+    # es defensa en profundidad, no el único control.
+    "/auth/verify-email-code": (5, 60),
+    # Sin límite, este endpoint es un vector de spam/mail-bombing (generar
+    # correos reales hacia la bandeja de cualquier víctima con solo su
+    # email) y agota la cuota diaria de envíos del proveedor SMTP (300/día
+    # en el plan gratis de Brevo, ver backend/.env.example) sin que la
+    # víctima haya pedido nada. Mismo límite que /forgot-password, que
+    # tiene el mismo riesgo.
+    "/auth/resend-verification": (3, 60),
 }
 
 
