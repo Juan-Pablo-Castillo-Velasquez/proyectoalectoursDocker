@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     MAIL_STARTTLS: bool = False
     MAIL_SSL_TLS: bool = False
 
+    # API key de Brevo (Settings → SMTP y API → pestaña "API Keys" -- NO la
+    # pestaña "SMTP" de MAIL_PASSWORD, son dos credenciales distintas en
+    # Brevo aunque se generen ambas desde la misma sección). Opcional: sin
+    # ella, send_email() sigue usando SMTP (smtplib) tal como siempre --
+    # ver el comentario en app/core/mail.py sobre por qué hace falta esto
+    # específicamente en Render (bloquea los puertos SMTP salientes en el
+    # plan gratis desde septiembre de 2025, pero no el 443 de HTTPS).
+    BREVO_API_KEY: str = ""
+
     class Config:
         env_file = ".env"
 

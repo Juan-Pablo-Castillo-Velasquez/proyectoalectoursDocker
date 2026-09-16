@@ -1,15 +1,36 @@
 """
-Módulo de correo electrónico - Envío de emails con SMTP directo
-Desarrollo: Mailpit (sin TLS, sin autenticación).
+Módulo de correo electrónico - Envío de emails con SMTP directo, o vía la
+API HTTP de Brevo cuando BREVO_API_KEY está definida (ver send_email()).
+Desarrollo: Mailpit (sin TLS, sin autenticación) -- siempre por SMTP,
+BREVO_API_KEY no se define en dev.
 Producción: cualquier proveedor SMTP real (Brevo, Gmail, etc.) vía
-variables de entorno -- ver settings.MAIL_* y send_email() más abajo.
+variables de entorno -- ver settings.MAIL_*.
+
+Hallazgo real de esta sesión, con Render como hosting del backend: los
+servicios web gratis de Render bloquean el tráfico saliente a los puertos
+SMTP (25, 465, 587) desde el 26 de septiembre de 2025 -- confirmado en su
+propio changelog (render.com/changelog/free-web-services-will-no-longer-
+allow-outbound-traffic-to-smtp-ports). No es un bug de este proyecto ni
+de Brevo: cualquier SMTP (Brevo, Gmail, SendGrid...) queda inalcanzable
+desde un Render free, sin importar las credenciales. La salida sin pagar
+nada ni depender de un dominio propio es la API HTTP de Brevo (HTTPS
+puerto 443, nunca bloqueado) en vez de su relay SMTP -- mismo remitente ya
+verificado, mismo proveedor, sin dar de alta ningún servicio nuevo. Se
+activa sola si BREVO_API_KEY está definida; si no, send_email() sigue
+usando SMTP exactamente como siempre (Mailpit en dev, o cualquier SMTP
+real en un host que sí deje salir por esos puertos -- Railway, un VPS, o
+un Render de pago).
 """
 
+import asyncio
 import contextlib
 import html
+import json
 import os
 import smtplib
 import socket
+import urllib.error
+import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -66,9 +87,75 @@ def _forzar_dns_ipv4():
         socket.getaddrinfo = original
 
 
+def _enviar_via_brevo_api(email: str, subject: str, body: str, html_body: str | None) -> bool:
+    """
+    Envía un correo con la API HTTP de Brevo (https://api.brevo.com/v3/smtp/email)
+    en vez de su relay SMTP -- ver el comentario del encabezado de este
+    archivo sobre por qué hace falta en Render.
+
+    Usa urllib.request (stdlib) a propósito, para no agregar una
+    dependencia nueva a requirements.txt solo por un POST con JSON y un
+    header de auth -- no hace falta nada más elaborado (sesiones,
+    reintentos, pool de conexiones) para el volumen de correo de este
+    proyecto.
+
+    La API de Brevo solo acepta UN tipo de cuerpo por envío --
+    `htmlContent`, `textContent` o `templateId`, nunca dos a la vez (a
+    diferencia de MIMEMultipart("alternative") en el envío por SMTP, que sí
+    manda ambos). Como todos los correos de este archivo ya traen un
+    `html_body` bien maquetado, se manda ese; si por algún motivo no
+    hubiera HTML, se manda el texto plano como `textContent` en su lugar
+    -- ningún llamador de send_email() deja de recibir su correo por esto,
+    solo cambia si el cliente de correo del destinatario ve la versión
+    HTML o la de texto plano (igual que cualquier otro proveedor que solo
+    soporte un tipo de cuerpo).
+    """
+    payload = {
+        "sender": {"name": settings.MAIL_FROM_NAME, "email": settings.MAIL_FROM},
+        "to": [{"email": email}],
+        "subject": subject,
+    }
+    if html_body:
+        payload["htmlContent"] = html_body
+    else:
+        payload["textContent"] = body
+
+    req = urllib.request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "api-key": settings.BREVO_API_KEY,
+            "content-type": "application/json",
+            "accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            # Brevo responde 201 Created en éxito (con un messageId en el
+            # cuerpo) -- cualquier 2xx que llegue hasta acá sin lanzar
+            # HTTPError se toma como éxito, sin atarse al código exacto.
+            return 200 <= resp.status < 300
+    except urllib.error.HTTPError as e:
+        # El cuerpo del error (ej. remitente no verificado, api-key
+        # inválida) es justo lo que hace falta para diagnosticar sin
+        # adivinar -- se imprime completo en vez de solo el código.
+        detalle = e.read().decode("utf-8", errors="replace")
+        print(f"Error al enviar email a {email} vía API de Brevo ({e.code}): {detalle}")
+        return False
+    except urllib.error.URLError as e:
+        print(f"Error de red al enviar email a {email} vía API de Brevo: {e.reason}")
+        return False
+
+
 async def send_email(email: str, subject: str, body: str, html_body: str | None = None) -> bool:
     """
-    Envía un email simple o con cuerpo HTML usando SMTP directo.
+    Envía un email simple o con cuerpo HTML.
+
+    Si BREVO_API_KEY está definida, usa la API HTTP de Brevo (evita el
+    bloqueo de puertos SMTP de Render free -- ver encabezado del archivo).
+    Si no, usa SMTP directo como siempre (Mailpit en dev, o cualquier
+    proveedor SMTP real en un host que sí permita esos puertos).
 
     Args:
         email: Dirección de correo destino
@@ -79,6 +166,15 @@ async def send_email(email: str, subject: str, body: str, html_body: str | None 
     Returns:
         True si se envió correctamente, False en caso contrario
     """
+    if settings.BREVO_API_KEY:
+        # urllib.request.urlopen es bloqueante -- se corre en un hilo aparte
+        # para no congelar el event loop de FastAPI mientras espera la
+        # respuesta HTTP (mismo motivo por el que smtplib más abajo ya
+        # corre casi siempre dentro de un threading.Thread propio en los
+        # callers, pero acá se cubre también el caso de quien haga
+        # `await send_email(...)` directo en una ruta async).
+        return await asyncio.to_thread(_enviar_via_brevo_api, email, subject, body, html_body)
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -255,7 +351,9 @@ El equipo de AlecTours
               </table>
     """.strip()
 
-    html_body = _email_shell(subject, "Tu cuenta en AlecTours ya está lista. Empieza a explorar destinos.", content_html)
+    html_body = _email_shell(
+        subject, "Tu cuenta en AlecTours ya está lista. Empieza a explorar destinos.", content_html
+    )
 
     return await send_email(email, subject, body, html_body)
 
@@ -647,7 +745,7 @@ Mensaje:
               </table>
     """.strip()
 
-    html_interno = _email_shell(subject_interno, f"Nuevo mensaje de {nombre} sobre \"{asunto}\".", content_interno)
+    html_interno = _email_shell(subject_interno, f'Nuevo mensaje de {nombre} sobre "{asunto}".', content_interno)
 
     # Best-effort: esta copia interna es redundante con la notificación real
     # que enviar_contacto() ya crea dentro de la plataforma (ver
@@ -696,7 +794,7 @@ El equipo de AlecTours
 
     html_confirmacion = _email_shell(
         subject_confirmacion,
-        f"Recibimos tu mensaje sobre \"{asunto}\". Un asesor te responde en menos de 2 horas hábiles.",
+        f'Recibimos tu mensaje sobre "{asunto}". Un asesor te responde en menos de 2 horas hábiles.',
         content_confirmacion,
     )
 

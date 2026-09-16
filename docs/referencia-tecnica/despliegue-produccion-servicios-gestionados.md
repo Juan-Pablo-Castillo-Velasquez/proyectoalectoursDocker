@@ -69,29 +69,33 @@ Render construye la imagen directo desde `backend/Dockerfile`, usando el stage `
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
    MAIL_USERNAME=xxxxx@smtp-brevo.com
-   MAIL_PASSWORD=<tu API key de Brevo, empieza con "xkeysib-">
+   MAIL_PASSWORD=<tu SMTP key de Brevo>
    MAIL_FROM=<el correo que verificaste en Brevo>
    MAIL_PORT=587
    MAIL_SERVER=smtp-relay.brevo.com
    MAIL_FROM_NAME=AlecTours
    MAIL_STARTTLS=True
    MAIL_SSL_TLS=False
+   BREVO_API_KEY=<tu API key de Brevo, empieza con "xkeysib-" -- OBLIGATORIA en Render Free, ver nota abajo>
    FRONTEND_URL=https://tu-proyecto.vercel.app
    CORS_ORIGINS=https://tu-proyecto.vercel.app
    CLOUDINARY_URL=cloudinary://...   (opcional)
    ```
-   Brevo es el proveedor SMTP real que usa este proyecto (plan gratis, sin
+   ⚠️ **`BREVO_API_KEY` no es opcional en el plan Free de Render.** Confirmado en el changelog oficial de Render: desde el 26 de septiembre de 2025, los servicios web gratis no pueden abrir conexiones salientes a los puertos SMTP (25, 465, 587) — así que `MAIL_SERVER=smtp-relay.brevo.com` de arriba nunca va a conectar en este plan, sin importar qué tan bien puestas estén las credenciales. `BREVO_API_KEY` hace que el backend mande los correos por la API HTTPS de Brevo (puerto 443, nunca bloqueado) en vez de por SMTP — mismo remitente, mismo proveedor, sin dar de alta nada nuevo. Es una credencial DISTINTA a `MAIL_PASSWORD`: se genera en Settings → SMTP y API → pestaña **"API Keys"** (no la pestaña "SMTP"). Detalle completo en `backend/.env.example`.
+
+   Brevo es el proveedor de correo real que usa este proyecto (plan gratis, sin
    tarjeta, 300 correos/día — de sobra para verificación de cuenta, reset
-   de contraseña y confirmaciones de reserva). Los pasos completos para
-   crear el remitente y encontrar estas credenciales están en
-   `backend/.env.example`. Cualquier otro proveedor SMTP (Gmail, SendGrid)
-   funciona igual sin tocar código — solo cambian estas variables.
+   de contraseña y confirmaciones de reserva). Cualquier otro proveedor SMTP
+   (Gmail, SendGrid) funciona igual para las variables `MAIL_*` sin tocar
+   código, pero ninguno tiene un equivalente a `BREVO_API_KEY` en este
+   proyecto — si cambias de proveedor y te quedas en Render Free, sigues
+   necesitando una salida por HTTPS en su lugar.
 7. Deploy. Render te da una URL tipo `https://alectours-backend.onrender.com` — ese es tu `VITE_API_BASE_URL` para el Paso 4.
 8. Sobre las fotos/comprobantes/banners subidos en runtime: el plan free de Render no tiene disco persistente, así que cualquier archivo guardado en `app/static/uploads` se perdería si el contenedor se reinicia. Como ya tienes `CLOUDINARY_URL` soportado en el código (`backend/app/core/config.py`), en este escenario SÍ te conviene definirlo — así las imágenes se van a Cloudinary en vez de al disco del contenedor.
 
 ### Alternativa: Railway (sin "dormir", ~$5/mes)
 
-Mismo Dockerfile, mismo target `prod`, mismas variables de entorno. La diferencia es que Railway sí ofrece disco persistente si lo necesitas, y el servicio no se duerme por inactividad. El plan Hobby da $5 de uso incluido al mes — para una app con tráfico bajo/moderado normalmente no pasas de eso.
+Mismo Dockerfile, mismo target `prod`, mismas variables de entorno. La diferencia es que Railway sí ofrece disco persistente si lo necesitas, y el servicio no se duerme por inactividad. El plan Hobby da $5 de uso incluido al mes — para una app con tráfico bajo/moderado normalmente no pasas de eso. Ventaja adicional sobre Render Free: Railway no bloquea los puertos SMTP salientes, así que `BREVO_API_KEY` es opcional aquí (podés quedarte solo con las variables `MAIL_*` de SMTP tal cual, aunque dejar `BREVO_API_KEY` puesta tampoco hace daño).
 
 1. railway.com → "New Project" → "Deploy from GitHub repo".
 2. Selecciona el repo, y en la configuración del servicio pon Root Directory `backend` y Dockerfile target `prod`.
