@@ -68,3 +68,14 @@ known-first-party = ["app"]
 # Mismo estilo que el resto del proyecto ya usa (comillas dobles en el
 # código existente) — quote-style="double" es además el default de Ruff.
 quote-style = "double"
+
+# Configuración de pytest -- Fase de reorganización de testing: los tests
+# vivían sueltos en la raíz de backend/ (test_*.py mezclados con
+# example_auth_usage.py, verify_setup.py, etc.), ahora están organizados
+# en tests/. `pythonpath` es necesario porque tests/ no tiene __init__.py
+# (a propósito, es el layout moderno recomendado por pytest) -- sin este
+# valor, `from app... import ...` fallaría al correr pytest desde
+# backend/, porque pytest solo agregaría tests/ a sys.path, no backend/.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

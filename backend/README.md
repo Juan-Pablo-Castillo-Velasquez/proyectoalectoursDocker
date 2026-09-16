@@ -44,11 +44,18 @@ backend/
 ├── alembic/
 │   └── versions/                ← 16 migraciones
 │
+├── tests/                       ← Suite de pytest (ver "Tests" abajo)
+│   ├── conftest.py               ← Fixtures compartidas (BD SQLite en memoria)
+│   ├── test_delete_exceptions.py
+│   ├── test_destino_servicio_delete.py
+│   ├── test_reservas_pagos.py
+│   └── test_verificacion_email.py
+│
 ├── Dockerfile                   ← 3 stages (base, dev, prod)
 ├── entrypoint.sh                ← Ejecuta alembic upgrade head
 ├── requirements.txt             ← Dependencias
 ├── requirements-dev.txt         ← Dependencias de desarrollo
-└── pyproject.toml               ← Configuración del proyecto
+└── pyproject.toml               ← Configuración del proyecto (incluye Ruff y pytest)
 ```
 
 ---
@@ -115,6 +122,26 @@ docker compose exec backend alembic current         # Ver actual
 docker compose exec backend alembic history          # Historial
 docker compose exec backend alembic revision --autogenerate -m "descripcion"  # Crear
 ```
+
+---
+
+## Tests
+
+Suite de pytest en `tests/`, corriendo contra SQLite en memoria (no
+necesita Postgres/Docker levantado) -- cubre excepciones de borrado por
+FK, disponibilidad/precio de reservas, idempotencia de pagos, envío de
+correos de confirmación/cancelación, y el flujo de verificación de cuenta
+por código OTP.
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -v                    # toda la suite (testpaths=tests, en pyproject.toml)
+pytest tests/test_reservas_pagos.py -v   # un solo archivo
+```
+
+CI corre exactamente esta suite (`.github/workflows/ci.yml`, job "Backend
+Unit Tests") en cada push, con un Redis real como servicio.
 
 ---
 
