@@ -1,6 +1,8 @@
 """
 Módulo de correo electrónico - Envío de emails con SMTP directo
-Configurado para Mailpit (desarrollo) — sin TLS, sin autenticación
+Desarrollo: Mailpit (sin TLS, sin autenticación).
+Producción: cualquier proveedor SMTP real (Brevo, Gmail, etc.) vía
+variables de entorno -- ver settings.MAIL_* y send_email() más abajo.
 """
 
 import contextlib
@@ -12,6 +14,26 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.core.config import settings
+
+# Paleta de marca AlecTours (la misma que --primary/--gold en theme.css,
+# ver comentario "BRAND (GRANATE AGENCIA)") -- se repite como literales
+# hex en vez de variables CSS porque los clientes de correo (Gmail,
+# Outlook, Apple Mail...) no soportan `var(--x)` de forma confiable.
+_GARNET = "#6e1832"
+_GOLD = "#b8912e"
+_BG = "#fbf8f6"
+_CARD_ALT_BG = "#f5f1ee"
+_HEADING = "#241a1f"
+_BODY_TEXT = "#4a3f41"
+_MUTED = "#73686a"
+_MUTED_LIGHT = "#a89a9d"
+_FOOTER_TEXT = "#8a7d7f"
+_SUCCESS = "#2f7d52"
+_SUCCESS_BG = "#eef7f1"
+_DANGER = "#a63a33"
+_DANGER_BG = "#fbeceb"
+_WARNING_BG = "#fbf3e2"
+_WARNING_TEXT = "#7a5f1e"
 
 
 @contextlib.contextmanager
@@ -27,8 +49,11 @@ def _forzar_dns_ipv4():
     IPv6 funcional -- si getaddrinfo() devuelve la dirección IPv6
     primero, la conexión muere de inmediato antes de intentar la IPv4
     que sí funcionaría. Forzar solo A records (IPv4) evita el problema
-    sin tocar el hostname (sigue siendo "smtp.gmail.com" para efectos
-    de la verificación TLS del certificado en starttls())."""
+    sin tocar el hostname (sigue siendo el hostname real, ej.
+    "smtp-relay.brevo.com", para efectos de la verificación TLS del
+    certificado en starttls()) -- se deja activo sin importar el
+    proveedor SMTP configurado, porque el problema es de la red de
+    Render, no de un proveedor en particular."""
     original = socket.getaddrinfo
 
     def _solo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
@@ -93,35 +118,144 @@ async def send_email(email: str, subject: str, body: str, html_body: str | None 
         return False
 
 
-async def send_welcome_email(email: str, name: str) -> bool:
+def _email_shell(subject: str, preheader: str, content_html: str) -> str:
+    """
+    Envuelve el `content_html` de cualquier correo con el mismo header
+    (logo + nombre + tagline, fondo granate) y footer de marca -- antes
+    cada función de este archivo traía su propia plantilla suelta
+    (Arial genérico, colores random como azul #007bff o verde #28a745
+    sin relación con la marca), y solo send_verification_email tenía la
+    identidad visual real de AlecTours. Ahora todas comparten esta
+    misma "cáscara", así que un cambio de marca futuro se hace en un
+    solo lugar.
+
+    `preheader` es el texto oculto que Gmail/Outlook muestran como
+    resumen junto al asunto en la bandeja de entrada, antes de abrir el
+    correo -- no reemplaza el asunto, lo complementa.
+    """
+    return f"""
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{subject}</title>
+</head>
+<body style="margin:0; padding:0; background-color:{_BG}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">
+  <div style="display:none; max-height:0; max-width:0; overflow:hidden; opacity:0; font-size:1px; line-height:1px; color:{_BG}; mso-hide:all;">
+    {preheader}
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:{_BG}; border-collapse:collapse;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:16px; overflow:hidden; border-collapse:collapse; box-shadow:0 4px 24px rgba(110,24,50,0.08);">
+
+          <tr>
+            <td style="background-color:{_GARNET}; padding:32px 40px 28px 40px;" align="center">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:14px;" valign="middle">
+                    <table role="presentation" width="44" height="44" cellpadding="0" cellspacing="0" border="0" style="width:44px; height:44px; background-color:{_GOLD}; border-radius:12px;">
+                      <tr>
+                        <td align="center" valign="middle" style="font-family:Georgia,'Times New Roman',serif; font-size:20px; font-weight:700; color:#2e2611; line-height:44px;">A</td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle" align="left">
+                    <div style="font-family:Georgia,'Times New Roman',serif; font-size:24px; font-weight:700; color:#ffffff; letter-spacing:-0.3px; line-height:1.1;">AlecTours</div>
+                    <div style="font-family:Helvetica,Arial,sans-serif; font-size:10px; font-weight:600; color:#e7b9c5; letter-spacing:1.5px; text-transform:uppercase; margin-top:4px;">Agencia de viajes y turismo</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:{_GOLD}; height:4px; line-height:4px; font-size:0;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px 40px 32px 40px; font-family:Helvetica,Arial,sans-serif;">
+{content_html}
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:{_CARD_ALT_BG}; padding:24px 40px; text-align:center;">
+              <p style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:12px; color:{_FOOTER_TEXT};">
+                Con cariño, el equipo de <strong style="color:{_GARNET};">AlecTours</strong> ✈️
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    """.strip()
+
+
+def _boton(texto: str, link: str) -> str:
+    """Botón CTA reutilizable (granate, mismo estilo en todos los correos)."""
+    return f"""
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td align="center" style="background-color:{_GARNET}; border-radius:10px;">
+                    <a href="{link}" target="_blank"
+                       style="display:inline-block; padding:14px 36px; font-family:Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
+                      {texto}
+                    </a>
+                  </td>
+                </tr>
+              </table>"""
+
+
+async def send_welcome_email(
+    email: str,
+    name: str,
+    base_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173"),
+) -> bool:
     """
     Envía un email de bienvenida a un nuevo usuario.
     """
-    subject = "Bienvenido a AlecTours"
+    subject = "¡Bienvenido a AlecTours!"
+    nombre_seguro = html.escape(name) if name else ""
 
     body = f"""
 Hola {name},
 
 ¡Bienvenido a AlecTours! Tu cuenta ha sido creada exitosamente.
 
-Ya puedes acceder a nuestra plataforma con tus credenciales.
+Ya puedes explorar destinos, armar tu itinerario y reservar hoteles y paquetes desde tu cuenta.
+
+Ingresa aquí: {base_url}/login
 
 Saludos,
 El equipo de AlecTours
     """.strip()
 
-    html_body = f"""
-<html>
-    <body style="font-family: Arial, sans-serif; margin: 20px;">
-        <h2>¡Bienvenido a AlecTours! 🎉</h2>
-        <p>Hola <strong>{name}</strong>,</p>
-        <p>Tu cuenta ha sido creada exitosamente.</p>
-        <p>Ya puedes acceder a nuestra plataforma con tus credenciales.</p>
-        <hr>
-        <p>Saludos,<br>El equipo de AlecTours</p>
-    </body>
-</html>
+    content_html = f"""
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:{_HEADING}; line-height:1.3;">
+                ¡Bienvenido a bordo, {nombre_seguro}! 🎉
+              </h1>
+              <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:{_BODY_TEXT};">
+                Tu cuenta en <strong style="color:{_GARNET};">AlecTours</strong> ya está lista. Desde ahora puedes explorar destinos, armar tu itinerario y reservar hoteles y paquetes en minutos.
+              </p>
+{_boton("Iniciar sesión", f"{base_url}/login")}
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
+                  <p style="margin:0; font-size:13px; line-height:1.6; color:{_MUTED};">
+                    🏨 Hoteles y paquetes seleccionados &nbsp;·&nbsp; 🗺️ Itinerarios a tu medida &nbsp;·&nbsp; 💳 Pago seguro en línea
+                  </p>
+                </td></tr>
+              </table>
     """.strip()
+
+    html_body = _email_shell(subject, "Tu cuenta en AlecTours ya está lista. Empieza a explorar destinos.", content_html)
 
     return await send_email(email, subject, body, html_body)
 
@@ -190,125 +324,59 @@ El equipo de AlecTours
 
     codigo_html = (
         f"""
-              <p style="margin:0 0 10px 0; font-size:13px; line-height:1.6; color:#73686a;">
+              <p style="margin:0 0 10px 0; font-size:13px; line-height:1.6; color:{_MUTED};">
                 O vuelve a la pestaña donde te registraste e ingresa este código:
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
                 <tr>
-                  <td style="background-color:#f5f1ee; border:1.5px dashed rgba(110,24,50,0.35); border-radius:10px; padding:14px 28px;">
-                    <span style="font-family:Georgia,'Times New Roman',serif; font-size:30px; font-weight:700; letter-spacing:8px; color:#6e1832;">{codigo}</span>
+                  <td style="background-color:{_CARD_ALT_BG}; border:1.5px dashed rgba(110,24,50,0.35); border-radius:10px; padding:14px 28px;">
+                    <span style="font-family:Georgia,'Times New Roman',serif; font-size:30px; font-weight:700; letter-spacing:8px; color:{_GARNET};">{codigo}</span>
                   </td>
                 </tr>
               </table>
-              <p style="margin:0 0 24px 0; font-size:12px; color:#a89a9d;">Ese código vence en 15 minutos.</p>
+              <p style="margin:0 0 24px 0; font-size:12px; color:{_MUTED_LIGHT};">Ese código vence en 15 minutos.</p>
 """
         if codigo
         else ""
     )
 
-    html_body = f"""
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
-<title>{subject}</title>
-</head>
-<body style="margin:0; padding:0; background-color:#fbf8f6; -webkit-text-size-adjust:100%; text-size-adjust:100%;">
-  <div style="display:none; max-height:0; max-width:0; overflow:hidden; opacity:0; font-size:1px; line-height:1px; color:#fbf8f6; mso-hide:all;">
-    Confirma tu correo para activar tu cuenta en AlecTours. El enlace expira en 24 horas.
-  </div>
-
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fbf8f6; border-collapse:collapse;">
-    <tr>
-      <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:16px; overflow:hidden; border-collapse:collapse; box-shadow:0 4px 24px rgba(110,24,50,0.08);">
-
-          <tr>
-            <td style="background-color:#6e1832; padding:32px 40px 28px 40px;" align="center">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td style="padding-right:14px;" valign="middle">
-                    <table role="presentation" width="44" height="44" cellpadding="0" cellspacing="0" border="0" style="width:44px; height:44px; background-color:#b8912e; border-radius:12px;">
-                      <tr>
-                        <td align="center" valign="middle" style="font-family:Georgia,'Times New Roman',serif; font-size:20px; font-weight:700; color:#2e2611; line-height:44px;">A</td>
-                      </tr>
-                    </table>
-                  </td>
-                  <td valign="middle" align="left">
-                    <div style="font-family:Georgia,'Times New Roman',serif; font-size:24px; font-weight:700; color:#ffffff; letter-spacing:-0.3px; line-height:1.1;">AlecTours</div>
-                    <div style="font-family:Helvetica,Arial,sans-serif; font-size:10px; font-weight:600; color:#e7b9c5; letter-spacing:1.5px; text-transform:uppercase; margin-top:4px;">Agencia de viajes y turismo</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color:#b8912e; height:4px; line-height:4px; font-size:0;">&nbsp;</td>
-          </tr>
-
-          <tr>
-            <td style="padding:40px 40px 32px 40px; font-family:Helvetica,Arial,sans-serif;">
-              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:#241a1f; line-height:1.3;">
+    content_html = f"""
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:{_HEADING}; line-height:1.3;">
                 Ya casi estás dentro
               </h1>
-              <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:#4a3f41;">
-                Hola{saludo_nombre_html}, gracias por crear tu cuenta en <strong style="color:#6e1832;">AlecTours</strong>. Solo falta un paso: confirma tu correo para activarla y empezar a reservar tus próximos viajes.
+              <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:{_BODY_TEXT};">
+                Hola{saludo_nombre_html}, gracias por crear tu cuenta en <strong style="color:{_GARNET};">AlecTours</strong>. Solo falta un paso: confirma tu correo para activarla y empezar a reservar tus próximos viajes.
               </p>
-
+{_boton("Verificar mi correo", verification_link)}
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
                 <tr>
-                  <td align="center" style="background-color:#6e1832; border-radius:10px;">
-                    <a href="{verification_link}" target="_blank"
-                       style="display:inline-block; padding:14px 36px; font-family:Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
-                      Verificar mi correo
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
-                <tr>
-                  <td style="background-color:#fbf3e2; border-radius:8px; padding:10px 14px;">
-                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:#7a5f1e;">⏳ Este enlace expira en 24 horas.</span>
+                  <td style="background-color:{_WARNING_BG}; border-radius:8px; padding:10px 14px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:{_WARNING_TEXT};">⏳ Este enlace expira en 24 horas.</span>
                   </td>
                 </tr>
               </table>
 {codigo_html}
-              <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#73686a;">
+              <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:{_MUTED};">
                 ¿El botón no funciona? Copia y pega este enlace en tu navegador:
               </p>
-              <p style="margin:0 0 28px 0; font-size:12px; line-height:1.5; color:#6e1832; word-break:break-all; background-color:#f5f1ee; padding:10px 12px; border-radius:8px;">
+              <p style="margin:0 0 28px 0; font-size:12px; line-height:1.5; color:{_GARNET}; word-break:break-all; background-color:{_CARD_ALT_BG}; padding:10px 12px; border-radius:8px;">
                 {verification_link}
               </p>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
-                  <p style="margin:0; font-size:12px; line-height:1.6; color:#a89a9d;">
+                  <p style="margin:0; font-size:12px; line-height:1.6; color:{_MUTED_LIGHT};">
                     Si tú no creaste esta cuenta, puedes ignorar este correo con tranquilidad -- no se activará nada sin confirmar.
                   </p>
                 </td></tr>
               </table>
-            </td>
-          </tr>
-
-          <tr>
-            <td style="background-color:#f5f1ee; padding:20px 40px; text-align:center;">
-              <p style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:12px; color:#8a7d7f;">
-                Con cariño, el equipo de <strong style="color:#6e1832;">AlecTours</strong> ✈️
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
     """.strip()
+
+    html_body = _email_shell(
+        subject,
+        "Confirma tu correo para activar tu cuenta en AlecTours. El enlace expira en 24 horas.",
+        content_html,
+    )
 
     return await send_email(email, subject, body, html_body)
 
@@ -320,30 +388,72 @@ async def send_password_reset_email(
 ) -> bool:
     reset_link = f"{base_url}/reset-password?token={reset_token}"
     subject = "Restablecer contraseña - AlecTours"
-    body = f"Haz clic aquí para restablecer tu contraseña: {reset_link}"
-    html_body = f"""
-    <html><body style="font-family: Arial, sans-serif; margin: 20px;">
-        <h2>Restablecer contraseña</h2>
-        <p>Haz clic en el botón para crear una nueva contraseña:</p>
-        <a href="{reset_link}" style="background-color: #2563EB; color: white; padding: 10px 20px;
-           text-decoration: none; border-radius: 5px; display: inline-block;">
-            Restablecer Contraseña
-        </a>
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">
-            Este enlace expirará en 24 horas.
-        </p>
-    </body></html>
-    """
+    body = f"""
+Haz clic en el siguiente enlace para crear una nueva contraseña:
+{reset_link}
+
+Este enlace expira en 24 horas. Si tú no solicitaste este cambio, ignora
+este correo -- tu contraseña actual sigue funcionando sin cambios.
+
+Saludos,
+El equipo de AlecTours
+    """.strip()
+
+    content_html = f"""
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:{_HEADING}; line-height:1.3;">
+                Restablece tu contraseña
+              </h1>
+              <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:{_BODY_TEXT};">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong style="color:{_GARNET};">AlecTours</strong>. Haz clic en el botón para crear una nueva.
+              </p>
+{_boton("Crear nueva contraseña", reset_link)}
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background-color:{_WARNING_BG}; border-radius:8px; padding:10px 14px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:{_WARNING_TEXT};">⏳ Este enlace expira en 24 horas.</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:{_MUTED};">
+                ¿El botón no funciona? Copia y pega este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 28px 0; font-size:12px; line-height:1.5; color:{_GARNET}; word-break:break-all; background-color:{_CARD_ALT_BG}; padding:10px 12px; border-radius:8px;">
+                {reset_link}
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
+                  <p style="margin:0; font-size:12px; line-height:1.6; color:{_MUTED_LIGHT};">
+                    Si tú no solicitaste este cambio, ignora este correo con tranquilidad -- tu contraseña actual sigue funcionando sin cambios.
+                  </p>
+                </td></tr>
+              </table>
+    """.strip()
+
+    html_body = _email_shell(
+        subject,
+        "Restablece tu contraseña de AlecTours. Este enlace expira en 24 horas.",
+        content_html,
+    )
+
     return await send_email(email, subject, body, html_body)
 
 
 async def send_reservation_confirmation(
-    email: str, reservation_id: int, hotel_name: str, check_in: str, check_out: str, total_price: float, guest_name: str
+    email: str,
+    reservation_id: int,
+    hotel_name: str,
+    check_in: str,
+    check_out: str,
+    total_price: float,
+    guest_name: str,
+    base_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173"),
 ) -> bool:
     """
     Envía confirmación de reserva.
     """
     subject = f"Confirmación de Reserva #{reservation_id} - AlecTours"
+    nombre_seguro = html.escape(guest_name) if guest_name else ""
+    hotel_seguro = html.escape(hotel_name) if hotel_name else ""
 
     body = f"""
 Hola {guest_name},
@@ -351,11 +461,11 @@ Hola {guest_name},
 Tu reserva ha sido confirmada.
 
 Detalles:
-- Reserva ID: {reservation_id}
+- Reserva: #{reservation_id}
 - Hotel: {hotel_name}
 - Check-in: {check_in}
 - Check-out: {check_out}
-- Total: ${total_price:.2f}
+- Total: ${total_price:,.2f}
 
 Gracias por elegir AlecTours.
 
@@ -363,45 +473,56 @@ Saludos,
 El equipo de AlecTours
     """.strip()
 
-    html_body = f"""
-<html>
-    <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
-        <h2>Confirmación de Reserva 🎉</h2>
-        <p>Hola <strong>{guest_name}</strong>,</p>
-        <p>Tu reserva ha sido confirmada exitosamente.</p>
+    content_html = f"""
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:{_HEADING}; line-height:1.3;">
+                ¡Tu reserva está confirmada! 🎉
+              </h1>
+              <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:{_BODY_TEXT};">
+                Hola <strong>{nombre_seguro}</strong>, gracias por reservar con <strong style="color:{_GARNET};">AlecTours</strong>. Aquí está el resumen de tu viaje:
+              </p>
 
-        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #007bff;">Detalles de tu Reserva</h3>
-            <table style="width: 100%; border-collapse: collapse;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0; border:1px solid #f0e5e8; border-radius:10px; overflow:hidden;">
                 <tr>
-                    <td style="padding: 8px; font-weight: bold;">Número de Reserva:</td>
-                    <td style="padding: 8px;">#{reservation_id}</td>
-                </tr>
-                <tr style="background-color: #fff;">
-                    <td style="padding: 8px; font-weight: bold;">Hotel:</td>
-                    <td style="padding: 8px;">{hotel_name}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED}; border-bottom:1px solid #f0e5e8;">Número de reserva</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right; border-bottom:1px solid #f0e5e8;">#{reservation_id}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 8px; font-weight: bold;">Check-in:</td>
-                    <td style="padding: 8px;">{check_in}</td>
-                </tr>
-                <tr style="background-color: #fff;">
-                    <td style="padding: 8px; font-weight: bold;">Check-out:</td>
-                    <td style="padding: 8px;">{check_out}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED}; border-bottom:1px solid #f0e5e8; background-color:{_CARD_ALT_BG};">🏨 Hotel</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right; border-bottom:1px solid #f0e5e8; background-color:{_CARD_ALT_BG};">{hotel_seguro}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 8px; font-weight: bold;">Total:</td>
-                    <td style="padding: 8px; color: #28a745; font-weight: bold;">${total_price:.2f}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED}; border-bottom:1px solid #f0e5e8;">📅 Check-in</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right; border-bottom:1px solid #f0e5e8;">{check_in}</td>
                 </tr>
-            </table>
-        </div>
+                <tr>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED}; background-color:{_CARD_ALT_BG};">📅 Check-out</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right; background-color:{_CARD_ALT_BG};">{check_out}</td>
+                </tr>
+              </table>
 
-        <p>Gracias por elegir AlecTours para tu próxima aventura.</p>
-        <hr>
-        <p>Saludos,<br>El equipo de AlecTours</p>
-    </body>
-</html>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px 0;">
+                <tr>
+                  <td style="background-color:{_SUCCESS_BG}; border-radius:10px; padding:14px 18px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:{_SUCCESS};">Total pagado</span><br>
+                    <span style="font-family:Georgia,'Times New Roman',serif; font-size:24px; font-weight:700; color:{_SUCCESS};">${total_price:,.2f}</span>
+                  </td>
+                </tr>
+              </table>
+{_boton("Ver mi reserva", f"{base_url}/profile")}
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
+                  <p style="margin:0; font-size:12px; line-height:1.6; color:{_MUTED_LIGHT};">
+                    Gracias por elegir AlecTours para tu próxima aventura. ¡Buen viaje! ✈️
+                  </p>
+                </td></tr>
+              </table>
     """.strip()
+
+    html_body = _email_shell(
+        subject,
+        f"Tu reserva #{reservation_id} en {hotel_name or 'AlecTours'} está confirmada.",
+        content_html,
+    )
 
     return await send_email(email, subject, body, html_body)
 
@@ -413,8 +534,9 @@ async def send_cancellation_email(
     Envía confirmación de cancelación de reserva.
     """
     subject = f"Cancelación de Reserva #{reservation_id} - AlecTours"
+    nombre_seguro = html.escape(guest_name) if guest_name else ""
 
-    refund_text = f"\nReembolso: ${refund_amount:.2f}" if refund_amount else ""
+    refund_text = f"\nReembolso: ${refund_amount:,.2f}" if refund_amount else ""
 
     body = f"""
 Hola {guest_name},
@@ -429,22 +551,47 @@ El equipo de AlecTours
     """.strip()
 
     refund_html = (
-        f'<p style="color: #28a745;">Reembolso: <strong>${refund_amount:.2f}</strong></p>' if refund_amount else ""
+        f"""
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background-color:{_SUCCESS_BG}; border-radius:10px; padding:14px 18px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:{_SUCCESS};">Reembolso</span><br>
+                    <span style="font-family:Georgia,'Times New Roman',serif; font-size:22px; font-weight:700; color:{_SUCCESS};">${refund_amount:,.2f}</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 24px 0; font-size:12px; color:{_MUTED_LIGHT};">
+                Se verá reflejado en tu método de pago original según los tiempos de tu entidad financiera.
+              </p>"""
+        if refund_amount
+        else ""
     )
 
-    html_body = f"""
-<html>
-    <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
-        <h2>Cancelación de Reserva</h2>
-        <p>Hola <strong>{guest_name}</strong>,</p>
-        <p>Tu reserva <strong>#{reservation_id}</strong> ha sido cancelada.</p>
-        {refund_html}
-        <p>Si tienes dudas, no dudes en contactarnos.</p>
-        <hr>
-        <p>Saludos,<br>El equipo de AlecTours</p>
-    </body>
-</html>
+    content_html = f"""
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;">
+                <tr>
+                  <td style="background-color:{_DANGER_BG}; border-radius:20px; padding:5px 14px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:12px; font-weight:700; color:{_DANGER}; text-transform:uppercase; letter-spacing:0.5px;">Reserva cancelada</span>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:{_HEADING}; line-height:1.3;">
+                Tu reserva #{reservation_id} fue cancelada
+              </h1>
+              <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:{_BODY_TEXT};">
+                Hola <strong>{nombre_seguro}</strong>, confirmamos que tu reserva <strong>#{reservation_id}</strong> ha sido cancelada.
+              </p>
+{refund_html}
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
+                  <p style="margin:0; font-size:13px; line-height:1.6; color:{_MUTED};">
+                    Si tienes dudas sobre esta cancelación, escríbenos desde nuestra página de contacto y con gusto te ayudamos.
+                  </p>
+                </td></tr>
+              </table>
     """.strip()
+
+    html_body = _email_shell(subject, f"Tu reserva #{reservation_id} en AlecTours fue cancelada.", content_html)
 
     return await send_email(email, subject, body, html_body)
 
@@ -454,6 +601,11 @@ async def send_contact_email(nombre: str, correo: str, asunto: str, mensaje: str
     Reenvía un mensaje del formulario de contacto a la bandeja de soporte
     y envía una confirmación de recibido al remitente.
     """
+    nombre_seguro = html.escape(nombre) if nombre else ""
+    correo_seguro = html.escape(correo) if correo else ""
+    asunto_seguro = html.escape(asunto) if asunto else ""
+    mensaje_seguro = html.escape(mensaje) if mensaje else ""
+
     # 1) Correo interno a soporte con los datos del formulario
     subject_interno = f"[Contacto Web] {asunto}"
     body_interno = f"""
@@ -467,21 +619,35 @@ Mensaje:
 {mensaje}
     """.strip()
 
-    html_interno = f"""
-<html>
-    <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
-        <h2>Nuevo mensaje de contacto</h2>
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; font-weight: bold;">Nombre:</td><td style="padding: 8px;">{nombre}</td></tr>
-            <tr style="background-color: #f5f5f5;"><td style="padding: 8px; font-weight: bold;">Correo:</td><td style="padding: 8px;">{correo}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Asunto:</td><td style="padding: 8px;">{asunto}</td></tr>
-        </table>
-        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-top: 15px;">
-            <p style="white-space: pre-wrap; margin: 0;">{mensaje}</p>
-        </div>
-    </body>
-</html>
+    content_interno = f"""
+              <h1 style="margin:0 0 20px 0; font-family:Georgia,'Times New Roman',serif; font-size:22px; font-weight:700; color:{_HEADING};">
+                📬 Nuevo mensaje de contacto
+              </h1>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px 0; border:1px solid #f0e5e8; border-radius:10px; overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED}; border-bottom:1px solid #f0e5e8;">Nombre</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right; border-bottom:1px solid #f0e5e8;">{nombre_seguro}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED}; border-bottom:1px solid #f0e5e8; background-color:{_CARD_ALT_BG};">Correo</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right; border-bottom:1px solid #f0e5e8; background-color:{_CARD_ALT_BG};">{correo_seguro}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; font-size:13px; color:{_MUTED};">Asunto</td>
+                  <td style="padding:12px 16px; font-size:13px; font-weight:700; color:{_HEADING}; text-align:right;">{asunto_seguro}</td>
+                </tr>
+              </table>
+              <p style="margin:0 0 8px 0; font-size:13px; color:{_MUTED};">Mensaje:</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:{_CARD_ALT_BG}; border-radius:10px; padding:16px;">
+                    <p style="margin:0; font-size:14px; line-height:1.6; color:{_BODY_TEXT}; white-space:pre-wrap;">{mensaje_seguro}</p>
+                  </td>
+                </tr>
+              </table>
     """.strip()
+
+    html_interno = _email_shell(subject_interno, f"Nuevo mensaje de {nombre} sobre \"{asunto}\".", content_interno)
 
     # Best-effort: esta copia interna es redundante con la notificación real
     # que enviar_contacto() ya crea dentro de la plataforma (ver
@@ -504,17 +670,35 @@ Saludos,
 El equipo de AlecTours
     """.strip()
 
-    html_confirmacion = f"""
-<html>
-    <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
-        <h2>¡Gracias por escribirnos, {nombre}! 🎉</h2>
-        <p>Hemos recibido tu mensaje sobre <strong>"{asunto}"</strong>.</p>
-        <p>Un asesor de AlecTours te responderá a este correo en menos de 2 horas hábiles.</p>
-        <hr>
-        <p>Saludos,<br>El equipo de AlecTours</p>
-    </body>
-</html>
+    content_confirmacion = f"""
+              <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; color:{_HEADING}; line-height:1.3;">
+                ¡Gracias por escribirnos, {nombre_seguro}! 🎉
+              </h1>
+              <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:{_BODY_TEXT};">
+                Hemos recibido tu mensaje sobre <strong style="color:{_GARNET};">"{asunto_seguro}"</strong>.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background-color:{_WARNING_BG}; border-radius:8px; padding:10px 14px;">
+                    <span style="font-family:Helvetica,Arial,sans-serif; font-size:13px; color:{_WARNING_TEXT};">🕑 Un asesor de AlecTours te responderá a este correo en menos de 2 horas hábiles.</span>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #f0e5e8; padding-top:20px;">
+                  <p style="margin:0; font-size:12px; line-height:1.6; color:{_MUTED_LIGHT};">
+                    Este es un resumen de tu mensaje, para que quede constancia:
+                  </p>
+                  <p style="margin:8px 0 0 0; font-size:13px; line-height:1.6; color:{_MUTED}; background-color:{_CARD_ALT_BG}; padding:12px; border-radius:8px; white-space:pre-wrap;">{mensaje_seguro}</p>
+                </td></tr>
+              </table>
     """.strip()
+
+    html_confirmacion = _email_shell(
+        subject_confirmacion,
+        f"Recibimos tu mensaje sobre \"{asunto}\". Un asesor te responde en menos de 2 horas hábiles.",
+        content_confirmacion,
+    )
 
     # Esta sí es la que de verdad le importa a la respuesta que ve el
     # cliente en el formulario -- su resultado se sigue devolviendo, pero
