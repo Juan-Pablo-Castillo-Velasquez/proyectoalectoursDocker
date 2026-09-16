@@ -46,7 +46,9 @@ def _enviar_contacto_en_hilo(nombre: str, correo: str, asunto: str, mensaje: str
         if enviado:
             print(f"[BACKGROUND] Confirmación de contacto enviada a {correo}")
         else:
-            print(f"[BACKGROUND] No se pudo enviar la confirmación de contacto a {correo} (ver 'Error al enviar email' arriba)")
+            print(
+                f"[BACKGROUND] No se pudo enviar la confirmación de contacto a {correo} (ver 'Error al enviar email' arriba)"
+            )
     except Exception as e:
         print(f"[BACKGROUND] Error enviando contacto: {str(e)}")
 

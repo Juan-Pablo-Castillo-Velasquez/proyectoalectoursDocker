@@ -73,7 +73,9 @@ def admin_get_usuarios(db: Session = Depends(get_db), _u: int = Depends(require_
 
 
 @router.post("", response_model=UsuarioAdminResponse, status_code=201)
-def admin_create_usuario(data: UsuarioAdminCreate, db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))):
+def admin_create_usuario(
+    data: UsuarioAdminCreate, db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))
+):
     if db.query(Usuario).filter(Usuario.username == data.username).first():
         raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
     if db.query(Usuario).filter(Usuario.correo_electronico == data.correo_electronico).first():
@@ -142,7 +144,9 @@ def admin_update_usuario(
 
 
 @router.delete("/{usuario_id}")
-def admin_delete_usuario(usuario_id: int, db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))):
+def admin_delete_usuario(
+    usuario_id: int, db: Session = Depends(get_db), _u: int = Depends(require_permission("usuarios.gestionar"))
+):
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -218,7 +222,9 @@ def obtener_permisos_rol(
         .all()
     ]
     total_usuarios = db.query(UsuarioRol).filter(UsuarioRol.id_rol == rol_id).count()
-    return RolConPermisosResponse(id_rol=rol.id_rol, nombre_rol=rol.nombre_rol, permisos=claves, total_usuarios=total_usuarios)
+    return RolConPermisosResponse(
+        id_rol=rol.id_rol, nombre_rol=rol.nombre_rol, permisos=claves, total_usuarios=total_usuarios
+    )
 
 
 @roles_router.put("/{rol_id}/permisos", response_model=RolConPermisosResponse)
@@ -254,7 +260,10 @@ def asignar_permisos_rol(
 
     total_usuarios = db.query(UsuarioRol).filter(UsuarioRol.id_rol == rol_id).count()
     return RolConPermisosResponse(
-        id_rol=rol.id_rol, nombre_rol=rol.nombre_rol, permisos=list(permisos_validos.keys()), total_usuarios=total_usuarios
+        id_rol=rol.id_rol,
+        nombre_rol=rol.nombre_rol,
+        permisos=list(permisos_validos.keys()),
+        total_usuarios=total_usuarios,
     )
 
 

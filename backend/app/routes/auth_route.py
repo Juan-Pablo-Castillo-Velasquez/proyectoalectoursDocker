@@ -152,9 +152,7 @@ def resend_verification(data: ResendVerificationRequest, db: Session = Depends(g
         except Exception as e:
             print(f"[ERROR] {str(e)}")
 
-    return {
-        "message": "Si el correo existe y aún no ha sido verificado, te reenviamos el código de verificación."
-    }
+    return {"message": "Si el correo existe y aún no ha sido verificado, te reenviamos el código de verificación."}
 
 
 class VerifyEmailCodeRequest(BaseModel):
