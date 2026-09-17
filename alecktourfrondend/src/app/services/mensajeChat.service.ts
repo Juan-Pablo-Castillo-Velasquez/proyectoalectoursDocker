@@ -1,5 +1,17 @@
 import { apiFetch } from "../api/v1/api";
 
+// Espejo de ReservaResumenChatResponse -- resumen mínimo de la reserva
+// etiquetada en un mensaje (ver mensaje_chat_schema.py).
+export interface ReservaResumenChat {
+  id_reserva: number;
+  nombre_paquete: string | null;
+  destino: string | null;
+  hotel_nombre: string | null;
+  estado: string;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+}
+
 // Espejo de MensajeChatResponse (backend/app/schemas/mensaje_chat_schema.py).
 export interface MensajeChat {
   id_mensaje: number;
@@ -8,6 +20,10 @@ export interface MensajeChat {
   remitente_tipo: "admin" | "cliente";
   contenido: string | null;
   imagen_url: string | null;
+  // Reserva de la que se está hablando en este mensaje, si se etiquetó una
+  // -- null si no se etiquetó ninguna, o si la reserva ya se borró.
+  id_reserva: number | null;
+  reserva: ReservaResumenChat | null;
   leido: boolean;
   fecha_envio: string | null;
   // Denormalizados por el backend (MensajeChatRepository) para no tener
@@ -15,6 +31,13 @@ export interface MensajeChat {
   remitente_nombre: string | null;
   remitente_foto: string | null;
 }
+
+// Mensajes de chat de soporte, no documentos -- mismo límite validado en
+// el backend (ver CONTENIDO_MAX_LENGTH en mensaje_chat_route.py). Vive acá
+// para que el contador/límite del textarea (ModuleMensajes.tsx,
+// TabMensajes.tsx) nunca se desincronice del valor real que exige el
+// servidor.
+export const MENSAJE_CONTENIDO_MAX_LENGTH = 500;
 
 // Espejo de HiloResumenResponse -- una fila por cliente en la bandeja
 // compartida del admin (ModuleMensajes.tsx). No existe una tabla de
@@ -39,11 +62,29 @@ export interface HilosPaginados {
   limit: number;
 }
 
-function construirFormData(contenido?: string, imagen?: File): FormData {
+function construirFormData(contenido?: string, imagen?: File, idReserva?: number): FormData {
   const fd = new FormData();
   if (contenido) fd.append("contenido", contenido);
   if (imagen) fd.append("imagen", imagen);
+  if (idReserva != null) fd.append("id_reserva", String(idReserva));
   return fd;
+}
+
+// Opciones de paginación de un hilo -- afterId para polling incremental
+// (mensajes nuevos), beforeId para cargar historial anterior. El backend
+// rechaza combinar ambos en la misma petición (ver _validar_after_before
+// en mensaje_chat_route.py), así que nunca se pasan juntos desde acá.
+interface OpcionesHilo {
+  afterId?: number;
+  beforeId?: number;
+}
+
+function construirQueryHilo(opts?: OpcionesHilo): string {
+  const params = new URLSearchParams();
+  if (opts?.afterId != null) params.set("after_id", String(opts.afterId));
+  if (opts?.beforeId != null) params.set("before_id", String(opts.beforeId));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
 }
 
 // Chat privado admin<->cliente (con capturas vía Cloudinary) -- un solo
@@ -65,25 +106,22 @@ export const mensajeChatService = {
     return apiFetch<HilosPaginados>(`/mensajes/hilos${qs ? `?${qs}` : ""}`);
   },
 
-  getHilo: (idCliente: number, afterId?: number) =>
-    apiFetch<MensajeChat[]>(
-      `/mensajes/hilos/${idCliente}${afterId != null ? `?after_id=${afterId}` : ""}`,
-    ),
+  getHilo: (idCliente: number, opts?: OpcionesHilo) =>
+    apiFetch<MensajeChat[]>(`/mensajes/hilos/${idCliente}${construirQueryHilo(opts)}`),
 
-  enviarComoAdmin: (idCliente: number, contenido?: string, imagen?: File) => {
-    const fd = construirFormData(contenido, imagen);
+  enviarComoAdmin: (idCliente: number, contenido?: string, imagen?: File, idReserva?: number) => {
+    const fd = construirFormData(contenido, imagen, idReserva);
     fd.append("id_cliente", String(idCliente));
     return apiFetch<MensajeChat>("/mensajes/enviar", { method: "POST", body: fd });
   },
 
   // ── Cliente (su propio hilo) ─────────────────────────────────────────
-  getMiHilo: (afterId?: number) =>
-    apiFetch<MensajeChat[]>(`/mensajes/me${afterId != null ? `?after_id=${afterId}` : ""}`),
+  getMiHilo: (opts?: OpcionesHilo) => apiFetch<MensajeChat[]>(`/mensajes/me${construirQueryHilo(opts)}`),
 
-  enviarComoCliente: (contenido?: string, imagen?: File) =>
+  enviarComoCliente: (contenido?: string, imagen?: File, idReserva?: number) =>
     apiFetch<MensajeChat>("/mensajes/me/enviar", {
       method: "POST",
-      body: construirFormData(contenido, imagen),
+      body: construirFormData(contenido, imagen, idReserva),
     }),
 
   // ── Compartidos por ambos roles ──────────────────────────────────────
