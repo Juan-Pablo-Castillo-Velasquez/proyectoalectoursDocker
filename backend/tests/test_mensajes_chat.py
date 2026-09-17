@@ -16,6 +16,7 @@ compartida por toda la suite.
 
 import asyncio
 import io
+from datetime import date
 
 import pytest
 from fastapi import HTTPException, UploadFile
@@ -24,6 +25,7 @@ from starlette.datastructures import Headers
 from app.core.security import generate_token_pair
 from app.models.cliente_model import Cliente
 from app.models.mensaje_chat_model import MensajeChat
+from app.models.reserva_model import Reserva
 from app.models.user_model import Usuario
 from app.routes import mensaje_chat_route
 
@@ -84,6 +86,24 @@ def _crear_empleado_sin_cliente(db, username="empleado_test"):
 
 def _token_bearer(id_usuario: int, roles: list[str]) -> str:
     return f"Bearer {generate_token_pair(id_usuario, roles)['access_token']}"
+
+
+def _crear_reserva(db, cliente, estado="pendiente"):
+    """Reserva mínima -- sin paquete/habitaciones (ambos opcionales), igual
+    al helper ya usado en test_reservas_pagos.py. Alcanza para probar el
+    etiquetado de mensajes, que solo necesita id_reserva/id_cliente/estado
+    reales."""
+    reserva = Reserva(
+        id_cliente=cliente.id_cliente,
+        numero_personas=2,
+        estado=estado,
+        fecha_inicio=date(2026, 12, 1),
+        fecha_fin=date(2026, 12, 5),
+    )
+    db.add(reserva)
+    db.commit()
+    db.refresh(reserva)
+    return reserva
 
 
 class TestEnvioDeMensajes:
@@ -212,11 +232,15 @@ class TestHilosYPollingIncremental:
             mensaje_chat_route.enviar_como_cliente(contenido="Respondo", imagen=None, db=db, current_user=usuario_b)
         )
 
-        hilos = mensaje_chat_route.get_hilos(db=db, admin_id=admin.id_usuario)
+        resultado = mensaje_chat_route.get_hilos(search=None, skip=0, limit=20, db=db, admin_id=admin.id_usuario)
+        hilos = resultado["items"]
 
         assert hilos[0]["id_cliente"] == cliente_b.id_cliente  # el hilo con actividad más reciente va primero
         assert hilos[0]["no_leidos"] == 1
         assert hilos[1]["no_leidos"] == 0
+        assert resultado["total"] == 2
+        assert resultado["skip"] == 0
+        assert resultado["limit"] == 20
 
     def test_after_id_devuelve_solo_los_mensajes_posteriores(self, db):
         """Contrato exacto que usa el polling incremental del frontend
@@ -318,3 +342,116 @@ class TestCascadaDeEliminacion:
 
         mensajes_restantes = db.query(MensajeChat).filter(MensajeChat.id_cliente == cliente.id_cliente).all()
         assert mensajes_restantes == []
+
+
+class TestReservaAsociada:
+    def test_mensaje_con_reserva_incluye_su_resumen(self, db):
+        cliente, usuario = _crear_cliente_con_usuario(db)
+        reserva = _crear_reserva(db, cliente)
+
+        resultado = asyncio.run(
+            mensaje_chat_route.enviar_como_cliente(
+                contenido="Es sobre esta reserva", imagen=None, id_reserva=reserva.id_reserva, db=db,
+                current_user=usuario,
+            )
+        )
+
+        assert resultado["id_reserva"] == reserva.id_reserva
+        assert resultado["reserva"]["id_reserva"] == reserva.id_reserva
+        assert resultado["reserva"]["estado"] == "pendiente"
+        assert resultado["reserva"]["fecha_inicio"] == date(2026, 12, 1)
+
+    def test_admin_puede_etiquetar_su_respuesta_con_la_misma_reserva(self, db):
+        cliente, _usuario = _crear_cliente_con_usuario(db)
+        admin = _crear_admin(db)
+        reserva = _crear_reserva(db, cliente)
+
+        resultado = asyncio.run(
+            mensaje_chat_route.enviar_como_admin(
+                id_cliente=cliente.id_cliente, contenido="Ya la reviso", imagen=None,
+                id_reserva=reserva.id_reserva, db=db, admin_id=admin.id_usuario,
+            )
+        )
+
+        assert resultado["id_reserva"] == reserva.id_reserva
+
+    def test_mensaje_sin_reserva_sigue_funcionando_igual_que_antes(self, db):
+        """No romper el comportamiento previo: id_reserva es opcional."""
+        _cliente, usuario = _crear_cliente_con_usuario(db)
+
+        resultado = asyncio.run(
+            mensaje_chat_route.enviar_como_cliente(contenido="Sin reserva", imagen=None, db=db, current_user=usuario)
+        )
+
+        assert resultado["id_reserva"] is None
+        assert resultado["reserva"] is None
+
+    def test_no_se_puede_etiquetar_con_la_reserva_de_otro_cliente(self, db):
+        cliente_a, usuario_a = _crear_cliente_con_usuario(db, cedula="1000000001")
+        cliente_b, _usuario_b = _crear_cliente_con_usuario(db, cedula="1000000002")
+        reserva_de_b = _crear_reserva(db, cliente_b)
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                mensaje_chat_route.enviar_como_cliente(
+                    contenido="Intento adivinar el id", imagen=None, id_reserva=reserva_de_b.id_reserva, db=db,
+                    current_user=usuario_a,
+                )
+            )
+        assert exc_info.value.status_code == 404
+
+    def test_reserva_inexistente_es_rechazada(self, db):
+        _cliente, usuario = _crear_cliente_con_usuario(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                mensaje_chat_route.enviar_como_cliente(
+                    contenido="Reserva que no existe", imagen=None, id_reserva=999999, db=db, current_user=usuario
+                )
+            )
+        assert exc_info.value.status_code == 404
+
+
+class TestBusquedaYPaginacionDeHilos:
+    def test_busqueda_filtra_por_nombre_parcial(self, db):
+        admin = _crear_admin(db)
+        cliente_ana, _u1 = _crear_cliente_con_usuario(db, cedula="1000000001")
+        cliente_ana.nombre, cliente_ana.apellido = "Ana", "Gómez"
+        cliente_luis, _u2 = _crear_cliente_con_usuario(db, cedula="1000000002")
+        cliente_luis.nombre, cliente_luis.apellido = "Luis", "Pérez"
+        db.commit()
+
+        asyncio.run(
+            mensaje_chat_route.enviar_como_admin(
+                id_cliente=cliente_ana.id_cliente, contenido="hola Ana", imagen=None, db=db, admin_id=admin.id_usuario
+            )
+        )
+        asyncio.run(
+            mensaje_chat_route.enviar_como_admin(
+                id_cliente=cliente_luis.id_cliente, contenido="hola Luis", imagen=None, db=db,
+                admin_id=admin.id_usuario,
+            )
+        )
+
+        resultado = mensaje_chat_route.get_hilos(search="ana", skip=0, limit=20, db=db, admin_id=admin.id_usuario)
+
+        assert resultado["total"] == 1
+        assert resultado["items"][0]["id_cliente"] == cliente_ana.id_cliente
+
+    def test_paginacion_respeta_skip_y_limit(self, db):
+        admin = _crear_admin(db)
+        clientes = [_crear_cliente_con_usuario(db, cedula=f"100000000{i}")[0] for i in range(3)]
+        for cliente in clientes:
+            asyncio.run(
+                mensaje_chat_route.enviar_como_admin(
+                    id_cliente=cliente.id_cliente, contenido="hola", imagen=None, db=db, admin_id=admin.id_usuario
+                )
+            )
+
+        primera_pagina = mensaje_chat_route.get_hilos(search=None, skip=0, limit=2, db=db, admin_id=admin.id_usuario)
+        segunda_pagina = mensaje_chat_route.get_hilos(search=None, skip=2, limit=2, db=db, admin_id=admin.id_usuario)
+
+        assert primera_pagina["total"] == 3
+        assert len(primera_pagina["items"]) == 2
+        assert segunda_pagina["total"] == 3
+        assert len(segunda_pagina["items"]) == 1

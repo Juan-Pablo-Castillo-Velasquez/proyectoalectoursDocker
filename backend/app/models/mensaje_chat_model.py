@@ -10,6 +10,11 @@ por fecha_envio.
 envio -- asi, contar no-leidos y marcar-como-leido siempre filtran por
 remitente_tipo OPUESTO al rol que pregunta, sin necesitar una segunda
 tabla de "lecturas por usuario" (ver MensajeChatRepository).
+
+Un mensaje puede etiquetarse opcionalmente con la reserva de la que se
+esta hablando (id_reserva, nullable) -- no cambia el diseño de "un solo
+hilo por cliente": la reserva es solo una etiqueta sobre un mensaje del
+MISMO hilo, nunca crea un hilo nuevo.
 """
 
 from sqlalchemy import TIMESTAMP, Boolean, Column, ForeignKey, Index, Integer, String
@@ -37,11 +42,18 @@ class MensajeChat(Base):
     # app/core/image_storage.py, resuelto igual que foto_perfil/comprobante_url
     # (ver resolveFotoUrl en el frontend).
     imagen_url = Column(String, nullable=True)
+    # Reserva de la que se esta hablando en este mensaje -- opcional, no
+    # crea un hilo nuevo (sigue siendo "un solo hilo por cliente"). SET
+    # NULL: si la reserva se borra, el mensaje sobrevive sin la etiqueta,
+    # misma convencion que Reserva.id_empleado (FK opcional) en
+    # reserva_model.py.
+    id_reserva = Column(Integer, ForeignKey("reservas.id_reserva", ondelete="SET NULL"), nullable=True)
     leido = Column(Boolean, nullable=False, default=False)
     fecha_envio = Column(TIMESTAMP, server_default=func.now())
 
     cliente = relationship("Cliente")
     remitente = relationship("Usuario")
+    reserva = relationship("Reserva")
 
     __table_args__ = (
         # Cubre tanto "contar no-leidos de tipo X para este cliente" como

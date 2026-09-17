@@ -4,11 +4,12 @@ hay tabla de "hilo" separada, el hilo de un cliente es "todos los
 MensajeChat con ese id_cliente" -- ver app/models/mensaje_chat_model.py.
 """
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.cliente_model import Cliente
 from app.models.mensaje_chat_model import MensajeChat
+from app.models.reserva_model import Reserva
 from app.models.user_model import Usuario
 
 
@@ -24,6 +25,29 @@ def _remitente_nombre_y_foto(db: Session, mensaje: MensajeChat) -> tuple[str, st
     return usuario.username, usuario.foto_perfil
 
 
+def _reserva_resumen(db: Session, id_reserva: int | None) -> dict | None:
+    """Resumen mínimo de la reserva etiquetada en un mensaje, reutilizando
+    las properties ya calculadas en el modelo Reserva (nombre_paquete,
+    destino, hotel_nombre) -- nunca se reimplementa esa lógica aquí. None
+    si el mensaje no tiene reserva asociada, o si la tenía y esa reserva ya
+    no existe (id_reserva quedó en NULL por el ondelete="SET NULL" de la
+    FK)."""
+    if id_reserva is None:
+        return None
+    reserva = db.query(Reserva).filter(Reserva.id_reserva == id_reserva).first()
+    if not reserva:
+        return None
+    return {
+        "id_reserva": reserva.id_reserva,
+        "nombre_paquete": reserva.nombre_paquete,
+        "destino": reserva.destino,
+        "hotel_nombre": reserva.hotel_nombre,
+        "estado": reserva.estado,
+        "fecha_inicio": reserva.fecha_inicio,
+        "fecha_fin": reserva.fecha_fin,
+    }
+
+
 def _a_response_dict(db: Session, mensaje: MensajeChat) -> dict:
     nombre, foto = _remitente_nombre_y_foto(db, mensaje)
     return {
@@ -33,6 +57,8 @@ def _a_response_dict(db: Session, mensaje: MensajeChat) -> dict:
         "remitente_tipo": mensaje.remitente_tipo,
         "contenido": mensaje.contenido,
         "imagen_url": mensaje.imagen_url,
+        "id_reserva": mensaje.id_reserva,
+        "reserva": _reserva_resumen(db, mensaje.id_reserva),
         "leido": mensaje.leido,
         "fecha_envio": mensaje.fecha_envio,
         "remitente_nombre": nombre,
@@ -42,11 +68,17 @@ def _a_response_dict(db: Session, mensaje: MensajeChat) -> dict:
 
 class MensajeChatRepository:
     @staticmethod
-    def get_hilos(db: Session) -> list[dict]:
-        """Bandeja compartida del admin: un cliente por fila (solo los que
-        ya tienen al menos un mensaje), ordenados por fecha del último
-        mensaje descendente, con su conteo de no-leídos (mensajes del
-        propio cliente que ningún admin ha marcado como leídos todavía)."""
+    def get_hilos(db: Session, *, search: str | None = None, skip: int = 0, limit: int = 20) -> tuple[list[dict], int]:
+        """Bandeja compartida del admin, paginada y con búsqueda opcional
+        por nombre/apellido/correo del cliente (contrato skip/limit, mismo
+        que reserva_route.py -- nunca page/page_size). Un cliente por fila
+        (solo los que ya tienen al menos un mensaje), ordenados por fecha
+        del último mensaje descendente.
+
+        El conteo de no-leídos se resuelve con UNA sola consulta agrupada
+        para toda la página, nunca con una consulta por fila -- la versión
+        anterior de este método hacía exactamente eso (N+1: una query de
+        conteo por cada cliente de la bandeja)."""
         ultimo_por_cliente = (
             db.query(
                 MensajeChat.id_cliente,
@@ -56,36 +88,55 @@ class MensajeChatRepository:
             .subquery()
         )
 
-        filas = (
+        query = (
             db.query(MensajeChat, Cliente)
             .join(ultimo_por_cliente, MensajeChat.id_mensaje == ultimo_por_cliente.c.ultimo_id)
             .join(Cliente, Cliente.id_cliente == MensajeChat.id_cliente)
-            .order_by(MensajeChat.fecha_envio.desc())
-            .all()
         )
 
-        resultado = []
-        for ultimo_mensaje, cliente in filas:
-            no_leidos = (
-                db.query(func.count(MensajeChat.id_mensaje))
+        if search:
+            patron = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Cliente.nombre.ilike(patron),
+                    Cliente.apellido.ilike(patron),
+                    Cliente.correo.ilike(patron),
+                )
+            )
+
+        total = query.count()
+
+        filas = query.order_by(MensajeChat.fecha_envio.desc()).offset(skip).limit(limit).all()
+
+        # Una sola consulta agrupada por id_cliente, filtrada solo a los
+        # clientes de ESTA página -- reemplaza el conteo por fila de antes.
+        ids_pagina = [cliente.id_cliente for _, cliente in filas]
+        no_leidos_por_cliente: dict[int, int] = {}
+        if ids_pagina:
+            conteos = (
+                db.query(MensajeChat.id_cliente, func.count(MensajeChat.id_mensaje))
                 .filter(
-                    MensajeChat.id_cliente == cliente.id_cliente,
+                    MensajeChat.id_cliente.in_(ids_pagina),
                     MensajeChat.remitente_tipo == "cliente",
                     MensajeChat.leido.is_(False),
                 )
-                .scalar()
+                .group_by(MensajeChat.id_cliente)
+                .all()
             )
-            resultado.append(
-                {
-                    "id_cliente": cliente.id_cliente,
-                    "cliente_nombre": f"{cliente.nombre} {cliente.apellido}",
-                    "cliente_foto": cliente.foto_perfil,
-                    "ultimo_mensaje": ultimo_mensaje.contenido or ("📷 Imagen" if ultimo_mensaje.imagen_url else None),
-                    "ultimo_mensaje_fecha": ultimo_mensaje.fecha_envio,
-                    "no_leidos": no_leidos or 0,
-                }
-            )
-        return resultado
+            no_leidos_por_cliente = dict(conteos)
+
+        items = [
+            {
+                "id_cliente": cliente.id_cliente,
+                "cliente_nombre": f"{cliente.nombre} {cliente.apellido}",
+                "cliente_foto": cliente.foto_perfil,
+                "ultimo_mensaje": ultimo_mensaje.contenido or ("📷 Imagen" if ultimo_mensaje.imagen_url else None),
+                "ultimo_mensaje_fecha": ultimo_mensaje.fecha_envio,
+                "no_leidos": no_leidos_por_cliente.get(cliente.id_cliente, 0),
+            }
+            for ultimo_mensaje, cliente in filas
+        ]
+        return items, total
 
     @staticmethod
     def get_mensajes(db: Session, id_cliente: int, after_id: int | None = None, limit: int = 50) -> list[dict]:
@@ -113,6 +164,7 @@ class MensajeChatRepository:
         remitente_tipo: str,
         contenido: str | None,
         imagen_url: str | None,
+        id_reserva: int | None = None,
     ) -> dict:
         mensaje = MensajeChat(
             id_cliente=id_cliente,
@@ -120,6 +172,7 @@ class MensajeChatRepository:
             remitente_tipo=remitente_tipo,
             contenido=contenido,
             imagen_url=imagen_url,
+            id_reserva=id_reserva,
         )
         db.add(mensaje)
         db.commit()

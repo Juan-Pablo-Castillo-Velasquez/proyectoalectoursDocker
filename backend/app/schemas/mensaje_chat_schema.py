@@ -1,6 +1,24 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
+
+
+class ReservaResumenChatResponse(BaseModel):
+    """Resumen mínimo de la reserva etiquetada en un mensaje -- reutiliza
+    las properties ya calculadas en el modelo Reserva (nombre_paquete,
+    destino, hotel_nombre) en vez de reimplementar esa lógica aquí (ver
+    MensajeChatRepository._reserva_resumen)."""
+
+    id_reserva: int
+    nombre_paquete: str | None = None
+    destino: str | None = None
+    hotel_nombre: str | None = None
+    estado: str
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+
+    class Config:
+        from_attributes = True
 
 
 class MensajeChatResponse(BaseModel):
@@ -10,6 +28,12 @@ class MensajeChatResponse(BaseModel):
     remitente_tipo: str
     contenido: str | None = None
     imagen_url: str | None = None
+    id_reserva: int | None = None
+    # None si el mensaje no tiene reserva asociada, o si la tenía y esa
+    # reserva ya se borró (id_reserva queda en NULL por el ondelete="SET
+    # NULL" de la FK) -- nunca se rompe la respuesta por una reserva
+    # eliminada.
+    reserva: ReservaResumenChatResponse | None = None
     leido: bool
     fecha_envio: datetime | None = None
     # Denormalizados para la UI (resueltos en el repositorio, no acá --
@@ -37,3 +61,14 @@ class HiloResumenResponse(BaseModel):
 
 class ConteoNoLeidosResponse(BaseModel):
     no_leidos: int
+
+
+class HilosPaginadosResponse(BaseModel):
+    """Página de la bandeja compartida del admin (GET /hilos) -- mismo
+    contrato skip/limit que ya usa el resto del proyecto (ver
+    reserva_route.py), nunca page/page_size."""
+
+    items: list[HiloResumenResponse]
+    total: int
+    skip: int
+    limit: int

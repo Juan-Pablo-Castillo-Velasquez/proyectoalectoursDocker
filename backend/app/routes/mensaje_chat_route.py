@@ -23,9 +23,14 @@ from app.core.deps import get_current_usuario, usuario_es_admin
 from app.core.file_validation import validar_y_leer_archivo
 from app.core.image_storage import guardar_imagen
 from app.core.security import require_admin
+from app.models.reserva_model import Reserva
 from app.models.user_model import Usuario
 from app.repositories.mensaje_chat_repository import MensajeChatRepository
-from app.schemas.mensaje_chat_schema import ConteoNoLeidosResponse, HiloResumenResponse, MensajeChatResponse
+from app.schemas.mensaje_chat_schema import (
+    ConteoNoLeidosResponse,
+    HilosPaginadosResponse,
+    MensajeChatResponse,
+)
 
 router = APIRouter(prefix="/api/mensajes", tags=["Mensajes"])
 
@@ -53,6 +58,18 @@ def _validar_contenido_o_imagen(contenido: str | None, imagen: UploadFile | None
         raise HTTPException(status_code=400, detail="El mensaje necesita texto o una imagen.")
 
 
+def _validar_reserva_del_cliente(db: Session, id_reserva: int | None, id_cliente: int) -> None:
+    """Si se etiqueta un mensaje con una reserva, esa reserva debe ser DEL
+    MISMO cliente del hilo -- nunca se confía en el id_reserva del body sin
+    verificar propiedad primero (evita que alguien etiquete un mensaje con
+    la reserva de otro cliente adivinando su id)."""
+    if id_reserva is None:
+        return
+    reserva = db.query(Reserva).filter(Reserva.id_reserva == id_reserva).first()
+    if not reserva or reserva.id_cliente != id_cliente:
+        raise HTTPException(status_code=404, detail="La reserva indicada no existe o no pertenece a este cliente.")
+
+
 async def _guardar_imagen_chat(imagen: UploadFile) -> str:
     contenido, extension = await validar_y_leer_archivo(
         imagen,
@@ -66,13 +83,22 @@ async def _guardar_imagen_chat(imagen: UploadFile) -> str:
 # ===================== ADMIN (bandeja compartida) =====================
 
 
-@router.get("/hilos", response_model=list[HiloResumenResponse])
-def get_hilos(db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
-    """Todos los clientes con hilo, ordenados por mensaje más reciente --
-    lo que alimenta la bandeja de ModuleMensajes.tsx (polling ~8-10s). Sin
+@router.get("/hilos", response_model=HilosPaginadosResponse)
+def get_hilos(
+    search: str | None = Query(None, description="Filtra por nombre, apellido o correo del cliente"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Clientes con hilo, ordenados por mensaje más reciente, paginados y
+    con búsqueda opcional -- lo que alimenta la bandeja de
+    ModuleMensajes.tsx (polling ~8-10s). Mismo contrato skip/limit que el
+    resto del proyecto (ver reserva_route.py), nunca page/page_size. Sin
     caché: es una vista administrativa que debe reflejar mensajes nuevos
     de inmediato, no contenido público de alto tráfico."""
-    return MensajeChatRepository.get_hilos(db)
+    items, total = MensajeChatRepository.get_hilos(db, search=search, skip=skip, limit=limit)
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/hilos/{id_cliente}", response_model=list[MensajeChatResponse])
@@ -90,10 +116,12 @@ async def enviar_como_admin(
     id_cliente: int = Form(...),
     contenido: str | None = Form(None),
     imagen: UploadFile | None = File(None),
+    id_reserva: int | None = Form(None, description="Reserva de la que se está hablando, opcional"),
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
 ):
     _validar_contenido_o_imagen(contenido, imagen)
+    _validar_reserva_del_cliente(db, id_reserva, id_cliente)
     imagen_url = await _guardar_imagen_chat(imagen) if imagen is not None else None
     return MensajeChatRepository.crear_mensaje(
         db,
@@ -102,6 +130,7 @@ async def enviar_como_admin(
         remitente_tipo="admin",
         contenido=contenido,
         imagen_url=imagen_url,
+        id_reserva=id_reserva,
     )
 
 
@@ -125,11 +154,13 @@ def get_mi_hilo(
 async def enviar_como_cliente(
     contenido: str | None = Form(None),
     imagen: UploadFile | None = File(None),
+    id_reserva: int | None = Form(None, description="Reserva de la que se está hablando, opcional"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
 ):
     id_cliente = _exigir_cliente(current_user)
     _validar_contenido_o_imagen(contenido, imagen)
+    _validar_reserva_del_cliente(db, id_reserva, id_cliente)
     imagen_url = await _guardar_imagen_chat(imagen) if imagen is not None else None
     return MensajeChatRepository.crear_mensaje(
         db,
@@ -138,6 +169,7 @@ async def enviar_como_cliente(
         remitente_tipo="cliente",
         contenido=contenido,
         imagen_url=imagen_url,
+        id_reserva=id_reserva,
     )
 
 
