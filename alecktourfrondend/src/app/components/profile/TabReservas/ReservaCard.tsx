@@ -1,4 +1,4 @@
-import { ChevronRight, MapPin, Plane, Share2, Users } from "lucide-react";
+import { ChevronRight, MapPin, MessageCircle, Plane, Share2, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { forwardRef } from "react";
 import { toast } from "sonner";
@@ -15,6 +15,11 @@ interface Props {
   solicitudMotivo?: string;
   onSolicitarCancelacion: () => void;
   onDejarResena: () => void;
+  /** Lleva a la pestaña Mensajes con esta reserva ya preseleccionada en el
+   * composer -- para no obligar al cliente a explicar de cero de qué
+   * reserva habla. Opcional: si Profile.tsx no lo pasa, el botón simplemente
+   * no aparece. */
+  onHablarDeReserva?: () => void;
   /** fecha de referencia "hoy" (medianoche local), viene del padre */
   hoy: Date;
 }
@@ -27,6 +32,7 @@ const ReservaCard = forwardRef<HTMLDivElement, Props>(function ReservaCard(
     solicitudMotivo,
     onSolicitarCancelacion,
     onDejarResena,
+    onHablarDeReserva,
     hoy,
   },
   ref,
@@ -171,6 +177,16 @@ const ReservaCard = forwardRef<HTMLDivElement, Props>(function ReservaCard(
                 className="px-3 py-1.5 border border-primary/30 text-primary text-xs font-medium rounded-lg hover:bg-primary/5 transition-all cursor-pointer"
               >
                 Dejar reseña
+              </button>
+            )}
+
+            {onHablarDeReserva && (
+              <button
+                onClick={onHablarDeReserva}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border text-muted-foreground text-xs font-medium rounded-lg hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Hablar de esta reserva
               </button>
             )}
           </div>

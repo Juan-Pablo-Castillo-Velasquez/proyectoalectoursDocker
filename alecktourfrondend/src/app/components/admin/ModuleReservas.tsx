@@ -249,9 +249,13 @@ interface SidePanelProps {
   onClose: () => void;
   onDelete: (id: number) => void;
   onUpdateEstado: (id: number, estado: EstadoReserva) => Promise<void>;
+  /** Lleva a Módulo Pagos ya filtrado por esta reserva -- ver "reserva ->
+   * ver sus pagos" en Admindashboard.tsx. Opcional: sin él, el enlace
+   * "Ver en Pagos" simplemente no aparece. */
+  onVerPagos?: (id: number) => void;
 }
 
-function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReserva = [], reservasClienteCount, onClose, onDelete, onUpdateEstado }: SidePanelProps) {
+function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReserva = [], reservasClienteCount, onClose, onDelete, onUpdateEstado, onVerPagos }: SidePanelProps) {
   const solicitudPendiente = solicitudesReserva.find(s => s.estado === "pendiente");
 
   // reserva.precio_total ya viene calculado real desde el backend
@@ -603,7 +607,18 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
 
           {/* Financiero */}
           <section>
-            <h3 className={section}><CreditCard className="w-3.5 h-3.5" /> Pago</h3>
+            <h3 className={section}>
+              <CreditCard className="w-3.5 h-3.5" /> Pago
+              {onVerPagos && (
+                <button
+                  type="button"
+                  onClick={() => onVerPagos(reserva.id_reserva)}
+                  className="ml-auto normal-case text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+                >
+                  Ver en Pagos <ChevronRight className="w-3 h-3" />
+                </button>
+              )}
+            </h3>
             <div className={card}>
               {totalReal > 0 && (
                 <div className="mb-3">
@@ -878,11 +893,18 @@ interface Props {
    * canceladas") — deja el filtro de estado pre-aplicado en vez de que el
    * admin tenga que volver a elegirlo. Mismo criterio que `reservaIdInicial`. */
   estadoInicial?: string | null;
+  /** Cuando el Dashboard navega acá desde "Ver sus reservas" en Clientes --
+   * deja la tabla filtrada a las reservas de ese cliente, con un chip para
+   * quitar el filtro. Mismo criterio que `reservaIdInicial`/`estadoInicial`. */
+  clienteIdFiltro?: number | null;
+  /** "Ver en Pagos" del detalle de una reserva -- ver SidePanelProps.onVerPagos. */
+  onVerPagos?: (id: number) => void;
 }
 
 export default function ModuleReservas({
   reservas, clientes = [], empleados = [], paquetes = [], pagos = [], solicitudes = [],
   onDelete, onNueva, onUpdateEstado, reservaIdInicial = null, estadoInicial = null,
+  clienteIdFiltro = null, onVerPagos,
 }: Props) {
   const [search,       setSearch]       = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
@@ -904,6 +926,23 @@ export default function ModuleReservas({
       setEstadoFilter(estadoInicial as EstadoFilter);
     }
   }, [estadoInicial]);
+  // Ver comentario de `clienteIdFiltro` en Props -- filtro EXACTO por
+  // id_cliente (no una búsqueda de texto), para no depender de que el
+  // nombre del cliente sea único ni de escribirlo a mano.
+  const [clienteFiltroActivo, setClienteFiltroActivo] = useState<number | null>(null);
+  useEffect(() => {
+    if (clienteIdFiltro != null) setClienteFiltroActivo(clienteIdFiltro);
+  }, [clienteIdFiltro]);
+
+  // Nombre del cliente filtrado (para el chip "Filtrando por cliente" --
+  // ver comentario de `clienteIdFiltro` en Props). null si no hay filtro
+  // activo o el cliente no está en la lista cargada.
+  const clienteFiltroNombre = clienteFiltroActivo == null
+    ? null
+    : (() => {
+        const c = clientes.find(c => c.id_cliente === clienteFiltroActivo);
+        return c ? `${c.nombre} ${c.apellido}` : null;
+      })();
   const [hiddenCols,   setHiddenCols]   = useState<Set<ColumnKey>>(new Set(DEFAULT_HIDDEN));
 
   const isVisible = (key: ColumnKey) => !hiddenCols.has(key);
@@ -940,11 +979,12 @@ export default function ModuleReservas({
   const selectedReserva = reservas.find(r => r.id_reserva === selectedId) ?? null;
 
   const hasActiveFilters = estadoFilter !== "todos" || pagoFilter !== "todos"
-    || canalFilter !== "todos" || asesorFilter !== "todos" || search.trim() !== "";
+    || canalFilter !== "todos" || asesorFilter !== "todos" || search.trim() !== ""
+    || clienteFiltroActivo != null;
 
   function clearFilters() {
     setSearch(""); setEstadoFilter("todos"); setPagoFilter("todos");
-    setCanalFilter("todos"); setAsesorFilter("todos");
+    setCanalFilter("todos"); setAsesorFilter("todos"); setClienteFiltroActivo(null);
   }
 
   const filtered = reservas.filter(r => {
@@ -960,12 +1000,13 @@ export default function ModuleReservas({
       : asesorFilter === "sin_asesor"
         ? r.id_empleado == null
         : String(r.id_empleado) === asesorFilter;
+    const matchCliente = clienteFiltroActivo == null || r.id_cliente === clienteFiltroActivo;
     const matchSearch = !q
       || String(r.id_reserva).includes(q)
       || (cl && `${cl.nombre} ${cl.apellido}`.toLowerCase().includes(q))
       || (pk && pk.nombre_paquete.toLowerCase().includes(q))
       || r.estado.includes(q);
-    return matchEstado && matchPago && matchCanal && matchAsesor && matchSearch;
+    return matchEstado && matchPago && matchCanal && matchAsesor && matchCliente && matchSearch;
   });
 
   const { page, pageCount, slice, setPage } = usePagination(filtered, 10);
@@ -1087,6 +1128,20 @@ export default function ModuleReservas({
             ))}
           </SelectContent>
         </Select>
+
+        {clienteFiltroNombre && (
+          <span className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-full">
+            Cliente: {clienteFiltroNombre}
+            <button
+              type="button"
+              onClick={() => setClienteFiltroActivo(null)}
+              className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+              aria-label="Quitar filtro de cliente"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
 
         {hasActiveFilters && (
           <button
@@ -1312,6 +1367,7 @@ export default function ModuleReservas({
           solicitudesReserva={solicitudes.filter(sc => sc.id_reserva === selectedReserva.id_reserva)}
           reservasClienteCount={reservas.filter(r => r.id_cliente === selectedReserva.id_cliente).length}
           onClose={() => setSelectedId(null)}
+          onVerPagos={onVerPagos}
           onDelete={(id) => { onDelete(id); setSelectedId(null); }}
           onUpdateEstado={onUpdateEstado}
         />

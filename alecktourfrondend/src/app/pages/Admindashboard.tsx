@@ -125,6 +125,34 @@ export default function AdminDashboard() {
     setActiveModule(mod);
   };
 
+  // Deep-links entre módulos relacionados (brief: "en las reservas ver
+  // pagos que lleve, ver reserva, cosas asi") -- mismo mecanismo que
+  // `verReserva`/`irAModuloConFiltro` arriba, uno por cada botón real que
+  // ModuleReservas.tsx / ModulePagos.tsx / ModuleClientes.tsx exponen.
+  const [clienteIdFiltroReservas, setClienteIdFiltroReservas] = useState<number | null>(null);
+  const verReservasDeCliente = (idCliente: number) => {
+    setClienteIdFiltroReservas(idCliente);
+    setActiveModule("reservas");
+  };
+
+  const [clienteIdFiltroPagos, setClienteIdFiltroPagos] = useState<number | null>(null);
+  const verPagosDeCliente = (idCliente: number) => {
+    setClienteIdFiltroPagos(idCliente);
+    setActiveModule("pagos");
+  };
+
+  const [reservaIdFiltroPagos, setReservaIdFiltroPagos] = useState<number | null>(null);
+  const verPagosDeReserva = (idReserva: number) => {
+    setReservaIdFiltroPagos(idReserva);
+    setActiveModule("pagos");
+  };
+
+  const [clienteIdParaMensajes, setClienteIdParaMensajes] = useState<number | null>(null);
+  const verMensajesDeCliente = (idCliente: number) => {
+    setClienteIdParaMensajes(idCliente);
+    setActiveModule("mensajes");
+  };
+
   // ─── Dark mode via clase en <html> ───────────────────────────────────────
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -700,6 +728,8 @@ export default function AdminDashboard() {
         onUpdateEstado={updateEstadoReserva}
         reservaIdInicial={reservaParaAbrir}
         estadoInicial={estadoReservaInicial}
+        clienteIdFiltro={clienteIdFiltroReservas}
+        onVerPagos={verPagosDeReserva}
       />
     ),
     "crear-reserva": (
@@ -715,6 +745,9 @@ export default function AdminDashboard() {
       <ModuleClientes
         clientes={clientes} onDelete={deleteCliente} onSubmit={submitCliente} loading={loading}
         reservas={reservas} solicitudes={solicitudes}
+        onVerReservas={verReservasDeCliente}
+        onVerPagos={verPagosDeCliente}
+        onVerMensajes={verMensajesDeCliente}
       />
     ),
     usuarios: (
@@ -749,6 +782,8 @@ export default function AdminDashboard() {
         onUploadComprobante={uploadComprobantePago} onDeleteComprobante={deleteComprobantePago}
         onVerReserva={verReserva}
         estadoInicial={estadoPagoInicial}
+        clienteIdFiltro={clienteIdFiltroPagos}
+        reservaIdFiltro={reservaIdFiltroPagos}
       />
     ),
     notificaciones: (
@@ -813,7 +848,13 @@ export default function AdminDashboard() {
     // Autosuficiente (fetch + polling propios, ver ModuleMensajes.tsx) --
     // mismo criterio que ModuleConfiguracion, no necesita estado de este
     // componente padre.
-    mensajes: <ModuleMensajes />,
+    mensajes: (
+      <ModuleMensajes
+        reservas={reservas} clientes={clientes}
+        clienteIdInicial={clienteIdParaMensajes}
+        onVerReserva={verReserva}
+      />
+    ),
   };
 
   const usuarioInicial = usuario?.username?.[0]?.toUpperCase() ?? "A";

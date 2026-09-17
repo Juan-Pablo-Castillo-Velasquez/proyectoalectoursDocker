@@ -31,6 +31,10 @@ interface Props {
   // esta pestaña (p.ej. desde la campana de notificaciones) en vez de que
   // el cliente tenga que buscarla manualmente en la lista.
   reservaIdInicial?: number | null;
+  // "Hablar de esta reserva" en ReservaCard -- lo implementa Profile.tsx
+  // llevando al cliente a la pestaña Mensajes con esta reserva
+  // preseleccionada. Opcional: sin él, el botón de ReservaCard no aparece.
+  onHablarDeReserva?: (idReserva: number) => void;
 }
 
 export default function TabReservas({
@@ -38,6 +42,7 @@ export default function TabReservas({
   loading,
   clienteData,
   reservaIdInicial = null,
+  onHablarDeReserva,
 }: Props) {
   const [modalReserva, setModalReserva] = useState<any | null>(null);
   const [modalResena, setModalResena] = useState<any | null>(null);
@@ -210,6 +215,7 @@ export default function TabReservas({
                   solicitudMotivo={solicitadas[reserva.id_reserva]}
                   onSolicitarCancelacion={() => setModalReserva(reserva)}
                   onDejarResena={() => setModalResena(reserva)}
+                  onHablarDeReserva={onHablarDeReserva ? () => onHablarDeReserva(reserva.id_reserva) : undefined}
                   hoy={hoy}
                 />
               ))}

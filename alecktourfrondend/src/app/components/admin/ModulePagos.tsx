@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Search, Trash2, Wallet, CheckCircle, Clock, XCircle, CreditCard,
   Pencil, AlertCircle, Save, FileText, Paperclip, Upload,
-  Mail, Phone, User, ArrowUpRight,
+  Mail, Phone, User, ArrowUpRight, X,
 } from "lucide-react";
 import { Pago, Reserva, Cliente, labelCls, resolveFotoUrl } from "./types";
 import { generarFacturaPdf } from "../../utils/generarFacturaPdf";
@@ -66,6 +66,15 @@ interface Props {
    * Dashboard navega acá desde una tarjeta de KPI (ej. "Pagos pendientes"),
    * deja el filtro de estado pre-aplicado. */
   estadoInicial?: string | null;
+  /** Cuando el Dashboard navega acá desde "Ver sus pagos" en Clientes --
+   * deja la tabla filtrada a los pagos de las reservas de ese cliente, con
+   * un chip para quitar el filtro. Mismo criterio que `clienteIdFiltro` en
+   * ModuleReservas.tsx. */
+  clienteIdFiltro?: number | null;
+  /** Cuando el Dashboard navega acá desde "Ver en Pagos" del detalle de una
+   * reserva (ver `onVerPagos` en ModuleReservas.tsx) -- deja la tabla
+   * filtrada a los pagos de esa reserva puntual. */
+  reservaIdFiltro?: number | null;
 }
 
 // Centro de pagos del admin: KPIs reales (recaudado, pendientes, rechazados
@@ -80,6 +89,7 @@ interface Props {
 export default function ModulePagos({
   pagos, reservas = [], clientes = [], metodos = [], onUpdateEstado, onDelete,
   onUploadComprobante, onDeleteComprobante, onVerReserva, estadoInicial = null,
+  clienteIdFiltro = null, reservaIdFiltro = null,
 }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
@@ -90,6 +100,17 @@ export default function ModulePagos({
       setEstadoFilter(estadoInicial as EstadoFilter);
     }
   }, [estadoInicial]);
+
+  // Ver comentario de `clienteIdFiltro`/`reservaIdFiltro` en Props -- filtro
+  // EXACTO (no búsqueda de texto) que llega desde otro módulo.
+  const [clienteFiltroActivo, setClienteFiltroActivo] = useState<number | null>(null);
+  useEffect(() => {
+    if (clienteIdFiltro != null) setClienteFiltroActivo(clienteIdFiltro);
+  }, [clienteIdFiltro]);
+  const [reservaFiltroActivo, setReservaFiltroActivo] = useState<number | null>(null);
+  useEffect(() => {
+    if (reservaIdFiltro != null) setReservaFiltroActivo(reservaIdFiltro);
+  }, [reservaIdFiltro]);
   const [metodoFilter, setMetodoFilter] = useState("todos");
   const [editing, setEditing] = useState<Pago | null>(null);
   const [nuevoEstado, setNuevoEstado] = useState<PagoEstado>("pendiente");
@@ -132,18 +153,33 @@ export default function ModulePagos({
     const q = search.toLowerCase();
     const matchEstado = estadoFilter === "todos" || p.estado === estadoFilter;
     const matchMetodo = metodoFilter === "todos" || p.metodo_pago?.nombre_metodo === metodoFilter;
+    const matchCliente = clienteFiltroActivo == null || reserva?.id_cliente === clienteFiltroActivo;
+    const matchReserva = reservaFiltroActivo == null || p.id_reserva === reservaFiltroActivo;
     const matchSearch = !q
       || String(p.id_pago).includes(q)
       || String(p.id_reserva).includes(q)
       || (p.referencia ?? "").toLowerCase().includes(q)
       || (cliente && `${cliente.nombre} ${cliente.apellido}`.toLowerCase().includes(q));
-    return matchEstado && matchMetodo && matchSearch;
+    return matchEstado && matchMetodo && matchCliente && matchReserva && matchSearch;
   });
 
   const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
 
-  const hasActiveFilters = estadoFilter !== "todos" || metodoFilter !== "todos" || search.trim() !== "";
-  function clearFilters() { setSearch(""); setEstadoFilter("todos"); setMetodoFilter("todos"); }
+  const hasActiveFilters = estadoFilter !== "todos" || metodoFilter !== "todos" || search.trim() !== ""
+    || clienteFiltroActivo != null || reservaFiltroActivo != null;
+  function clearFilters() {
+    setSearch(""); setEstadoFilter("todos"); setMetodoFilter("todos");
+    setClienteFiltroActivo(null); setReservaFiltroActivo(null);
+  }
+
+  // Nombre del cliente filtrado, para el chip "Filtrando por cliente" --
+  // ver comentario de `clienteIdFiltro` en Props.
+  const clienteFiltroNombre = clienteFiltroActivo == null
+    ? null
+    : (() => {
+        const c = clienteMap[clienteFiltroActivo];
+        return c ? `${c.nombre} ${c.apellido}` : null;
+      })();
 
   // KPIs reales — nunca un porcentaje o total inventado, solo agregaciones
   // sobre el arreglo `pagos` que ya llega del backend.
@@ -258,6 +294,34 @@ export default function ModulePagos({
               ))}
             </SelectContent>
           </Select>
+        )}
+
+        {clienteFiltroNombre && (
+          <span className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-full">
+            Cliente: {clienteFiltroNombre}
+            <button
+              type="button"
+              onClick={() => setClienteFiltroActivo(null)}
+              className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+              aria-label="Quitar filtro de cliente"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
+
+        {reservaFiltroActivo != null && (
+          <span className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-full">
+            Reserva #{reservaFiltroActivo}
+            <button
+              type="button"
+              onClick={() => setReservaFiltroActivo(null)}
+              className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+              aria-label="Quitar filtro de reserva"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
         )}
 
         {hasActiveFilters && (

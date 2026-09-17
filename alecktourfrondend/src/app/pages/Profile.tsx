@@ -43,6 +43,15 @@ export default function Profile() {
   const [reservaIdInicial, setReservaIdInicial] = useState<number | null>(
     () => (location.state as { reservaId?: number } | null)?.reservaId ?? null,
   );
+  // "Hablar de esta reserva" (ReservaCard, dentro de TabReservas) -- lleva
+  // al cliente a la pestaña Mensajes con esa reserva ya preseleccionada en
+  // el composer. Separado de `reservaIdInicial` (que abre el detalle EN
+  // TabReservas) para que no se pisen si el cliente vuelve a esa pestaña.
+  const [reservaIdParaMensaje, setReservaIdParaMensaje] = useState<number | null>(null);
+  const hablarDeReserva = (idReserva: number) => {
+    setReservaIdParaMensaje(idReserva);
+    setActiveTab("mensajes");
+  };
   const [reservas, setReservas] = useState<ReservaResponse[]>([]);
   const [preferencias, setPreferencias] = useState<PreferenciaResponse | null>(
     null,
@@ -165,6 +174,7 @@ export default function Profile() {
                     loading={loading}
                     clienteData={clienteData}
                     reservaIdInicial={reservaIdInicial}
+                    onHablarDeReserva={hablarDeReserva}
                   />
                 </motion.div>
               )}
@@ -187,7 +197,7 @@ export default function Profile() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <TabMensajes />
+                  <TabMensajes reservas={reservas} reservaIdInicial={reservaIdParaMensaje} />
                 </motion.div>
               )}
               {activeTab === "preferencias" && (

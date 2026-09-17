@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Users, MapPin, Globe,
-  CreditCard, ChevronRight, AlertCircle, Heart,
+  CreditCard, ChevronRight, AlertCircle, Heart, CalendarDays,
+  Wallet, MessageCircle,
 } from "lucide-react";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
 import { preferenciasService, type PreferenciaResponse } from "../../services/preferencias.service";
@@ -56,10 +57,18 @@ interface Props {
   // inventa un historial si no llega la data.
   reservas?: Reserva[];
   solicitudes?: SolicitudCancelacionResponse[];
+  /** Accesos rápidos desde el perfil del cliente a sus otras pantallas --
+   * ver `clienteIdFiltro` en ModuleReservas.tsx/ModulePagos.tsx y
+   * `clienteIdInicial` en ModuleMensajes.tsx. Sin ellos (Admindashboard no
+   * los pasa) el perfil simplemente no muestra estos botones. */
+  onVerReservas?: (idCliente: number) => void;
+  onVerPagos?: (idCliente: number) => void;
+  onVerMensajes?: (idCliente: number) => void;
 }
 
 export default function ModuleClientes({
   clientes, onDelete, onSubmit, loading, reservas = [], solicitudes = [],
+  onVerReservas, onVerPagos, onVerMensajes,
 }: Props) {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
@@ -402,6 +411,38 @@ export default function ModuleClientes({
           description={`Cédula ${profile.cedula}`}
           maxWidth="sm:max-w-2xl"
         >
+          {(onVerReservas || onVerPagos || onVerMensajes) && (
+            <div className="flex items-center gap-2 flex-wrap mb-5 -mt-1">
+              {onVerReservas && (
+                <button
+                  type="button"
+                  onClick={() => onVerReservas(profile.id_cliente)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border text-muted-foreground text-xs font-medium rounded-lg hover:bg-muted hover:text-foreground transition-all"
+                >
+                  <CalendarDays className="w-3.5 h-3.5" /> Ver sus reservas
+                </button>
+              )}
+              {onVerPagos && (
+                <button
+                  type="button"
+                  onClick={() => onVerPagos(profile.id_cliente)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border text-muted-foreground text-xs font-medium rounded-lg hover:bg-muted hover:text-foreground transition-all"
+                >
+                  <Wallet className="w-3.5 h-3.5" /> Ver sus pagos
+                </button>
+              )}
+              {onVerMensajes && (
+                <button
+                  type="button"
+                  onClick={() => onVerMensajes(profile.id_cliente)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border text-muted-foreground text-xs font-medium rounded-lg hover:bg-muted hover:text-foreground transition-all"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> Ver mensajes
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-6">
             <section>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Datos de contacto</h4>

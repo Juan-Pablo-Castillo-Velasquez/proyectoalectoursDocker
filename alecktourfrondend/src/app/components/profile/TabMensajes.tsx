@@ -1,42 +1,105 @@
-import { useEffect, useRef, useState } from "react";
-import { Image as ImageIcon, Loader2, MessageCircle, Send, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CalendarDays,
+  ChevronUp,
+  CreditCard,
+  HelpCircle,
+  Image as ImageIcon,
+  Loader2,
+  MessageCircle,
+  Receipt,
+  Send,
+  UserRound,
+  X,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { resolveFotoUrl, inputCls } from "../admin/types";
-import { mensajeChatService, type MensajeChat } from "../../services/mensajeChat.service";
+import {
+  MENSAJE_CONTENIDO_MAX_LENGTH,
+  mensajeChatService,
+  type MensajeChat,
+} from "../../services/mensajeChat.service";
+import type { ReservaResponse } from "../../data/reservaTypes";
+import { fmt } from "./TabReservas/utils";
 
 // Chat privado con el equipo de AlecTours -- un solo hilo continuo (no uno
 // por reserva); cualquier admin puede responder. Solo polling cada 5s
 // (sin websockets, mismo criterio que ModuleMensajes.tsx del panel admin).
 const POLL_MENSAJES_MS = 5000;
+// Mismo límite que devuelve MensajeChatRepository.get_mensajes por defecto
+// (backend) -- si la carga trae exactamente este número, asumimos que
+// puede haber más historial antes y mostramos "Cargar mensajes anteriores".
+const LIMITE_HISTORIAL = 50;
 
-export default function TabMensajes() {
+const CATEGORIAS_INICIALES = [
+  { icon: UserRound, label: "Problema con mi cuenta", texto: "Tengo un problema con mi cuenta: " },
+  { icon: CalendarDays, label: "Problema con una reserva", texto: "Tengo un problema con una reserva: " },
+  { icon: Receipt, label: "Problema de facturación", texto: "Tengo un problema de facturación: " },
+  { icon: CreditCard, label: "Problema con un pago", texto: "Tengo un problema con un pago: " },
+  { icon: HelpCircle, label: "Otra consulta", texto: "" },
+] as const;
+
+function etiquetaReserva(r: ReservaResponse): string {
+  const nombre = r.nombre_paquete || (r.hotel_nombre ? `Estadía en ${r.hotel_nombre}` : `Reserva #${r.id_reserva}`);
+  return `${nombre} · ${fmt(r.fecha_inicio)}`;
+}
+
+interface Props {
+  // Reservas del propio cliente (mismas que ya carga Profile.tsx para
+  // TabReservas) -- alimenta el selector "¿de qué reserva hablas?" sin
+  // pedirlas de nuevo al backend. Sin ellas, el chat sigue funcionando
+  // igual, solo sin selector.
+  reservas?: ReservaResponse[];
+  // Deep-link desde "Hablar de esta reserva" en TabReservas -- preselecciona
+  // esa reserva en el composer al entrar a esta pestaña.
+  reservaIdInicial?: number | null;
+}
+
+export default function TabMensajes({ reservas = [], reservaIdInicial = null }: Props) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [loading, setLoading] = useState(true);
   const [texto, setTexto] = useState("");
   const [imagen, setImagen] = useState<File | null>(null);
+  const [idReservaSeleccionada, setIdReservaSeleccionada] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [imagenAmpliada, setImagenAmpliada] = useState<string | undefined>(undefined);
+  const [hayMasAnteriores, setHayMasAnteriores] = useState(false);
+  const [cargandoAnteriores, setCargandoAnteriores] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mensajesRef = useRef<MensajeChat[]>([]);
   mensajesRef.current = mensajes;
 
   useEffect(() => {
     mensajeChatService
       .getMiHilo()
-      .then(setMensajes)
+      .then((data) => {
+        setMensajes(data);
+        setHayMasAnteriores(data.length >= LIMITE_HISTORIAL);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
     // Abrir la pestaña ya cuenta como "leer" los mensajes del admin.
     mensajeChatService.marcarLeido().catch(() => {});
   }, []);
 
+  // "Hablar de esta reserva" (TabReservas) -- preselecciona la reserva y
+  // deja el cursor listo para escribir, sin pisar lo que el cliente ya
+  // hubiera escrito si vuelve a pasar por acá.
+  useEffect(() => {
+    if (reservaIdInicial == null) return;
+    setIdReservaSeleccionada(reservaIdInicial);
+    setTexto((actual) => (actual ? actual : "Quiero hablar sobre esta reserva: "));
+    textareaRef.current?.focus();
+  }, [reservaIdInicial]);
+
   useEffect(() => {
     const interval = setInterval(async () => {
       const actuales = mensajesRef.current;
       const ultimoId = actuales.length ? actuales[actuales.length - 1].id_mensaje : undefined;
       try {
-        const nuevos = await mensajeChatService.getMiHilo(ultimoId);
+        const nuevos = await mensajeChatService.getMiHilo({ afterId: ultimoId });
         if (nuevos.length > 0) {
           setMensajes((prev) => [...prev, ...nuevos]);
           if (nuevos.some((m) => m.remitente_tipo === "admin")) {
@@ -54,16 +117,50 @@ export default function TabMensajes() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [mensajes.length]);
 
+  const cargarAnteriores = async () => {
+    if (mensajes.length === 0 || cargandoAnteriores) return;
+    const contenedor = scrollRef.current;
+    const scrollHeightAntes = contenedor?.scrollHeight ?? 0;
+    setCargandoAnteriores(true);
+    try {
+      const anteriores = await mensajeChatService.getMiHilo({ beforeId: mensajes[0].id_mensaje });
+      setHayMasAnteriores(anteriores.length >= LIMITE_HISTORIAL);
+      if (anteriores.length > 0) {
+        setMensajes((prev) => [...anteriores, ...prev]);
+        // Mantiene la posición visual del scroll -- sin esto, insertar
+        // mensajes arriba deja al cliente viendo un punto distinto del hilo.
+        requestAnimationFrame(() => {
+          if (contenedor) contenedor.scrollTop = contenedor.scrollHeight - scrollHeightAntes;
+        });
+      }
+    } catch {
+      // se puede reintentar con el mismo botón
+    } finally {
+      setCargandoAnteriores(false);
+    }
+  };
+
   const limpiarImagen = () => {
     setImagen(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const excedeLimite = texto.length > MENSAJE_CONTENIDO_MAX_LENGTH;
+
+  const usarPlantilla = (textoInicial: string) => {
+    setTexto(textoInicial);
+    textareaRef.current?.focus();
+  };
+
   const enviar = async () => {
-    if (!texto.trim() && !imagen) return;
+    if ((!texto.trim() && !imagen) || excedeLimite) return;
     setEnviando(true);
     try {
-      const nuevo = await mensajeChatService.enviarComoCliente(texto.trim() || undefined, imagen ?? undefined);
+      const nuevo = await mensajeChatService.enviarComoCliente(
+        texto.trim() || undefined,
+        imagen ?? undefined,
+        idReservaSeleccionada ?? undefined,
+      );
       setMensajes((prev) => [...prev, nuevo]);
       setTexto("");
       limpiarImagen();
@@ -73,6 +170,11 @@ export default function TabMensajes() {
       setEnviando(false);
     }
   };
+
+  const reservaSeleccionada = useMemo(
+    () => reservas.find((r) => r.id_reserva === idReservaSeleccionada) ?? null,
+    [reservas, idReservaSeleccionada],
+  );
 
   return (
     <div>
@@ -96,48 +198,120 @@ export default function TabMensajes() {
                 <div className="h-full flex flex-col items-center justify-center text-center">
                   <MessageCircle className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" />
                   <h3 className="text-base font-bold text-foreground tracking-tight">Aún no tienes mensajes</h3>
-                  <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-1">
-                    Escríbenos si tienes dudas sobre alguna reserva -- te responderá el equipo de AlecTours.
+                  <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-1 mb-4">
+                    Cuéntanos qué necesitas -- te responderá el equipo de AlecTours.
                   </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 max-w-sm">
+                    {CATEGORIAS_INICIALES.map(({ icon: Icon, label, texto: textoPlantilla }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => usarPlantilla(textoPlantilla)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/40 text-xs font-medium text-foreground hover:bg-muted hover:border-primary/40 transition-colors"
+                      >
+                        <Icon className="w-3.5 h-3.5 text-primary" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                mensajes.map((m) => (
-                  <div key={m.id_mensaje} className={`flex ${m.remitente_tipo === "cliente" ? "justify-end" : "justify-start"}`}>
-                    <div className="max-w-[80%] sm:max-w-[70%] flex flex-col gap-1">
-                      {m.remitente_tipo === "admin" && (
-                        <span className="text-[11px] text-muted-foreground px-1">{m.remitente_nombre ?? "AlecTours"}</span>
-                      )}
-                      <div
-                        className={`rounded-2xl px-3.5 py-2.5 ${
-                          m.remitente_tipo === "cliente"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground"
-                        }`}
+                <>
+                  {hayMasAnteriores && (
+                    <div className="flex justify-center pb-1">
+                      <button
+                        type="button"
+                        onClick={cargarAnteriores}
+                        disabled={cargandoAnteriores}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                       >
-                        {m.imagen_url && (
-                          <img
-                            src={resolveFotoUrl(m.imagen_url)}
-                            alt="Captura enviada"
-                            className="rounded-lg mb-1.5 max-h-56 object-cover cursor-pointer"
-                            onClick={() => setImagenAmpliada(resolveFotoUrl(m.imagen_url))}
-                          />
+                        {cargandoAnteriores ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ChevronUp className="w-3.5 h-3.5" />
                         )}
-                        {m.contenido && <p className="text-sm whitespace-pre-wrap break-words">{m.contenido}</p>}
-                        <p
-                          className={`text-[10px] mt-1 ${
-                            m.remitente_tipo === "cliente" ? "text-primary-foreground/70" : "text-muted-foreground"
+                        Cargar mensajes anteriores
+                      </button>
+                    </div>
+                  )}
+                  {mensajes.map((m) => (
+                    <div key={m.id_mensaje} className={`flex ${m.remitente_tipo === "cliente" ? "justify-end" : "justify-start"}`}>
+                      <div className="max-w-[80%] sm:max-w-[70%] flex flex-col gap-1">
+                        {m.remitente_tipo === "admin" && (
+                          <span className="text-[11px] text-muted-foreground px-1">{m.remitente_nombre ?? "AlecTours"}</span>
+                        )}
+                        <div
+                          className={`rounded-2xl px-3.5 py-2.5 ${
+                            m.remitente_tipo === "cliente"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground"
                           }`}
                         >
-                          {m.fecha_envio
-                            ? new Date(m.fecha_envio).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
-                            : ""}
-                        </p>
+                          {m.reserva && (
+                            <p
+                              className={`inline-flex items-center gap-1 text-[10px] font-semibold mb-1.5 px-1.5 py-0.5 rounded-full ${
+                                m.remitente_tipo === "cliente"
+                                  ? "bg-primary-foreground/15 text-primary-foreground"
+                                  : "bg-primary/10 text-primary"
+                              }`}
+                            >
+                              <CalendarDays className="w-3 h-3" />
+                              {m.reserva.nombre_paquete || m.reserva.hotel_nombre || `Reserva #${m.reserva.id_reserva}`}
+                            </p>
+                          )}
+                          {m.imagen_url && (
+                            <img
+                              src={resolveFotoUrl(m.imagen_url)}
+                              alt="Captura enviada"
+                              className="rounded-lg mb-1.5 max-h-56 object-cover cursor-pointer"
+                              onClick={() => setImagenAmpliada(resolveFotoUrl(m.imagen_url))}
+                            />
+                          )}
+                          {m.contenido && <p className="text-sm whitespace-pre-wrap break-words">{m.contenido}</p>}
+                          <p
+                            className={`text-[10px] mt-1 ${
+                              m.remitente_tipo === "cliente" ? "text-primary-foreground/70" : "text-muted-foreground"
+                            }`}
+                          >
+                            {m.fecha_envio
+                              ? new Date(m.fecha_envio).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
+                              : ""}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
             </div>
+
+            {reservas.length > 0 && (
+              <div className="px-5 pt-2.5 flex items-center gap-2 flex-wrap border-t border-border/60">
+                <span className="text-[11px] text-muted-foreground">¿De qué reserva hablas? (opcional)</span>
+                <select
+                  value={idReservaSeleccionada ?? ""}
+                  onChange={(e) => setIdReservaSeleccionada(e.target.value ? Number(e.target.value) : null)}
+                  className="text-xs bg-muted/40 border border-border rounded-lg px-2 py-1 text-foreground outline-none focus:ring-2 focus:ring-primary/40 max-w-[220px]"
+                >
+                  <option value="">Ninguna reserva en particular</option>
+                  {reservas.map((r) => (
+                    <option key={r.id_reserva} value={r.id_reserva}>
+                      {etiquetaReserva(r)}
+                    </option>
+                  ))}
+                </select>
+                {reservaSeleccionada && (
+                  <button
+                    type="button"
+                    onClick={() => setIdReservaSeleccionada(null)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    title="Quitar reserva"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
 
             {imagen && (
               <div className="px-5 pt-2 flex items-center gap-2">
@@ -164,22 +338,30 @@ export default function TabMensajes() {
               >
                 <ImageIcon className="w-4 h-4" />
               </button>
-              <textarea
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    enviar();
-                  }
-                }}
-                placeholder="Escribe un mensaje..."
-                rows={1}
-                className={`${inputCls} resize-none flex-1`}
-              />
+              <div className="flex-1 flex flex-col gap-1">
+                <textarea
+                  ref={textareaRef}
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      enviar();
+                    }
+                  }}
+                  placeholder="Escribe un mensaje..."
+                  rows={1}
+                  className={`${inputCls} resize-none w-full`}
+                />
+                {texto.length > MENSAJE_CONTENIDO_MAX_LENGTH * 0.8 && (
+                  <span className={`text-[10px] self-end ${excedeLimite ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                    {texto.length}/{MENSAJE_CONTENIDO_MAX_LENGTH}
+                  </span>
+                )}
+              </div>
               <button
                 onClick={enviar}
-                disabled={enviando || (!texto.trim() && !imagen)}
+                disabled={enviando || excedeLimite || (!texto.trim() && !imagen)}
                 className="p-2.5 rounded-xl bg-primary text-primary-foreground disabled:opacity-40 transition-all flex-shrink-0"
                 title="Enviar"
                 type="button"
