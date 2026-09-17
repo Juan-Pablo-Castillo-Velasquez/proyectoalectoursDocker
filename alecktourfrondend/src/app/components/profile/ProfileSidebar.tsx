@@ -178,19 +178,21 @@ export default function ProfileSidebar({
           </div>
         )}
 
-        {/* Próximo Viaje Destacado en Oscuro Distintivo */}
+        {/* Próximo Viaje -- tarjeta clara con acento de marca (antes era un
+            bloque sólido bg-primary de pared a pared; el color ahora vive
+            solo en el ícono/etiqueta, igual que el resto de la sidebar). */}
         {proximaReserva && (
-          <div className="bg-primary dark:bg-muted text-primary-foreground dark:text-foreground rounded-xl p-3.5 mb-4 border border-primary/30 dark:border-border shadow-sm">
-            <div className="flex items-center gap-1.5 mb-1.5 text-gold dark:text-primary">
+          <div className="bg-primary/8 rounded-xl p-3.5 mb-4 border border-primary/20">
+            <div className="flex items-center gap-1.5 mb-1.5 text-primary">
               <Plane className="w-3.5 h-3.5 transform rotate-45" />
               <span className="text-[10px] font-bold uppercase tracking-widest">
                 Próximo viaje
               </span>
             </div>
-            <p className="text-sm font-bold tracking-tight text-primary-foreground dark:text-foreground">
+            <p className="text-sm font-bold tracking-tight text-foreground">
               Paquete #{proximaReserva.id_paquete}
             </p>
-            <p className="text-xs text-primary-foreground/70 dark:text-muted-foreground mt-0.5 font-medium">
+            <p className="text-xs text-muted-foreground mt-0.5 font-medium">
               {new Date(proximaReserva.fecha_inicio).toLocaleDateString(
                 "es-CO",
                 { day: "numeric", month: "short" },

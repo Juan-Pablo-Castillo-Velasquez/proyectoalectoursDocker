@@ -126,8 +126,12 @@ export default function Profile() {
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
       <Navbar />
 
-      {/* ── Banner Superior con la identidad Granate Agencia ── */}
-      <div className="banner-textured h-40 relative">
+      {/* ── Banner Superior con la identidad Granate Agencia --
+          más bajo que antes (h-28 en vez de h-40) para que el peso visual
+          de la página lo lleve el contenido real (itinerario, reservas),
+          no una franja sólida de color -- ver el mismo criterio aplicado
+          en HeaderResumen.tsx / ProfileSidebar.tsx. ── */}
+      <div className="banner-textured h-28 relative">
         <div className="absolute inset-0 bg-black/5 dark:bg-black/20" />
         {/* Efectos sutiles de fondo para aportar dinamismo visual */}
         <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-white/5 blur-2xl pointer-events-none" />
@@ -144,7 +148,7 @@ export default function Profile() {
       </div>
 
       {/* ── Contenedor Principal ── */}
-      <div className="max-w-7xl mx-auto px-4 -mt-16 pb-16 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 -mt-10 pb-16 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Barra Lateral de Usuario */}
           <aside className="lg:col-span-1">
