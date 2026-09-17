@@ -218,15 +218,17 @@ export const ESTADO_COLOR: Record<string, string> = {
   finalizada: "bg-[#A13B55]/15 text-[#A13B55]",
   // Estados de pagos (Pago.estado) y solicitudes de cancelación
   // (SolicitudCancelacion.estado) — mismos tokens de marca, para que
-  // StatusBadge se vea consistente sin importar el dominio.
+  // StatusBadge se vea consistente sin importar el dominio. pagado/aprobada/
+  // activo usan --success (antes emerald-500 suelto, sin relación con la
+  // paleta ni con el resto de estados "positivos" del panel).
   procesando: "bg-[#C9A227]/15 text-[#C9A227]",
-  pagado: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  pagado: "bg-success/10 text-success",
   rechazado: "bg-destructive/10 text-destructive",
   rechazada: "bg-destructive/10 text-destructive",
-  aprobada: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  aprobada: "bg-success/10 text-success",
   cancelado: "bg-destructive/10 text-destructive",
   // Estados de Usuario.activo
-  activo: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  activo: "bg-success/10 text-success",
   inactivo: "bg-muted text-muted-foreground",
   // Estados de Usuario.verificado (ver ModuleUsuarios.tsx -- override manual
   // de admin para cuando el correo de verificación nunca llegó)

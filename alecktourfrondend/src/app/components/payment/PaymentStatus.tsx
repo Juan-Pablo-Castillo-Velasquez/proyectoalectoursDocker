@@ -27,8 +27,8 @@ export default function PaymentStatus({
 
   if (state === "approved") {
     return (
-      <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="rounded-xl border border-green-500/20 bg-green-500/5 p-8 text-center">
-        <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-4" />
+      <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="rounded-xl border border-success/20 bg-success/5 p-8 text-center">
+        <CheckCircle2 className="w-8 h-8 text-success mx-auto mb-4" />
         <p className="font-medium text-foreground">Pago aprobado</p>
         <p className="text-xs text-muted-foreground mt-1">Redirigiendo a la confirmación de tu reserva…</p>
       </motion.div>

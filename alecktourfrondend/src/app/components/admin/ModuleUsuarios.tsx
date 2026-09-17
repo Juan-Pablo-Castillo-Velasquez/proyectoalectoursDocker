@@ -170,7 +170,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label="Total"       value={usuarios.length}   icon={Users} />
-        <StatCard label="Activos"     value={activos.length}    icon={ShieldCheck} gradient="from-emerald-500 to-emerald-600" />
+        <StatCard label="Activos"     value={activos.length}    icon={ShieldCheck} gradient="from-success to-success" />
         <StatCard label="Verificados" value={verificados.length} icon={UserCheck}  gradient="from-[#C9A227] to-[#C9A227]" />
       </div>
 
@@ -285,7 +285,7 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
                       <button
                         onClick={() => setPendingToggle({ usuario: u, tipo: "activo" })}
                         title={u.activo ? "Desactivar" : "Activar"}
-                        className={`p-1.5 rounded-lg transition-all ${u.activo ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" : "text-muted-foreground hover:bg-muted"}`}
+                        className={`p-1.5 rounded-lg transition-all ${u.activo ? "text-success hover:bg-success/10" : "text-muted-foreground hover:bg-muted"}`}
                       >
                         {u.activo ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
                       </button>

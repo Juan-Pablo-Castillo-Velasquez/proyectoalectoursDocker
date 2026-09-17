@@ -284,7 +284,7 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
       />
 
       {msg && (
-        <div className={`p-3 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-emerald-500/10 text-emerald-600" : "bg-destructive/10 text-destructive"}`}>
+        <div className={`p-3 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
           {msg.text}
         </div>
       )}
@@ -666,7 +666,7 @@ export default function ModuleCrearReserva({ clientes, paquetes, hoteles, onSubm
                         {h.calificacion_promedio != null ? ` · ${h.calificacion_promedio}★ (${h.total_resenas ?? 0})` : ""}
                       </p>
                     </div>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${disponibles > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${disponibles > 0 ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                       {disponibles} libres
                     </span>
                   </button>

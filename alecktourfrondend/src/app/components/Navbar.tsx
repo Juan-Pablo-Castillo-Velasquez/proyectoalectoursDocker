@@ -18,6 +18,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { resolveFotoUrl } from "./admin/types";
 import { useAuth } from "../context/AuthContext";
 import { useTema } from "../context/TemaContext";
+import { DURACION, EASE_ENTRADA, EASE_SUAVE } from "../utils/motion";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import { resolveImagenTema } from "../services/tema.service";
 import { getTemaIcono } from "../utils/temaIconos";
@@ -86,7 +87,7 @@ export default function Navbar() {
       <motion.nav
         initial={{ y: -80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.45, ease: "easeOut" }}
+        transition={{ duration: DURACION.lenta, ease: EASE_ENTRADA }}
         className="
           sticky top-0 z-[9999]
           navbar-surface
@@ -170,7 +171,7 @@ export default function Navbar() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25 }}
+                transition={{ duration: DURACION.base, ease: EASE_SUAVE }}
                 title={`Tema de temporada activo: ${temaTemporadaActivo.nombre}`}
                 className="hidden sm:flex items-center gap-1.5 pl-1.5 pr-3 xl:pr-1.5 2xl:pr-3 py-1.5 rounded-full border shrink-0"
                 style={{
@@ -247,7 +248,7 @@ export default function Navbar() {
                         y: 8,
                         scale: 0.98,
                       }}
-                      transition={{ duration: 0.16 }}
+                      transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                       onMouseEnter={() => setShowOffersMenu(true)}
                       onMouseLeave={() => setShowOffersMenu(false)}
                       className="
@@ -762,7 +763,7 @@ export default function Navbar() {
                   opacity: 0,
                   height: 0,
                 }}
-                transition={{ duration: 0.25 }}
+                transition={{ duration: DURACION.base, ease: EASE_SUAVE }}
                 className="
                   xl:hidden
                   border-t border-border/50

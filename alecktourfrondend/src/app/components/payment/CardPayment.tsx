@@ -81,7 +81,7 @@ export default function CardPayment({
         </div>
       </div>
       <p className="text-[11px] text-muted-foreground mt-4 flex items-center gap-1.5">
-        <Shield className="w-3.5 h-3.5 text-green-500 shrink-0" />
+        <Shield className="w-3.5 h-3.5 text-success shrink-0" />
         Datos de prueba: no se procesa ni se guarda ningún cobro real. Una tarjeta terminada en 0002 simula un rechazo.
       </p>
     </div>

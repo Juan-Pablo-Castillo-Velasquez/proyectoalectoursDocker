@@ -35,6 +35,22 @@
   --destructive: #b3261e;
   --destructive-foreground: #ffffff;
 
+  /* Tokens semanticos de estado -- reemplazan los bg-blue-500/text-green-600/
+     etc. sueltos de Tailwind que había en los módulos de admin (cada módulo
+     inventaba su propio verde/amarillo/azul, sin relación con la marca).
+     Verificados con la MISMA fórmula de luminancia relativa que usa el
+     verificador en vivo de ModuleTemas.tsx, exigiendo >=4.5:1 contra
+     --background/--card/--muted (y el foreground contra el propio token).
+     --warning se elige a propósito con un hue distinto de --gold (~26° vs
+     ~43°) para que "pendiente" y el dorado de marca no se confundan aunque
+     ambos sean cálidos. */
+  --success: #3f6b4a;
+  --success-foreground: #ffffff;
+  --warning: #8a440f;
+  --warning-foreground: #ffffff;
+  --info: #3f6070;
+  --info-foreground: #ffffff;
+
   --border: rgba(var(--primary-rgb), 0.12);
   --input: transparent;
   --input-background: #f8f3f4;
@@ -136,6 +152,18 @@
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
+  /* Mismos tokens, tonos claros para leerse sobre fondo oscuro -- el
+     foreground aquí es oscuro (no blanco) porque estos tonos claros no
+     pasan 4.5:1 con blanco encima (mismo problema que ya tenía
+     --destructive-foreground en dark, #ef4444/#fff da 3.76:1 -- acá sí se
+     corrige, no se repite el mismo gap). */
+  --success: #5fae76;
+  --success-foreground: #0f2417;
+  --warning: #ea8e3e;
+  --warning-foreground: #2b1704;
+  --info: #7fb3c9;
+  --info-foreground: #0c1f26;
+
   --border: #2a2a2e;
   --input: #1f1f22;
   --input-background: #1b1b1e;
@@ -187,6 +215,13 @@
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 
   --color-border: var(--border);
   --color-input: var(--input);

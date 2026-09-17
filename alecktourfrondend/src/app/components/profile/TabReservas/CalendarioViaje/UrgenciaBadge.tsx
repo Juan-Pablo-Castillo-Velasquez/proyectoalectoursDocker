@@ -23,13 +23,13 @@ export default function UrgenciaBadge({ diasRestantes, estadoViaje }: Props) {
           ? {
               label: "¡Tu itinerario inicia hoy! Buen viaje ✈️",
               className:
-                "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
+                "bg-success/10 text-success border-success/20",
             }
           : diasRestantes <= 3
             ? {
                 label: `¡Atención, faltan solo ${diasRestantes} días!`,
                 className:
-                  "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+                  "bg-warning/10 text-warning border-warning/20",
               }
             : {
                 label: `Faltan ${diasRestantes} días para el inicio del viaje`,

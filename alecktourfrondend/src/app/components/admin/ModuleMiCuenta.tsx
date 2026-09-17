@@ -254,7 +254,7 @@ export default function ModuleMiCuenta({ usuario, onFotoActualizada }: Props) {
           </div>
 
           {nuevaContrasena && confirmarContrasena && nuevaContrasena === confirmarContrasena && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <p className="text-xs text-success flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> Las contraseñas coinciden
             </p>
           )}

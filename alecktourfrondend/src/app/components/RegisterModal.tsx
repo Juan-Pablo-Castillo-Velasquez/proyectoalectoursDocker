@@ -13,6 +13,7 @@ import PrivacidadModal from "./PrivacidadModal";
 import TerminosModal from "./TerminosModal";
 import OtpCodeInput from "./ui/OtpCodeInput";
 import ModalBackdrop from "./ui/ModalBackdrop";
+import { DURACION, EASE_SUAVE } from "../utils/motion";
 
 interface RegisterModalProps {
     isOpen: boolean;
@@ -491,7 +492,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                 initial={{ opacity: 0, y: -6 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: 6 }}
-                                                transition={{ duration: 0.18 }}
+                                                transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                                                 className="text-primary-foreground font-medium text-2xl tracking-tight leading-none mt-0.5"
                                             >
                                                 {STEP_COPY[step].title}
@@ -506,7 +507,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.18 }}
+                                        transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                                         className="text-primary-foreground/80 text-xs font-normal mt-3 relative max-w-[85%]"
                                     >
                                         {STEP_COPY[step].subtitle}
@@ -540,7 +541,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                 custom={direction}
                                                 variants={stepVariants}
                                                 initial="enter" animate="center" exit="exit"
-                                                transition={{ duration: 0.2 }}
+                                                transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                                                 className="space-y-4"
                                             >
                                                 <Field label="Correo electrónico" icon={<Mail className="w-4 h-4" />} error={fieldError("correo_electronico")}>
@@ -644,7 +645,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                 custom={direction}
                                                 variants={stepVariants}
                                                 initial="enter" animate="center" exit="exit"
-                                                transition={{ duration: 0.2 }}
+                                                transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                                                 className="space-y-3"
                                             >
                                                 <div className="grid grid-cols-2 gap-3">
@@ -766,7 +767,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                 custom={direction}
                                                 variants={stepVariants}
                                                 initial="enter" animate="center" exit="exit"
-                                                transition={{ duration: 0.2 }}
+                                                transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                                                 className="space-y-5"
                                             >
                                                 <div className="bg-muted/40 border border-border p-5 rounded-lg space-y-3 shadow-sm">
@@ -854,7 +855,7 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
                                                 custom={direction}
                                                 variants={stepVariants}
                                                 initial="enter" animate="center" exit="exit"
-                                                transition={{ duration: 0.2 }}
+                                                transition={{ duration: DURACION.rapida, ease: EASE_SUAVE }}
                                                 className="text-center py-4"
                                             >
                                                 <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-accent text-accent-foreground shadow-md ring-4 ring-primary/5">

@@ -305,7 +305,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                       {baseEstimada > 0 && totalReserva < baseEstimada && (
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           <span className="line-through mr-1">{money(baseEstimada)}</span>
-                          <span className="text-green-600 dark:text-green-400 font-bold">
+                          <span className="text-success font-bold">
                             Ahorras {money(baseEstimada - totalReserva)}
                           </span>
                         </p>
@@ -315,11 +315,11 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-card border border-border/60 rounded-lg p-2.5 text-center">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Pagado</p>
-                        <p className="text-sm font-bold text-green-600 dark:text-green-400 mt-0.5">{money(totalPagado)}</p>
+                        <p className="text-sm font-bold text-success mt-0.5">{money(totalPagado)}</p>
                       </div>
                       <div className="bg-card border border-border/60 rounded-lg p-2.5 text-center">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Saldo</p>
-                        <p className={`text-sm font-bold mt-0.5 ${saldoPendiente > 0 ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}>
+                        <p className={`text-sm font-bold mt-0.5 ${saldoPendiente > 0 ? "text-warning" : "text-success"}`}>
                           {money(saldoPendiente)}
                         </p>
                       </div>
@@ -327,7 +327,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
 
                     <div className="h-1.5 rounded-full bg-border/60 overflow-hidden mt-3">
                       <div
-                        className={`h-full rounded-full transition-all ${saldoPendiente > 0 ? "bg-primary" : "bg-green-500"}`}
+                        className={`h-full rounded-full transition-all ${saldoPendiente > 0 ? "bg-primary" : "bg-success"}`}
                         style={{ width: `${porcentajePagado}%` }}
                       />
                     </div>
@@ -349,7 +349,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                       <p className="text-sm font-bold text-foreground">Beneficio aprovechado</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Descuento de{" "}
-                        <span className="font-bold text-green-600 dark:text-green-400">{money(ahorro)}</span>{" "}
+                        <span className="font-bold text-success">{money(ahorro)}</span>{" "}
                         sobre el valor inicial por persona
                       </p>
                     </div>
@@ -385,7 +385,7 @@ export default function ModalReservaDetalle({ reservaId, onClose }: Props) {
                             {Array.from({ length: 5 }).map((_, i) => (
                               <Star
                                 key={i}
-                                className={`w-3 h-3 ${i < Math.round(hotel.calificacion ?? 0) ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`}
+                                className={`w-3 h-3 ${i < Math.round(hotel.calificacion ?? 0) ? "text-gold fill-gold" : "text-muted-foreground/30"}`}
                               />
                             ))}
                           </span>

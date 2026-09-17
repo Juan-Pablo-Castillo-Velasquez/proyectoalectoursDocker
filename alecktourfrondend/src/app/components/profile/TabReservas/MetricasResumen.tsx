@@ -18,14 +18,14 @@ export default function MetricasResumen({ counts }: Props) {
       label: "Confirmadas",
       value: counts.confirmada,
       color:
-        "text-green-600 dark:text-green-400 border-green-500/20 bg-green-500/5",
+        "text-success border-success/20 bg-success/5",
       icon: CheckCircle,
     },
     {
       label: "En Espera",
       value: counts.pendiente,
       color:
-        "text-amber-600 dark:text-amber-400 border-amber-500/20 bg-amber-500/5",
+        "text-warning border-warning/20 bg-warning/5",
       icon: Clock,
     },
     {

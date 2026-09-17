@@ -588,7 +588,7 @@ function TarjetaTendencia({
     const neutro = tendencia.variacion_pct === 0;
     const esBueno = neutro ? null : invertido ? !positivo : positivo;
     const TrendIcon = neutro ? Minus : positivo ? TrendingUp : TrendingDown;
-    const colorCls = neutro ? "text-muted-foreground" : esBueno ? "text-emerald-600" : "text-destructive";
+    const colorCls = neutro ? "text-muted-foreground" : esBueno ? "text-success" : "text-destructive";
     contenidoTendencia = (
       <span className={`inline-flex items-center gap-1 text-xs font-semibold ${colorCls}`}>
         <TrendIcon className="w-3.5 h-3.5" />

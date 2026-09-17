@@ -76,7 +76,7 @@ function BadgeContraste({ hex, contra, etiqueta }: { hex: string; contra: string
   return (
     <span
       className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md ${
-        pasa ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-destructive/10 text-destructive"
+        pasa ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
       }`}
     >
       {ratio.toFixed(2)}:1 {pasa ? "✓ AA" : `✗ mín. ${AA_MINIMO}:1`} · {etiqueta}

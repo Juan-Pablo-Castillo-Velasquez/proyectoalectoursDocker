@@ -22,7 +22,7 @@ type EstadoFilter = "todos" | Estado;
 const ESTADO_STYLES: Record<Estado, string> = {
   nuevo: "bg-gold/15 text-gold",
   contactado: "bg-primary/15 text-primary",
-  cerrado: "bg-emerald-500/15 text-emerald-600",
+  cerrado: "bg-success/15 text-success",
   descartado: "bg-muted text-muted-foreground",
 };
 
@@ -126,7 +126,7 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label="Total" value={solicitudes.length} icon={Building2} />
         <StatCard label="Nuevas" value={nuevas} icon={Users} gradient="from-[#C9A227] to-[#C9A227]" />
-        <StatCard label="Cerradas" value={cerradas} icon={Building2} gradient="from-emerald-500 to-emerald-600" />
+        <StatCard label="Cerradas" value={cerradas} icon={Building2} gradient="from-success to-success" />
       </div>
 
       <div className="flex items-center gap-2.5 flex-wrap">
@@ -228,7 +228,7 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
             {(() => {
               const clienteExistente = clientePorCorreo(editing.email_corporativo);
               return clienteExistente ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-success/10 text-success text-xs font-medium">
                   <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   Este correo ya pertenece a un cliente registrado: {clienteExistente.nombre} {clienteExistente.apellido}
                 </div>
@@ -257,7 +257,7 @@ export default function ModuleEmpresas({ solicitudes, onUpdateEstado, onDelete, 
               ))}
             </div>
             {saveError && (
-              <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {saveError}</p>
+              <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {saveError}</p>
             )}
             <button
               onClick={handleSave}

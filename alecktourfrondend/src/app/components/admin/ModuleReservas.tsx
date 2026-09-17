@@ -420,7 +420,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
         <div className="flex items-center gap-2 w-full">
           <button
             onClick={() => onDelete(reserva.id_reserva)}
-            className="flex items-center gap-1.5 px-3 py-2 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-destructive border border-destructive/20 hover:bg-destructive/10 rounded-lg text-xs font-medium transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" /> Eliminar
           </button>
@@ -595,7 +595,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
 
           {/* Error al cargar habitaciones/servicios */}
           {detailError && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 rounded-xl p-3 text-xs flex items-center gap-1.5">
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3 text-xs flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
               {detailError}
             </div>
@@ -620,7 +620,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                 </div>
               )}
               {intentosFallidos > 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 mb-2">
+                <p className="text-xs text-warning flex items-center gap-1.5 mb-2">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   {intentosFallidos} intento{intentosFallidos > 1 ? "s" : ""} de pago rechazado{intentosFallidos > 1 ? "s" : ""} antes de este historial
                 </p>
@@ -665,7 +665,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                  <AlertCircle className="w-3.5 h-3.5 text-warning" />
                   Sin información de pago registrada
                 </p>
               )}
@@ -724,12 +724,12 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
               )}
               <EstadoPicker current={estadoLocal} onChange={setEstadoLocal} />
               {saveError && (
-                <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+                <p className="text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {saveError}
                 </p>
               )}
               {saveSuccess && (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <p className="text-xs text-success flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Estado actualizado correctamente
                 </p>
               )}
@@ -763,7 +763,7 @@ function SidePanel({ reserva, cliente, empleado, paquete, pago, solicitudesReser
                 className={`${inputCls} resize-none`}
               />
               {notaError && (
-                <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+                <p className="text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {notaError}
                 </p>
               )}

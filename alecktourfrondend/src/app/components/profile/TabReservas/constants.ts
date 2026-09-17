@@ -12,14 +12,14 @@ export const estadoConfig: Record<
   { color: string; bg: string; icon: any; label: string }
 > = {
   confirmada: {
-    color: "text-green-600 dark:text-green-400 border-green-500/20",
-    bg: "bg-green-500/10",
+    color: "text-success border-success/20",
+    bg: "bg-success/10",
     icon: CheckCircle,
     label: "Confirmada",
   },
   pendiente: {
-    color: "text-amber-600 dark:text-amber-400 border-amber-500/20",
-    bg: "bg-amber-500/10",
+    color: "text-warning border-warning/20",
+    bg: "bg-warning/10",
     icon: AlertCircle,
     label: "Pendiente",
   },
@@ -76,14 +76,14 @@ export const filtroOpciones: {
     label: "Confirmadas",
     icon: CheckCircle,
     activeClass:
-      "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30",
+      "bg-success/10 text-success border-success/30",
   },
   {
     value: "pendiente",
     label: "Pendientes",
     icon: AlertCircle,
     activeClass:
-      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+      "bg-warning/10 text-warning border-warning/30",
   },
   {
     value: "finalizada",

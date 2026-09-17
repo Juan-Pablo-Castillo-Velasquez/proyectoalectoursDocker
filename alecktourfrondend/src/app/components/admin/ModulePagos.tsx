@@ -216,7 +216,7 @@ export default function ModulePagos({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total"      value={pagos.length}                                icon={Wallet}     />
-        <StatCard label="Recaudado"  value={`$${recaudado.toLocaleString("es-CO")}`}      icon={CheckCircle} gradient="from-emerald-500 to-emerald-600" />
+        <StatCard label="Recaudado"  value={`$${recaudado.toLocaleString("es-CO")}`}      icon={CheckCircle} gradient="from-success to-success" />
         <StatCard label="Pendientes" value={pendientes}                                   icon={Clock}       gradient="from-[#C9A227] to-[#C9A227]" />
         <StatCard label="Rechazados" value={rechazados}                                   icon={XCircle}     gradient="from-destructive to-destructive" />
       </div>
@@ -323,7 +323,7 @@ export default function ModulePagos({
                         {p.numero_factura && (
                           <button
                             onClick={() => handleDescargarFactura(p)}
-                            className="p-1.5 text-emerald-600/70 hover:text-emerald-600 hover:bg-emerald-500/10 rounded-lg transition-all"
+                            className="p-1.5 text-success/70 hover:text-success hover:bg-success/10 rounded-lg transition-all"
                             title={`Descargar factura ${p.numero_factura}`}
                           >
                             <FileText className="w-4 h-4" />
@@ -430,7 +430,7 @@ export default function ModulePagos({
               ))}
             </div>
             {saveError && (
-              <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+              <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> {saveError}
               </p>
             )}
@@ -451,7 +451,7 @@ export default function ModulePagos({
               {editing.numero_factura ? (
                 <button
                   onClick={() => handleDescargarFactura(editing)}
-                  className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-foreground hover:border-emerald-500/40 hover:text-emerald-600 transition-all"
+                  className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-foreground hover:border-success/40 hover:text-success transition-all"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   Descargar factura {editing.numero_factura}
@@ -502,7 +502,7 @@ export default function ModulePagos({
                 </label>
               )}
               {comprobanteError && (
-                <p className="mt-1.5 text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+                <p className="mt-1.5 text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {comprobanteError}
                 </p>
               )}

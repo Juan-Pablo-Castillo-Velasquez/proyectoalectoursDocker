@@ -81,7 +81,7 @@ export default function ModalCancelacion({ reserva, onClose, onConfirm }: Props)
         <div className="p-6">
           {!enviado ? (
             <>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-5 text-xs text-amber-600 dark:text-amber-400">
+              <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-5 text-xs text-warning">
                 <p className="font-bold mb-0.5">⚠️ Información importante</p>
                 <p className="leading-relaxed">
                   Tu solicitud será evaluada bajo las políticas de la agencia.
@@ -166,8 +166,8 @@ export default function ModalCancelacion({ reserva, onClose, onConfirm }: Props)
               animate={{ opacity: 1, scale: 1 }}
               className="py-8 text-center"
             >
-              <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-7 h-7 text-green-500" />
+              <div className="w-14 h-14 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-7 h-7 text-success" />
               </div>
               <h4 className="text-base font-bold text-foreground mb-1">
                 ¡Solicitud recibida correctamente!

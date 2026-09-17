@@ -29,8 +29,8 @@ export default function StatsResumen({
       : estadoViaje === "finalizado"
         ? "text-muted-foreground bg-muted/40 border-border"
         : diasRestantes <= 3
-          ? "text-amber-500 bg-amber-500/5 border-amber-500/10"
-          : "text-green-500 bg-green-500/5 border-green-500/10";
+          ? "text-warning bg-warning/5 border-warning/10"
+          : "text-success bg-success/5 border-success/10";
 
   const stats = [
     {

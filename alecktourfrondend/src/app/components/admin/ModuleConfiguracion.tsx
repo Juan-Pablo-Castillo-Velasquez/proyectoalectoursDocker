@@ -212,7 +212,7 @@ export default function ModuleConfiguracion() {
             />
           </div>
           {error && (
-            <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+            <p className="text-xs text-destructive flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> {error}
             </p>
           )}

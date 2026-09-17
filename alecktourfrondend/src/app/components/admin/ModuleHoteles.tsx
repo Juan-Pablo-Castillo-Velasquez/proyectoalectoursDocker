@@ -354,7 +354,7 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
                       const habs = h.habitaciones ?? [];
                       if (habs.length === 0) {
                         return (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning bg-warning/10 px-2 py-1 rounded-full whitespace-nowrap">
                             <AlertTriangle className="w-3 h-3" /> Sin habitaciones
                           </span>
                         );
@@ -364,13 +364,13 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
                       const mantenimiento = habs.filter(hb => hb.estado === "mantenimiento").length;
                       return (
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 text-emerald-600">
+                          <span className="inline-flex items-center gap-1 text-success">
                             <Bed className="w-3.5 h-3.5" /> {disponibles}
                           </span>
                           <span className="text-border">/</span>
                           <span>{ocupadas} ocup.</span>
                           {mantenimiento > 0 && (
-                            <span className="text-amber-600">· {mantenimiento} mant.</span>
+                            <span className="text-warning">· {mantenimiento} mant.</span>
                           )}
                         </div>
                       );
@@ -529,12 +529,12 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
                       ) : ocupacion ? (
                         <p className="text-[11px] text-[#C9A227] flex items-center gap-1 mt-0.5"><Clock className="w-3 h-3" /> Ocupada {ocupacion}</p>
                       ) : (
-                        <p className="text-[11px] text-emerald-600 mt-0.5">Sin reservas futuras</p>
+                        <p className="text-[11px] text-success mt-0.5">Sin reservas futuras</p>
                       )}
                     </div>
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${
-                      hab.estado === "disponible" ? "bg-emerald-500/10 text-emerald-600"
-                      : hab.estado === "mantenimiento" ? "bg-amber-500/10 text-amber-600"
+                      hab.estado === "disponible" ? "bg-success/10 text-success"
+                      : hab.estado === "mantenimiento" ? "bg-warning/10 text-warning"
                       : "bg-muted text-muted-foreground"
                     }`}>
                       {hab.estado}

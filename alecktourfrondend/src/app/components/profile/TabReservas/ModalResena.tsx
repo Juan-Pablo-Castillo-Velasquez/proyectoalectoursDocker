@@ -117,8 +117,8 @@ export default function ModalResena({ reserva, onClose }: Props) {
               animate={{ opacity: 1, scale: 1 }}
               className="py-8 text-center"
             >
-              <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-7 h-7 text-green-500" />
+              <div className="w-14 h-14 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-7 h-7 text-success" />
               </div>
               <h4 className="text-base font-bold text-foreground mb-1">
                 ¡Gracias por tu reseña!
