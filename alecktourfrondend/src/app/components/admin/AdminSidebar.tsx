@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, CalendarDays, XCircle, PlusCircle, Users, Hotel,
   Package, Building2, Wallet, Bell, UserPlus, ShieldCheck, Activity,
   Settings, Plane, ChevronLeft, ChevronRight, UserCircle, Megaphone, Palette,
+  MessageCircle,
 } from "lucide-react";
 import type { Module } from "./types";
+import { mensajeChatService } from "../../services/mensajeChat.service";
 import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "../ui/tooltip";
@@ -71,6 +73,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Comunicación",
     items: [
       { id: "notificaciones", label: "Notificaciones", icon: Bell, ready: true },
+      { id: "mensajes", label: "Mensajes", icon: MessageCircle, ready: true },
     ],
   },
   {
@@ -112,6 +115,28 @@ export default function AdminSidebar({
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
+
+  // Badge de mensajes no leídos junto al ítem de nav -- polling propio,
+  // 18s (no necesita ser tan frecuente como el hilo abierto de
+  // ModuleMensajes.tsx, que sondea cada 5s).
+  const [noLeidosMensajes, setNoLeidosMensajes] = useState(0);
+  const noLeidosRef = useRef(0);
+  useEffect(() => {
+    const cargar = () => {
+      mensajeChatService
+        .getNoLeidos()
+        .then(({ no_leidos }) => {
+          if (no_leidos !== noLeidosRef.current) {
+            noLeidosRef.current = no_leidos;
+            setNoLeidosMensajes(no_leidos);
+          }
+        })
+        .catch(() => { /* no crítico -- se reintenta en el próximo ciclo */ });
+    };
+    cargar();
+    const interval = setInterval(cargar, 18000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <AnimatePresence>
@@ -161,11 +186,18 @@ export default function AdminSidebar({
                             : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
                         }`}
                       >
-                        <Icon
-                          className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${
-                            isActive ? "text-white" : ""
-                          }`}
-                        />
+                        <span className="relative flex-shrink-0">
+                          <Icon
+                            className={`w-4 h-4 transition-transform group-hover:scale-110 ${
+                              isActive ? "text-white" : ""
+                            }`}
+                          />
+                          {/* Punto rojo sobre el ícono en modo colapsado -- el
+                              badge numérico de abajo solo se ve expandido. */}
+                          {collapsed && id === "mensajes" && noLeidosMensajes > 0 && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive" />
+                          )}
+                        </span>
                         {!collapsed && <span className="truncate">{label}</span>}
                         {!collapsed && !ready && (
                           <span
@@ -174,6 +206,15 @@ export default function AdminSidebar({
                             }`}
                           >
                             Próx.
+                          </span>
+                        )}
+                        {!collapsed && id === "mensajes" && noLeidosMensajes > 0 && (
+                          <span
+                            className={`ml-auto min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex-shrink-0 flex items-center justify-center ${
+                              isActive ? "bg-white/20 text-white" : "bg-destructive text-destructive-foreground"
+                            }`}
+                          >
+                            {noLeidosMensajes > 99 ? "99+" : noLeidosMensajes}
                           </span>
                         )}
                       </button>
@@ -187,6 +228,7 @@ export default function AdminSidebar({
                         <TooltipContent side="right">
                           {label}
                           {!ready && " · Próximamente"}
+                          {id === "mensajes" && noLeidosMensajes > 0 && ` · ${noLeidosMensajes} sin leer`}
                         </TooltipContent>
                       </Tooltip>
                     );

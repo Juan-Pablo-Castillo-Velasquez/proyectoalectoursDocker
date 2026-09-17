@@ -7,6 +7,7 @@ import Navbar from "../components/Navbar";
 import ProfileSidebar from "../components/profile/ProfileSidebar";
 import TabCuenta from "../components/profile/TabCuenta";
 import TabFavoritos from "../components/profile/TabFavoritos";
+import TabMensajes from "../components/profile/TabMensajes";
 import TabPreferencias from "../components/profile/TabPreferencias";
 import TabReservas from "../components/profile/TabReservas";
 import { useAuth } from "../context/AuthContext";
@@ -176,6 +177,17 @@ export default function Profile() {
                   transition={{ duration: 0.2 }}
                 >
                   <TabFavoritos />
+                </motion.div>
+              )}
+              {activeTab === "mensajes" && (
+                <motion.div
+                  key="mensajes"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <TabMensajes />
                 </motion.div>
               )}
               {activeTab === "preferencias" && (

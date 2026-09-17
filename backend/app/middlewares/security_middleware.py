@@ -38,6 +38,13 @@ RATE_LIMITED_PATHS = {
     # víctima haya pedido nada. Mismo límite que /forgot-password, que
     # tiene el mismo riesgo.
     "/auth/resend-verification": (3, 60),
+    # Chat privado admin<->cliente (mensaje_chat_route.py) -- ambos son
+    # paths de ESCRITURA propios (nunca compartidos con un GET de polling
+    # a proposito, ver el comentario de ese router): sin limite, alguien
+    # con sesion podria mandar mensajes/imagenes en bucle y llenar el hilo
+    # o agotar el almacenamiento de Cloudinary.
+    "/api/mensajes/enviar": (20, 60),
+    "/api/mensajes/me/enviar": (20, 60),
 }
 
 

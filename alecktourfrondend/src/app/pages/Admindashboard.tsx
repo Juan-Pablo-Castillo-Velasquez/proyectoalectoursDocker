@@ -37,6 +37,7 @@ import { empresaService, type SolicitudCorporativa } from "../services/empresa.s
 import ModuleBanners from "../components/admin/ModuleBanners";
 import { bannerService, type Banner, type BannerFormData } from "../services/banner.service";
 import ModuleTemas from "../components/admin/ModuleTemas";
+import ModuleMensajes from "../components/admin/ModuleMensajes";
 import { temaService, type Tema, type TemaFormData } from "../services/tema.service";
 import { useTema } from "../context/TemaContext";
 import { hotelService } from "../services/hotel.service";
@@ -809,6 +810,10 @@ export default function AdminDashboard() {
         onFotoActualizada={(foto_perfil) => updateUsuario({ foto_perfil })}
       />
     ),
+    // Autosuficiente (fetch + polling propios, ver ModuleMensajes.tsx) --
+    // mismo criterio que ModuleConfiguracion, no necesita estado de este
+    // componente padre.
+    mensajes: <ModuleMensajes />,
   };
 
   const usuarioInicial = usuario?.username?.[0]?.toUpperCase() ?? "A";

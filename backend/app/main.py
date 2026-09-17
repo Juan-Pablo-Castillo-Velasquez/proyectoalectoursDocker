@@ -34,6 +34,7 @@ from app.routes.destino_route import router as destino_router
 from app.routes.empresa_route import router as empresa_router
 from app.routes.favorito_route import router as favorito_router
 from app.routes.hotel_route import router as hotel_router
+from app.routes.mensaje_chat_route import router as mensaje_chat_router
 from app.routes.metodo_pago_guardado_route import router as metodo_pago_guardado_router
 from app.routes.notificacion_route import router as notificacion_router
 from app.routes.preferencias_route import router as preferencias_router
@@ -174,6 +175,7 @@ app.include_router(favorito_router)
 app.include_router(metodo_pago_guardado_router)
 app.include_router(configuracion_router)
 app.include_router(notificacion_router)
+app.include_router(mensaje_chat_router)
 app.include_router(empresa_router)
 app.include_router(dashboard_router)
 app.include_router(banner_router)
@@ -186,6 +188,11 @@ app.include_router(tema_router)
 _UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
 os.makedirs(os.path.join(_UPLOADS_DIR, "perfiles"), exist_ok=True)
 os.makedirs(os.path.join(_UPLOADS_DIR, "comprobantes"), exist_ok=True)
+# Capturas de pantalla adjuntas al chat admin<->cliente (mensaje_chat_route.py)
+# -- guardar_imagen() ya crea este directorio sola si falta, pero se
+# precrea aca igual que "perfiles"/"comprobantes" arriba, mismo criterio
+# defensivo.
+os.makedirs(os.path.join(_UPLOADS_DIR, "chat"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 # ============================================================================

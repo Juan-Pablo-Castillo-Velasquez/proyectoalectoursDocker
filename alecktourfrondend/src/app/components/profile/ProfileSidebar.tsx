@@ -5,6 +5,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  MessageCircle,
   Phone,
   Plane,
   Settings,
@@ -12,10 +13,13 @@ import {
   SlidersHorizontal,
   User,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { resolveFotoUrl } from "../admin/types";
+import { mensajeChatService } from "../../services/mensajeChat.service";
 const tabs = [
   { id: "reservas", label: "Mis Reservas", icon: Calendar },
   { id: "favoritos", label: "Favoritos", icon: Heart },
+  { id: "mensajes", label: "Mensajes", icon: MessageCircle },
   { id: "preferencias", label: "Preferencias", icon: SlidersHorizontal },
   { id: "cuenta", label: "Mi Cuenta", icon: Settings },
 ];
@@ -37,6 +41,28 @@ export default function ProfileSidebar({
   setActiveTab,
   onLogout,
 }: Props) {
+  // Badge de mensajes no leídos junto al tab -- polling propio (18s),
+  // mismo criterio autosuficiente que el badge equivalente de
+  // AdminSidebar.tsx.
+  const [noLeidosMensajes, setNoLeidosMensajes] = useState(0);
+  const noLeidosRef = useRef(0);
+  useEffect(() => {
+    const cargar = () => {
+      mensajeChatService
+        .getNoLeidos()
+        .then(({ no_leidos }) => {
+          if (no_leidos !== noLeidosRef.current) {
+            noLeidosRef.current = no_leidos;
+            setNoLeidosMensajes(no_leidos);
+          }
+        })
+        .catch(() => { /* no crítico -- se reintenta en el próximo ciclo */ });
+    };
+    cargar();
+    const interval = setInterval(cargar, 18000);
+    return () => clearInterval(interval);
+  }, []);
+
   const totalViajes = reservas.filter((r) => r.estado === "finalizada").length;
   const proximaReserva = reservas
     .filter(
@@ -194,6 +220,15 @@ export default function ProfileSidebar({
               >
                 <tab.icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left">{tab.label}</span>
+                {tab.id === "mensajes" && noLeidosMensajes > 0 && (
+                  <span
+                    className={`min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex-shrink-0 flex items-center justify-center ${
+                      isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-destructive text-destructive-foreground"
+                    }`}
+                  >
+                    {noLeidosMensajes > 99 ? "99+" : noLeidosMensajes}
+                  </span>
+                )}
                 <ChevronRight
                   className={`w-4 h-4 transition-transform duration-200 ${isActive ? "rotate-90 text-primary-foreground" : "text-muted-foreground/50"}`}
                 />
