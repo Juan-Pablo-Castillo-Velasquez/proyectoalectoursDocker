@@ -351,7 +351,10 @@ class TestReservaAsociada:
 
         resultado = asyncio.run(
             mensaje_chat_route.enviar_como_cliente(
-                contenido="Es sobre esta reserva", imagen=None, id_reserva=reserva.id_reserva, db=db,
+                contenido="Es sobre esta reserva",
+                imagen=None,
+                id_reserva=reserva.id_reserva,
+                db=db,
                 current_user=usuario,
             )
         )
@@ -368,8 +371,12 @@ class TestReservaAsociada:
 
         resultado = asyncio.run(
             mensaje_chat_route.enviar_como_admin(
-                id_cliente=cliente.id_cliente, contenido="Ya la reviso", imagen=None,
-                id_reserva=reserva.id_reserva, db=db, admin_id=admin.id_usuario,
+                id_cliente=cliente.id_cliente,
+                contenido="Ya la reviso",
+                imagen=None,
+                id_reserva=reserva.id_reserva,
+                db=db,
+                admin_id=admin.id_usuario,
             )
         )
 
@@ -394,7 +401,10 @@ class TestReservaAsociada:
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(
                 mensaje_chat_route.enviar_como_cliente(
-                    contenido="Intento adivinar el id", imagen=None, id_reserva=reserva_de_b.id_reserva, db=db,
+                    contenido="Intento adivinar el id",
+                    imagen=None,
+                    id_reserva=reserva_de_b.id_reserva,
+                    db=db,
                     current_user=usuario_a,
                 )
             )
@@ -428,7 +438,10 @@ class TestBusquedaYPaginacionDeHilos:
         )
         asyncio.run(
             mensaje_chat_route.enviar_como_admin(
-                id_cliente=cliente_luis.id_cliente, contenido="hola Luis", imagen=None, db=db,
+                id_cliente=cliente_luis.id_cliente,
+                contenido="hola Luis",
+                imagen=None,
+                db=db,
                 admin_id=admin.id_usuario,
             )
         )
