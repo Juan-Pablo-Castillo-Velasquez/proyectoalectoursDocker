@@ -2,6 +2,7 @@ import { lazy } from "react";
 import { createBrowserRouter } from "react-router";
 import { LoginRedirect, RegisterRedirect } from "./components/AuthRedirects";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import RootLayout from "./layouts/RootLayout";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
@@ -40,6 +41,11 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 export const router = createBrowserRouter([
   {
     Component: RootLayout,
+    // Atrapa cualquier error no manejado en cualquier página (incluye un
+    // lazy() que falla en cargar su chunk, ver RouteErrorBoundary.tsx) --
+    // sin esto, React Router muestra su propia pantalla genérica de
+    // desarrollo ("💿 Hey developer...") en producción.
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: "/", Component: Home },
       { path: "/search", Component: SearchResults },
