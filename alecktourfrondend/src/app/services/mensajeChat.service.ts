@@ -28,6 +28,17 @@ export interface HiloResumen {
   no_leidos: number;
 }
 
+// Espejo de HilosPaginadosResponse -- GET /mensajes/hilos ya NO devuelve
+// un array plano (bug real de producción: ModuleMensajes.tsx seguía
+// haciendo `hilos.find(...)` sobre lo que pasó a ser este objeto, y
+// tronaba con "e.find is not a function" en cuanto cargaban los hilos).
+export interface HilosPaginados {
+  items: HiloResumen[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
 function construirFormData(contenido?: string, imagen?: File): FormData {
   const fd = new FormData();
   if (contenido) fd.append("contenido", contenido);
@@ -45,7 +56,14 @@ function construirFormData(contenido?: string, imagen?: File): FormData {
 // el hilo.
 export const mensajeChatService = {
   // ── Admin (bandeja compartida) ──────────────────────────────────────
-  getHilos: () => apiFetch<HiloResumen[]>("/mensajes/hilos"),
+  getHilos: (opts?: { search?: string; skip?: number; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.search) params.set("search", opts.search);
+    if (opts?.skip != null) params.set("skip", String(opts.skip));
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return apiFetch<HilosPaginados>(`/mensajes/hilos${qs ? `?${qs}` : ""}`);
+  },
 
   getHilo: (idCliente: number, afterId?: number) =>
     apiFetch<MensajeChat[]>(

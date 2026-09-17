@@ -36,7 +36,11 @@ export default function ModuleMensajes() {
   const cargarHilos = () =>
     mensajeChatService
       .getHilos()
-      .then(setHilos)
+      // GET /hilos ahora es paginado (ver mensajeChat.service.ts) --
+      // devuelve {items, total, skip, limit}, no un array plano. Antes esto
+      // guardaba la respuesta completa en `hilos` y `hilos.find(...)` de
+      // más abajo tronaba con "e.find is not a function" en producción.
+      .then((data) => setHilos(data.items))
       .catch(() => {
         /* no crítico -- el próximo ciclo de polling reintenta */
       });
