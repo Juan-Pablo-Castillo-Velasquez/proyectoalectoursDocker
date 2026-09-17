@@ -139,16 +139,34 @@ class MensajeChatRepository:
         return items, total
 
     @staticmethod
-    def get_mensajes(db: Session, id_cliente: int, after_id: int | None = None, limit: int = 50) -> list[dict]:
-        """Sin after_id: los últimos `limit` mensajes del hilo, en orden
-        cronológico ascendente (listos para renderizar de arriba a abajo).
-        Con after_id: solo mensajes con id_mensaje > after_id -- es el
-        contrato que usa el polling incremental del frontend, para no
-        volver a traer todo el hilo cada 5 segundos."""
+    def get_mensajes(
+        db: Session,
+        id_cliente: int,
+        after_id: int | None = None,
+        before_id: int | None = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        """Sin after_id ni before_id: los últimos `limit` mensajes del hilo,
+        en orden cronológico ascendente (listos para renderizar de arriba a
+        abajo). Con after_id: solo mensajes con id_mensaje > after_id -- es
+        el contrato que usa el polling incremental del frontend, para no
+        volver a traer todo el hilo cada 5 segundos. Con before_id: los
+        `limit` mensajes más recientes ANTES de ese id -- es el contrato de
+        "cargar mensajes anteriores" cuando el hilo tiene más de los que ya
+        se cargaron inicialmente (misma idea que after_id, pero hacia atrás
+        en el historial)."""
         query = db.query(MensajeChat).filter(MensajeChat.id_cliente == id_cliente)
 
         if after_id is not None:
             mensajes = query.filter(MensajeChat.id_mensaje > after_id).order_by(MensajeChat.id_mensaje.asc()).all()
+        elif before_id is not None:
+            mensajes = (
+                query.filter(MensajeChat.id_mensaje < before_id)
+                .order_by(MensajeChat.id_mensaje.desc())
+                .limit(limit)
+                .all()
+            )
+            mensajes.reverse()
         else:
             mensajes = query.order_by(MensajeChat.id_mensaje.desc()).limit(limit).all()
             mensajes.reverse()

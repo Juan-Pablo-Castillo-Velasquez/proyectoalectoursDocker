@@ -39,6 +39,12 @@ PUBLIC_PATH_PREFIX = "/uploads/chat"
 # pantalla de reserva/pago no necesita más que esto.
 IMAGEN_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
+# Mensajes de chat de soporte, no documentos -- 500 caracteres alcanza de
+# sobra para explicar un problema puntual y evita mensajes desproporcionados
+# en la bandeja compartida del admin. Mismo límite reflejado en el frontend
+# (contador junto al textarea, ver ModuleMensajes.tsx / TabMensajes.tsx) --
+# esta es la validación real, la del frontend es solo UX.
+CONTENIDO_MAX_LENGTH = 500
 
 
 class MarcarLeidoRequest(BaseModel):
@@ -56,6 +62,16 @@ def _exigir_cliente(usuario: Usuario) -> int:
 def _validar_contenido_o_imagen(contenido: str | None, imagen: UploadFile | None) -> None:
     if not contenido and imagen is None:
         raise HTTPException(status_code=400, detail="El mensaje necesita texto o una imagen.")
+    if contenido and len(contenido) > CONTENIDO_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El mensaje no puede superar los {CONTENIDO_MAX_LENGTH} caracteres.",
+        )
+
+
+def _validar_after_before(after_id: int | None, before_id: int | None) -> None:
+    if after_id is not None and before_id is not None:
+        raise HTTPException(status_code=400, detail="No se puede combinar after_id con before_id.")
 
 
 def _validar_reserva_del_cliente(db: Session, id_reserva: int | None, id_cliente: int) -> None:
@@ -105,10 +121,12 @@ def get_hilos(
 def get_hilo_admin(
     id_cliente: int,
     after_id: int | None = Query(None, description="Solo mensajes con id mayor a este -- polling incremental"),
+    before_id: int | None = Query(None, description="Los mensajes anteriores a este id -- cargar historial previo"),
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
 ):
-    return MensajeChatRepository.get_mensajes(db, id_cliente, after_id=after_id)
+    _validar_after_before(after_id, before_id)
+    return MensajeChatRepository.get_mensajes(db, id_cliente, after_id=after_id, before_id=before_id)
 
 
 @router.post("/enviar", response_model=MensajeChatResponse, status_code=201)
@@ -140,6 +158,7 @@ async def enviar_como_admin(
 @router.get("/me", response_model=list[MensajeChatResponse])
 def get_mi_hilo(
     after_id: int | None = Query(None, description="Solo mensajes con id mayor a este -- polling incremental"),
+    before_id: int | None = Query(None, description="Los mensajes anteriores a este id -- cargar historial previo"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
 ):
@@ -147,7 +166,8 @@ def get_mi_hilo(
     parámetro -- así se garantiza que un cliente jamás pueda leer el hilo
     de otro cambiando un id en la petición."""
     id_cliente = _exigir_cliente(current_user)
-    return MensajeChatRepository.get_mensajes(db, id_cliente, after_id=after_id)
+    _validar_after_before(after_id, before_id)
+    return MensajeChatRepository.get_mensajes(db, id_cliente, after_id=after_id, before_id=before_id)
 
 
 @router.post("/me/enviar", response_model=MensajeChatResponse, status_code=201)

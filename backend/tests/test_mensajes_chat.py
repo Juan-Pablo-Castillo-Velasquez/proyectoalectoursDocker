@@ -468,3 +468,80 @@ class TestBusquedaYPaginacionDeHilos:
         assert len(primera_pagina["items"]) == 2
         assert segunda_pagina["total"] == 3
         assert len(segunda_pagina["items"]) == 1
+
+
+class TestLimiteDeCaracteres:
+    def test_rechaza_mensaje_de_mas_de_500_caracteres(self, db):
+        _cliente, usuario = _crear_cliente_con_usuario(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                mensaje_chat_route.enviar_como_cliente(contenido="x" * 501, imagen=None, db=db, current_user=usuario)
+            )
+        assert exc_info.value.status_code == 400
+
+    def test_acepta_mensaje_de_exactamente_500_caracteres(self, db):
+        _cliente, usuario = _crear_cliente_con_usuario(db)
+
+        resultado = asyncio.run(
+            mensaje_chat_route.enviar_como_cliente(contenido="x" * 500, imagen=None, db=db, current_user=usuario)
+        )
+        assert resultado["contenido"] == "x" * 500
+
+    def test_admin_tambien_respeta_el_limite(self, db):
+        cliente, _usuario = _crear_cliente_con_usuario(db)
+        admin = _crear_admin(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                mensaje_chat_route.enviar_como_admin(
+                    id_cliente=cliente.id_cliente, contenido="y" * 501, imagen=None, db=db, admin_id=admin.id_usuario
+                )
+            )
+        assert exc_info.value.status_code == 400
+
+
+class TestPaginacionHaciaAtras:
+    def test_before_id_trae_los_mensajes_anteriores(self, db):
+        _cliente, usuario = _crear_cliente_con_usuario(db)
+        ids = []
+        for i in range(5):
+            enviado = asyncio.run(
+                mensaje_chat_route.enviar_como_cliente(
+                    contenido=f"mensaje {i}", imagen=None, db=db, current_user=usuario
+                )
+            )
+            ids.append(enviado["id_mensaje"])
+
+        anteriores = mensaje_chat_route.get_mi_hilo(before_id=ids[3], db=db, current_user=usuario)
+
+        assert [m["id_mensaje"] for m in anteriores] == ids[:3]
+
+    def test_before_id_y_after_id_juntos_es_400(self, db):
+        _cliente, usuario = _crear_cliente_con_usuario(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            mensaje_chat_route.get_mi_hilo(after_id=1, before_id=2, db=db, current_user=usuario)
+        assert exc_info.value.status_code == 400
+
+    def test_admin_tambien_puede_paginar_hacia_atras(self, db):
+        cliente, _usuario = _crear_cliente_con_usuario(db)
+        admin = _crear_admin(db)
+        ids = []
+        for i in range(4):
+            enviado = asyncio.run(
+                mensaje_chat_route.enviar_como_admin(
+                    id_cliente=cliente.id_cliente,
+                    contenido=f"admin {i}",
+                    imagen=None,
+                    db=db,
+                    admin_id=admin.id_usuario,
+                )
+            )
+            ids.append(enviado["id_mensaje"])
+
+        anteriores = mensaje_chat_route.get_hilo_admin(
+            id_cliente=cliente.id_cliente, before_id=ids[2], db=db, admin_id=admin.id_usuario
+        )
+
+        assert [m["id_mensaje"] for m in anteriores] == ids[:2]
