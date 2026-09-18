@@ -1,5 +1,39 @@
 import { jsPDF } from "jspdf";
-import type { Pago, Reserva, Cliente } from "../components/admin/types";
+
+// Antes importaba Pago/Reserva/Cliente de admin/types.ts -- funcionaba
+// mientras el único llamador era ModulePagos.tsx (admin), pero esos tipos
+// tienen "estado" como union literal y otros campos que el lado cliente no
+// declara igual (ver TabFacturas.tsx, que ahora también llama a esta
+// función con PagoResponse/ReservaResponse/ClienteResponse del cliente).
+// Estas interfaces locales son el subconjunto real de campos que la
+// función lee -- tanto los tipos de admin como los del cliente los
+// cumplen de sobra, así que ninguno de los dos lados necesita castear.
+interface FacturaPago {
+  id_pago: number;
+  id_reserva: number;
+  monto: number;
+  estado: string;
+  referencia?: string | null;
+  fecha_pago?: string | null;
+  numero_factura?: string | null;
+  metodo_pago?: { nombre_metodo: string } | null;
+}
+
+interface FacturaReserva {
+  hotel_nombre?: string | null;
+  destino?: string | null;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+}
+
+interface FacturaCliente {
+  nombre: string;
+  apellido: string;
+  cedula: string;
+  correo: string;
+  ciudad?: string | null;
+  pais?: string | null;
+}
 
 // Acento real de la marca en el panel admin (StatCard, badges) — se
 // reutiliza acá para que la factura se vea consistente con el resto del
@@ -22,7 +56,7 @@ function formatFecha(iso?: string): string {
 // de verdad. numero_factura viene del backend (ver Pago.numero_factura);
 // si el pago todavía no está 'pagado' no debería llamarse esta función
 // (el botón que la dispara solo aparece cuando numero_factura existe).
-export function generarFacturaPdf(pago: Pago, reserva?: Reserva, cliente?: Cliente): void {
+export function generarFacturaPdf(pago: FacturaPago, reserva?: FacturaReserva, cliente?: FacturaCliente): void {
   const doc = new jsPDF();
   const marginX = 20;
   let y = 22;

@@ -17,6 +17,13 @@ export interface ReservaResponse {
   // Nombre del hotel — respaldo cuando la reserva no tiene paquete (reserva
   // directa de habitación); ver Reserva.hotel_nombre en el backend.
   hotel_nombre?: string | null;
+  // El backend YA manda esto embebido (ReservaResponse.pagos en
+  // reserva_schema.py) desde antes -- este tipo simplemente nunca lo había
+  // declarado. Lo usa TabFacturas.tsx para armar el historial de facturas
+  // sin pedir un endpoint nuevo. `import type` evita el ciclo real en
+  // tiempo de ejecución con reserva.service.ts (que importa de este mismo
+  // archivo) -- se borra por completo al compilar.
+  pagos?: import('../services/reserva.service').PagoResponse[];
 }
 
 // NUEVO: representa una habitación específica dentro de una reserva

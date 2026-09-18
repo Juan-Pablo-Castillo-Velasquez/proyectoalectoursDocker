@@ -6,8 +6,10 @@ import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import Navbar from "../components/Navbar";
 import ProfileSidebar from "../components/profile/ProfileSidebar";
 import TabCuenta from "../components/profile/TabCuenta";
+import TabFacturas from "../components/profile/TabFacturas";
 import TabFavoritos from "../components/profile/TabFavoritos";
 import TabMensajes from "../components/profile/TabMensajes";
+import TabMetodosPago from "../components/profile/TabMetodosPago";
 import TabPreferencias from "../components/profile/TabPreferencias";
 import TabReservas from "../components/profile/TabReservas";
 import { useAuth } from "../context/AuthContext";
@@ -149,7 +151,7 @@ export default function Profile() {
 
       {/* ── Contenedor Principal ── */}
       <div className="max-w-7xl mx-auto px-4 -mt-10 pb-16 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Barra Lateral de Usuario */}
           <aside className="lg:col-span-1">
             <ProfileSidebar
@@ -163,7 +165,7 @@ export default function Profile() {
           </aside>
 
           {/* Área de Contenido Dinámico */}
-          <main className="lg:col-span-3 mt-4 lg:mt-8">
+          <main className="lg:col-span-3 mt-4 lg:mt-6">
             <AnimatePresence mode="wait">
               {activeTab === "reservas" && (
                 <motion.div
@@ -202,6 +204,28 @@ export default function Profile() {
                   transition={{ duration: 0.2 }}
                 >
                   <TabMensajes reservas={reservas} reservaIdInicial={reservaIdParaMensaje} />
+                </motion.div>
+              )}
+              {activeTab === "facturas" && (
+                <motion.div
+                  key="facturas"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <TabFacturas reservas={reservas} clienteData={clienteData} />
+                </motion.div>
+              )}
+              {activeTab === "metodos-pago" && (
+                <motion.div
+                  key="metodos-pago"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <TabMetodosPago />
                 </motion.div>
               )}
               {activeTab === "preferencias" && (

@@ -8,10 +8,12 @@ import {
   MessageCircle,
   Phone,
   Plane,
+  Receipt,
   Settings,
   ShieldAlert,
   SlidersHorizontal,
   User,
+  Wallet,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { resolveFotoUrl } from "../admin/types";
@@ -20,6 +22,8 @@ const tabs = [
   { id: "reservas", label: "Mis Reservas", icon: Calendar },
   { id: "favoritos", label: "Favoritos", icon: Heart },
   { id: "mensajes", label: "Mensajes", icon: MessageCircle },
+  { id: "facturas", label: "Facturas", icon: Receipt },
+  { id: "metodos-pago", label: "Métodos de Pago", icon: Wallet },
   { id: "preferencias", label: "Preferencias", icon: SlidersHorizontal },
   { id: "cuenta", label: "Mi Cuenta", icon: Settings },
 ];
@@ -74,13 +78,13 @@ export default function ProfileSidebar({
     )[0];
 
   return (
-    <div className="bg-card text-card-foreground rounded-xl shadow-md border border-border overflow-hidden sticky top-24 transition-colors duration-200">
+    <div className="bg-card text-card-foreground rounded-xl shadow-md border border-border overflow-hidden sticky top-24 transition-colors duration-200 lg:max-h-[calc(100vh-7rem)] flex flex-col">
       {/* ── Banner Sutil Superior ── */}
-      <div className="h-16 bg-primary/10 border-b border-border relative">
+      <div className="h-16 bg-primary/10 border-b border-border relative shrink-0">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
       </div>
 
-      <div className="px-5 pb-5">
+      <div className="px-4 pb-4 flex flex-col flex-1 min-h-0">
         {/* Avatar Integrado -- si la cuenta no está verificada (admin la
             marcó así desde ModuleUsuarios.tsx, ver Profile.tsx que
             resincroniza esto al entrar) se oculta cualquier foto propia y
@@ -207,14 +211,14 @@ export default function ProfileSidebar({
         )}
 
         {/* Menú de Pestañas con Navegación Corporativa */}
-        <nav className="space-y-1 mb-4">
+        <nav className="space-y-0.5 mb-3 overflow-y-auto flex-1 min-h-0">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-3 py-1.5 min-h-[36px] rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"

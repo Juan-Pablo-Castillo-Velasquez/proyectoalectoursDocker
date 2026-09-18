@@ -298,7 +298,7 @@ export default function TabReservas({
 
       {/* Header General */}
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight text-white">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
           Mis Reservas
         </h1>
         <p className="text-muted-foreground text-sm mt-0.5">
@@ -331,7 +331,7 @@ export default function TabReservas({
           </Link>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <MetricasResumen counts={counts} />
 
           {proxima && diasRestantes !== null && estadoViajeProxima ? (
