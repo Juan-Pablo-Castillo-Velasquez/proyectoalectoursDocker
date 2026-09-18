@@ -1,5 +1,5 @@
 from sqlalchemy import and_, func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.exceptions import (
     HabitacionNoDisponibleError,
@@ -11,6 +11,7 @@ from app.core.exceptions import (
 )
 from app.models.hotel_model import Habitacion, Hotel
 from app.models.reserva_model import (
+    ImagenPaquete,
     MetodoPago,
     Pago,
     Paquete,
@@ -38,6 +39,75 @@ class PaqueteRepository:
     @staticmethod
     def get_by_id(db: Session, paquete_id: int):
         return db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
+
+    @staticmethod
+    def get_similares(db: Session, paquete_id: int, limit: int = 6):
+        """Paquetes que comparten ciudad de destino con este (misma ciudad
+        de algún hotel real vinculado, vía paquete_hotel) para la sección
+        "también te puede interesar" -- antes no existía. Nunca una
+        recomendación inventada: si el paquete todavía no tiene ningún
+        hotel vinculado (y por lo tanto ningún destino real), devuelve
+        vacío en vez de sugerir paquetes al azar."""
+        paquete = (
+            db.query(Paquete)
+            .options(selectinload(Paquete.paquete_hotel).joinedload(PaqueteHotel.hotel))
+            .filter(Paquete.id_paquete == paquete_id)
+            .first()
+        )
+        if not paquete:
+            return []
+        ciudades = {ph.hotel.ciudad for ph in paquete.paquete_hotel if ph.hotel and ph.hotel.ciudad}
+        if not ciudades:
+            return []
+        return (
+            db.query(Paquete)
+            .join(PaqueteHotel, PaqueteHotel.id_paquete == Paquete.id_paquete)
+            .join(Hotel, Hotel.id_hotel == PaqueteHotel.id_hotel)
+            .filter(Paquete.activo, Paquete.id_paquete != paquete_id, Hotel.ciudad.in_(ciudades))
+            .distinct()
+            .order_by(Paquete.id_paquete)
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def set_imagen_portada(db: Session, paquete_id: int, url: str):
+        """Sube/reemplaza la portada del paquete (Paquete.imagen_url) --
+        mismo patrón que HotelRepository.update, pero un método propio
+        porque esto viaja aparte del PaqueteUpdate normal (el upload es
+        multipart, ver POST /paquetes/{id}/imagen en reserva_route.py)."""
+        paquete = db.query(Paquete).filter(Paquete.id_paquete == paquete_id).first()
+        if paquete:
+            paquete.imagen_url = url
+            db.commit()
+            db.refresh(paquete)
+        return paquete
+
+    @staticmethod
+    def add_imagen_galeria(db: Session, paquete_id: int, url: str) -> ImagenPaquete:
+        siguiente_orden = (
+            db.query(func.max(ImagenPaquete.orden)).filter(ImagenPaquete.id_paquete == paquete_id).scalar() or 0
+        ) + 1
+        imagen = ImagenPaquete(id_paquete=paquete_id, url=url, orden=siguiente_orden)
+        db.add(imagen)
+        db.commit()
+        db.refresh(imagen)
+        return imagen
+
+    @staticmethod
+    def get_imagen_galeria(db: Session, paquete_id: int, id_imagen: int):
+        """Busca por (id_imagen, id_paquete) juntos -- mismo criterio de
+        aislamiento que HotelRepository.get_imagen_galeria."""
+        return (
+            db.query(ImagenPaquete)
+            .filter(ImagenPaquete.id_imagen == id_imagen, ImagenPaquete.id_paquete == paquete_id)
+            .first()
+        )
+
+    @staticmethod
+    def delete_imagen_galeria(db: Session, imagen: ImagenPaquete) -> None:
+        db.delete(imagen)
+        db.commit()
 
     @staticmethod
     def _sync_hoteles(db: Session, paquete_id: int, hoteles_data: list):

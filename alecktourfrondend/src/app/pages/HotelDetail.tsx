@@ -46,6 +46,8 @@ import {
 } from "../services/hotel.service";
 import { resenaService, ResenaResponse } from "../services/resena.service";
 import { getCityImage, getDefaultImage } from "../utils/cityImages";
+import ImageLightbox from "../components/ui/ImageLightbox";
+import HotelCard from "../components/HotelCard";
 
 // ── Mapa de íconos de características con colores semánticos basados en tu tema ──
 const CARACTERISTICA_ICONS: Record<
@@ -115,6 +117,14 @@ const HOTEL_EXTRA_PHOTOS: Record<string, string[]> = {
 };
 
 function getGalleryImages(hotel: HotelDetailResponse): string[] {
+  // Fotos reales subidas desde el admin (POST /hoteles/{id}/galeria) tienen
+  // prioridad -- antes no existía ninguna forma de subir más de una foto
+  // real por hotel, así que la galería siempre se rellenaba con fotos de
+  // stock genéricas (ver HOTEL_EXTRA_PHOTOS/AMENITY_POOL abajo, que se
+  // mantienen como respaldo para los hoteles sin galería propia todavía).
+  if (hotel.imagenes && hotel.imagenes.length > 0) {
+    return hotel.imagenes.map((img) => resolveFotoUrl(img.url) ?? img.url).slice(0, 4);
+  }
   const propias = HOTEL_EXTRA_PHOTOS[hotel.nombre_hotel] ?? [];
   const faltan = 4 - propias.length;
   if (faltan <= 0) return propias.slice(0, 4);
@@ -190,6 +200,12 @@ export default function HotelDetail() {
   // Reseñas reales de huéspedes (GET /resenas/hotel/{id}) -- antes esta
   // página no mostraba ninguna, aunque el backend ya las tenía listas.
   const [resenas, setResenas] = useState<ResenaResponse[]>([]);
+  // Índice de la foto abierta en el lightbox (portada + galería en un solo
+  // arreglo navegable) -- null significa cerrado.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // Hoteles de la misma ciudad para "también te puede interesar" -- antes
+  // esta sección no existía.
+  const [similares, setSimilares] = useState<HotelDetailResponse[]>([]);
   // Habitaciones cuyo calendario de ocupación está desplegado (por id).
   const [calendariosAbiertos, setCalendariosAbiertos] = useState<Set<number>>(new Set());
   const toggleCalendario = (idHabitacion: number) =>
@@ -215,6 +231,10 @@ export default function HotelDetail() {
       .getByHotel(parseInt(id))
       .then(setResenas)
       .catch(() => setResenas([]));
+    hotelService
+      .getSimilares(parseInt(id))
+      .then(setSimilares)
+      .catch(() => setSimilares([]));
   }, [id]);
 
   // Antes esta página (y todas las demás) compartían el mismo <title>
@@ -399,9 +419,15 @@ export default function HotelDetail() {
             </div>
           </div>
 
-          {/* Galería de Imágenes (Estilo Bento Grid) */}
+          {/* Galería de Imágenes (Estilo Bento Grid) -- ahora se puede hacer
+              click en cualquier foto para verla ampliada (lightbox), antes
+              solo se veían en miniatura. fotosLightbox combina portada +
+              galería en un solo arreglo navegable. */}
           <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 mb-10 h-[45vh] md:h-[55vh] rounded-2xl overflow-hidden group">
-            <div className="md:col-span-2 md:row-span-2 relative overflow-hidden h-full">
+            <div
+              className="md:col-span-2 md:row-span-2 relative overflow-hidden h-full cursor-pointer"
+              onClick={() => setLightboxIndex(0)}
+            >
               <img
                 src={imagen}
                 alt={hotel.nombre_hotel}
@@ -414,12 +440,13 @@ export default function HotelDetail() {
             {galeria.map((img, idx) => (
               <div
                 key={idx}
-                className="hidden md:block relative overflow-hidden h-full"
+                className="hidden md:block relative overflow-hidden h-full cursor-pointer"
+                onClick={() => setLightboxIndex(idx + 1)}
               >
                 <img
                   src={img}
                   alt="Instalaciones"
-                  className="w-full h-full object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                  className="w-full h-full object-cover hover:opacity-90 transition-opacity"
                 />
               </div>
             ))}
@@ -876,8 +903,35 @@ export default function HotelDetail() {
               </div>
             </div>
           </div>
+
+          {/* También te puede interesar -- hoteles reales de la misma
+              ciudad (GET /hoteles/{id}/similares), nunca una recomendación
+              inventada. Se reutiliza HotelCard.tsx tal cual (mismo pedido
+              explícito de reutilizar componentes que ya se aplicó en
+              PackageDetail.tsx). */}
+          {similares.length > 0 && (
+            <section className="mt-14">
+              <h2 className="text-2xl font-semibold mb-6">
+                También te puede interesar
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {similares.map((h, idx) => (
+                  <HotelCard key={h.id_hotel} hotel={h} index={idx} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
+
+      <ImageLightbox
+        images={[imagen, ...galeria]}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+        alt={hotel.nombre_hotel}
+      />
+
       <Footer />
     </>
   );

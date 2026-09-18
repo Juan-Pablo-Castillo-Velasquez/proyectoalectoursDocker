@@ -19,10 +19,23 @@ class Paquete(Base):
     # este campo no había forma de avisar que un paquete armado para salir
     # de Bogotá no le sirve tal cual a un cliente que vive en Barranquilla.
     ciudad_salida = Column(String(100), nullable=True)
+    # Imagen de portada del paquete (mismo patrón que Hotel.imagen_url) --
+    # antes Paquete no tenía NINGÚN campo de imagen propio, así que la
+    # ficha pública siempre usaba la foto del hotel incluido (ver
+    # getHotelImage en PackageDetail.tsx, que se mantiene como respaldo
+    # para los paquetes sin portada propia todavía). Ver POST
+    # /paquetes/{id}/imagen en reserva_route.py.
+    imagen_url = Column(String(255), nullable=True)
 
     paquete_servicios = relationship("PaqueteServicio", back_populates="paquete", cascade="all, delete-orphan")
     paquete_hotel = relationship("PaqueteHotel", back_populates="paquete", cascade="all, delete-orphan")
     reservas = relationship("Reserva", back_populates="paquete")
+    # Galería de fotos reales del paquete (distinta de imagen_url, la
+    # portada) -- ver ImagenPaquete más abajo y POST/DELETE
+    # /paquetes/{id}/galeria en reserva_route.py.
+    imagenes = relationship(
+        "ImagenPaquete", back_populates="paquete", cascade="all, delete-orphan", order_by="ImagenPaquete.orden"
+    )
 
     @property
     def ciudad_destino(self):
@@ -60,6 +73,24 @@ class PaqueteHotel(Base):
 
     paquete = relationship("Paquete", back_populates="paquete_hotel")
     hotel = relationship("Hotel")
+
+
+class ImagenPaquete(Base):
+    """Una foto de la galería de un paquete turístico (distinta de
+    Paquete.imagen_url, que es solo la portada) -- mismo patrón que
+    ImagenHotel en hotel_model.py. `orden` es la posición en que el admin
+    las subió/organizó (ver POST/DELETE /paquetes/{id}/galeria en
+    reserva_route.py)."""
+
+    __tablename__ = "imagenes_paquete"
+
+    id_imagen = Column(Integer, primary_key=True, index=True)
+    id_paquete = Column(Integer, ForeignKey("paquetes.id_paquete", ondelete="CASCADE"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    orden = Column(Integer, nullable=False, default=0)
+    fecha_creacion = Column(TIMESTAMP, server_default=func.now())
+
+    paquete = relationship("Paquete", back_populates="imagenes")
 
 
 class Reserva(Base):

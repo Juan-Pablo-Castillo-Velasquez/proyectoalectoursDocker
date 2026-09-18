@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Package, CheckCircle, CreditCard, Calendar, Hotel,
-  Eye, MapPin, Plane, Sparkles, Users,
+  Eye, MapPin, Plane, Sparkles, Users, ImageIcon, ImagePlus, X, Loader2,
 } from "lucide-react";
-import { Paquete, Reserva, HotelData, inputCls, labelCls } from "./types";
+import { Paquete, Reserva, HotelData, inputCls, labelCls, resolveFotoUrl } from "./types";
 import { paqueteService, PaqueteDetalleResponse } from "../../services/paquete.service";
 import { servicioService, ServicioResponse } from "../../services/servicio.service";
 import AdminModal from "./ui/AdminModal";
@@ -62,6 +62,11 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [cargandoHoteles, setCargandoHoteles] = useState(false);
+  // Portada del paquete (opcional) -- antes Paquete no tenía ningún campo
+  // de imagen propio, ver POST /paquetes/{id}/imagen en reserva_route.py.
+  // Mismo patrón que imagenFile/imagenPreview en ModuleHoteles.tsx.
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
 
   // Catálogo completo de servicios reales (GET /servicios/, ya existía
   // para la página pública) — se carga una sola vez y de ahí se arma el
@@ -79,16 +84,48 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
   const [detalle, setDetalle] = useState<PaqueteDetalleResponse | null>(null);
   const [detalleLoading, setDetalleLoading] = useState(false);
   const [detalleError, setDetalleError] = useState("");
+  // Galería de fotos (distinta de la portada, que se sube en el modal de
+  // crear/editar) -- antes no existía ninguna forma de subir más de una
+  // foto real por paquete, ver POST/DELETE /paquetes/{id}/galeria.
+  const [subiendoFotoGaleria, setSubiendoFotoGaleria] = useState(false);
+  const [galeriaMsg, setGaleriaMsg] = useState("");
 
   function abrirDetalle(p: Paquete) {
     setDetailPaquete(p);
     setDetalle(null);
     setDetalleError("");
+    setGaleriaMsg("");
     setDetalleLoading(true);
     paqueteService.getDetalle(p.id_paquete)
       .then(setDetalle)
       .catch((e: any) => setDetalleError(e?.message || "No se pudo cargar el detalle del paquete"))
       .finally(() => setDetalleLoading(false));
+  }
+
+  async function handleSubirFotoGaleriaPaquete(file: File | undefined) {
+    if (!file || !detailPaquete) return;
+    setGaleriaMsg("");
+    setSubiendoFotoGaleria(true);
+    try {
+      await paqueteService.subirFotoGaleria(detailPaquete.id_paquete, file);
+      const actualizado = await paqueteService.getDetalle(detailPaquete.id_paquete);
+      setDetalle(actualizado);
+    } catch (err: any) {
+      setGaleriaMsg(err?.message || "No se pudo subir la foto");
+    } finally {
+      setSubiendoFotoGaleria(false);
+    }
+  }
+
+  async function handleBorrarFotoGaleriaPaquete(id_imagen: number) {
+    if (!detailPaquete) return;
+    try {
+      await paqueteService.borrarFotoGaleria(detailPaquete.id_paquete, id_imagen);
+      const actualizado = await paqueteService.getDetalle(detailPaquete.id_paquete);
+      setDetalle(actualizado);
+    } catch (err: any) {
+      setGaleriaMsg(err?.message || "No se pudo eliminar la foto");
+    }
   }
 
   // Rendimiento real por paquete (reservas y ventas, excluyendo canceladas)
@@ -123,7 +160,22 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
 
   const { page, pageCount, slice, setPage } = usePagination(filtered, 8);
 
-  function openCreate() { setEditingId(null); setForm(EMPTY_FORM); setMsg(null); setModalOpen(true); }
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setMsg(null);
+    setImagenFile(null);
+    setImagenPreview(null);
+    setModalOpen(true);
+  }
+
+  const onSeleccionarImagenPaquete = (file: File | undefined) => {
+    if (!file) return;
+    setImagenFile(file);
+    // Preview local vía createObjectURL -- nunca se sube nada hasta el
+    // submit real del formulario (mismo patrón que ModuleHoteles.tsx).
+    setImagenPreview(URL.createObjectURL(file));
+  };
 
   function openEdit(p: Paquete) {
     setEditingId(p.id_paquete);
@@ -133,6 +185,8 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
       activo: p.activo, ciudad_salida: p.ciudad_salida ?? "", hoteles: [], servicios: [],
     });
     setMsg(null);
+    setImagenFile(null);
+    setImagenPreview(resolveFotoUrl(p.imagen_url) ?? null);
     setModalOpen(true);
 
     // Carga los hoteles Y servicios YA vinculados a este paquete
@@ -160,7 +214,14 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
       .finally(() => setCargandoHoteles(false));
   }
 
-  function closeModal() { setModalOpen(false); setEditingId(null); setForm(EMPTY_FORM); setMsg(null); }
+  function closeModal() {
+    setModalOpen(false);
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setMsg(null);
+    setImagenFile(null);
+    setImagenPreview(null);
+  }
 
   function toggleHotel(id_hotel: number) {
     setForm((prev) => {
@@ -219,6 +280,11 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             dia_actividad: s.dia_actividad ? parseInt(s.dia_actividad, 10) : null,
             incluido: true,
           })),
+          // imagenFile viaja aparte del body JSON (el endpoint de imagen es
+          // multipart, ver reserva_route.py) -- Admindashboard.tsx lo separa
+          // del resto antes de mandar el PUT/POST normal, mismo patrón que
+          // submitHotel.
+          imagenFile,
         },
         editingId ?? undefined
       );
@@ -411,6 +477,27 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
             <label className={labelCls}>Nombre del paquete</label>
             <input value={form.nombre_paquete} onChange={e => setForm({ ...form, nombre_paquete: e.target.value })}
               className={inputCls} required placeholder="Magia del Caribe" />
+          </div>
+
+          {/* Portada del paquete (opcional) -- antes Paquete no tenía
+              ningún campo de imagen propio, la ficha pública siempre usaba
+              la foto del hotel incluido (ver POST /paquetes/{id}/imagen). */}
+          <div>
+            <label className={labelCls}>Foto de portada (opcional)</label>
+            <label className="mt-1.5 flex items-center justify-center h-32 rounded-xl border-2 border-dashed border-border bg-muted/40 cursor-pointer overflow-hidden hover:border-primary/40 transition-colors">
+              {imagenPreview ? (
+                <img src={imagenPreview} alt="Vista previa" className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                  <ImageIcon className="w-6 h-6" />
+                  <span className="text-xs">Sin foto — se usa la del hotel incluido</span>
+                </div>
+              )}
+              <input
+                type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={e => onSeleccionarImagenPaquete(e.target.files?.[0])}
+              />
+            </label>
           </div>
           <div>
             <label className={labelCls}>Descripción</label>
@@ -654,6 +741,49 @@ export default function ModulePaquetes({ paquetes, reservas = [], hoteles = [], 
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Galería de fotos -- distinta de la portada (que se sube en
+                el modal de crear/editar): antes no existía ninguna forma
+                de subir más de una foto real por paquete, ver
+                POST/DELETE /paquetes/{id}/galeria en reserva_route.py. */}
+            <div className="border-t border-border pt-4">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5" /> Galería de fotos
+              </p>
+              {galeriaMsg && <p className="text-xs text-destructive mb-1.5">{galeriaMsg}</p>}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {detalle.imagenes.map((img) => (
+                  <div key={img.id_imagen} className="relative aspect-square rounded-lg overflow-hidden border border-border group">
+                    <img src={resolveFotoUrl(img.url)} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleBorrarFotoGaleriaPaquete(img.id_imagen)}
+                      className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Eliminar foto"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                <label className="flex flex-col items-center justify-center gap-1 aspect-square rounded-lg border-2 border-dashed border-border bg-muted/40 cursor-pointer hover:border-primary/40 transition-colors text-muted-foreground">
+                  {subiendoFotoGaleria ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="w-4 h-4" />
+                      <span className="text-[10px]">Agregar</span>
+                    </>
+                  )}
+                  <input
+                    type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={subiendoFotoGaleria}
+                    onChange={(e) => handleSubirFotoGaleriaPaquete(e.target.files?.[0])}
+                  />
+                </label>
+              </div>
+              {detalle.imagenes.length === 0 && (
+                <p className="text-[11px] text-muted-foreground/70">Este paquete todavía no tiene ninguna foto en su galería.</p>
               )}
             </div>
           </div>

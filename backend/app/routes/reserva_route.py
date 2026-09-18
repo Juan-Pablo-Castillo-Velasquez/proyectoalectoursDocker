@@ -22,6 +22,7 @@ from app.core.exceptions import (
     ReservaDependencyError,
 )
 from app.core.file_validation import validar_y_leer_archivo
+from app.core.image_storage import borrar_imagen, guardar_imagen
 from app.core.mail import send_reservation_confirmation
 from app.core.security import require_admin
 from app.models.hotel_model import Hotel, HotelCaracteristica
@@ -42,6 +43,7 @@ from app.schemas.reserva_detail import (
     ReservaHistorialDetail,
     ReservaServicioDetail,
 )
+from app.schemas.hotel_schema import ImagenGaleriaResponse
 from app.schemas.reserva_schema import (
     MetodoPagoCreate,
     MetodoPagoResponse,
@@ -70,6 +72,13 @@ router = APIRouter(prefix="/api", tags=["Reservas, Paquetes y Pagos"])
 logger = logging.getLogger(__name__)
 
 PAQUETES_CACHE_PATTERN = "paquetes:list:*"
+
+# Imágenes de paquete (portada + galería) -- mismo patrón que hotel_route.py,
+# con carpetas propias para no mezclarlas con las de hoteles en Cloudinary/disco.
+PAQUETE_IMAGEN_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+PAQUETE_IMAGEN_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
+PAQUETE_IMAGEN_PUBLIC_PREFIX = "/uploads/paquetes"
+PAQUETE_GALERIA_PUBLIC_PREFIX = "/uploads/paquetes-galeria"
 RESERVAS_CACHE_PATTERN = "reservas:list:*"
 PAGOS_CACHE_PATTERN = "pagos:list:*"
 # Los métodos de pago casi nunca cambian (se crean una vez al configurar el
@@ -262,6 +271,10 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
         if ps.servicio
     ]
 
+    imagenes = [
+        ImagenGaleriaResponse(id_imagen=img.id_imagen, url=img.url, orden=img.orden) for img in paquete.imagenes
+    ]
+
     return PaqueteDetalleResponse(
         id_paquete=paquete.id_paquete,
         nombre_paquete=paquete.nombre_paquete,
@@ -270,9 +283,11 @@ def get_paquete_detalle(paquete_id: int, db: Session = Depends(get_db)):
         precio_base=float(paquete.precio_base),
         activo=paquete.activo,
         ciudad_salida=paquete.ciudad_salida,
+        imagen_url=paquete.imagen_url,
         destinos=destinos,
         hoteles=hoteles,
         servicios=servicios,
+        imagenes=imagenes,
     )
 
 
@@ -318,6 +333,91 @@ def delete_paquete(paquete_id: int, db: Session = Depends(get_db), admin_id: int
     except Exception as e:
         logger.error(f"Error inesperado: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor") from e
+
+
+@router.get("/paquetes/{paquete_id}/similares", response_model=list[PaqueteResponse])
+def get_paquetes_similares(
+    paquete_id: int,
+    limit: int = Query(6, ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    """Paquetes con destino real parecido (mismo ciudad de algún hotel
+    vinculado) para la sección "también te puede interesar" -- ver
+    PaqueteRepository.get_similares. Vacío (nunca 404) si el paquete no
+    tiene ningún hotel vinculado todavía."""
+    return PaqueteRepository.get_similares(db, paquete_id, limit)
+
+
+@router.post("/paquetes/{paquete_id}/imagen", response_model=PaqueteResponse)
+async def subir_imagen_paquete(
+    paquete_id: int,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Sube/reemplaza la portada del paquete (Paquete.imagen_url) -- antes
+    Paquete no tenía ningún campo de imagen propio, ver reserva_model.py.
+    Mismo almacenamiento (Cloudinary si está configurado, disco local si
+    no) y misma validación que subir_imagen_hotel en hotel_route.py."""
+    paquete = PaqueteRepository.get_by_id(db, paquete_id)
+    if not paquete:
+        raise HTTPException(status_code=404, detail="Paquete no encontrado")
+
+    contenido, extension = await validar_y_leer_archivo(
+        imagen,
+        tipos_permitidos=PAQUETE_IMAGEN_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=PAQUETE_IMAGEN_TAMANO_MAXIMO_BYTES,
+    )
+    nueva_url = guardar_imagen(contenido, extension, carpeta="paquetes", public_path_prefix=PAQUETE_IMAGEN_PUBLIC_PREFIX)
+    # Primero se guarda la foto nueva, y solo si eso funciona se borra la
+    # anterior -- mismo orden que subir_imagen_hotel.
+    borrar_imagen(paquete.imagen_url, carpeta="paquetes", public_path_prefix=PAQUETE_IMAGEN_PUBLIC_PREFIX)
+    actualizado = PaqueteRepository.set_imagen_portada(db, paquete_id, nueva_url)
+    delete_pattern(PAQUETES_CACHE_PATTERN)
+    return actualizado
+
+
+@router.post("/paquetes/{paquete_id}/galeria", response_model=ImagenGaleriaResponse, status_code=201)
+async def subir_foto_galeria_paquete(
+    paquete_id: int,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Agrega una foto a la galería del paquete (distinta de la portada, ver
+    subir_imagen_paquete arriba) -- ver ImagenPaquete en reserva_model.py."""
+    paquete = PaqueteRepository.get_by_id(db, paquete_id)
+    if not paquete:
+        raise HTTPException(status_code=404, detail="Paquete no encontrado")
+
+    contenido, extension = await validar_y_leer_archivo(
+        imagen,
+        tipos_permitidos=PAQUETE_IMAGEN_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=PAQUETE_IMAGEN_TAMANO_MAXIMO_BYTES,
+    )
+    url = guardar_imagen(contenido, extension, carpeta="paquetes-galeria", public_path_prefix=PAQUETE_GALERIA_PUBLIC_PREFIX)
+    nueva = PaqueteRepository.add_imagen_galeria(db, paquete_id, url)
+    delete_pattern(PAQUETES_CACHE_PATTERN)
+    return nueva
+
+
+@router.delete("/paquetes/{paquete_id}/galeria/{id_imagen}")
+def borrar_foto_galeria_paquete(
+    paquete_id: int,
+    id_imagen: int,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Elimina una foto de la galería del paquete (y su archivo real)."""
+    imagen = PaqueteRepository.get_imagen_galeria(db, paquete_id, id_imagen)
+    if not imagen:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    borrar_imagen(imagen.url, carpeta="paquetes-galeria", public_path_prefix=PAQUETE_GALERIA_PUBLIC_PREFIX)
+    PaqueteRepository.delete_imagen_galeria(db, imagen)
+    delete_pattern(PAQUETES_CACHE_PATTERN)
+    return {"message": "Imagen eliminada de la galería"}
 
 
 # ===================== RESERVAS CRUD =====================

@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.exceptions import HotelDependencyError, NotFoundError
-from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, TipoHabitacion
+from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, ImagenHotel, TipoHabitacion
 from app.models.reserva_model import PaqueteHotel, Reserva, ReservaHabitacion
 
 
@@ -34,6 +34,7 @@ class HotelRepository:
             selectinload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
             selectinload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
             selectinload(Hotel.resenas),
+            selectinload(Hotel.imagenes),
         )
 
         if fecha_checkin and fecha_checkout:
@@ -173,6 +174,64 @@ class HotelRepository:
     @staticmethod
     def get_by_id(db: Session, hotel_id: int):
         return db.query(Hotel).filter(Hotel.id_hotel == hotel_id).first()
+
+    @staticmethod
+    def get_similares(db: Session, hotel_id: int, limit: int = 6):
+        """Hoteles de la misma ciudad (excluyendo el propio) para la sección
+        "también te puede interesar" de la ficha de hotel -- antes esa
+        sección no existía; se calcula por ciudad real (Hotel.ciudad), nunca
+        una recomendación inventada. Mismas relaciones eager-loaded que
+        get_all para poder reutilizar HotelCard.tsx tal cual en el frontend
+        (necesita habitaciones/hotel_caracteristicas ya cargadas)."""
+        hotel = db.query(Hotel).filter(Hotel.id_hotel == hotel_id).first()
+        if not hotel or not hotel.ciudad:
+            return []
+        return (
+            db.query(Hotel)
+            .options(
+                selectinload(Hotel.habitaciones).joinedload(Habitacion.tipo_habitacion),
+                selectinload(Hotel.hotel_caracteristicas).joinedload(HotelCaracteristica.caracteristica),
+                selectinload(Hotel.resenas),
+                selectinload(Hotel.imagenes),
+            )
+            .filter(Hotel.ciudad == hotel.ciudad, Hotel.id_hotel != hotel_id)
+            .order_by(Hotel.calificacion.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def add_imagen_galeria(db: Session, hotel_id: int, url: str) -> ImagenHotel:
+        """Agrega una foto al final de la galería del hotel (ver POST
+        /hoteles/{id}/galeria en hotel_route.py). `orden` se calcula como
+        max(orden) + 1 en vez de contar filas, para que borrar una foto del
+        medio no haga que la siguiente que se suba "salte" al mismo orden
+        que otra ya existente."""
+        siguiente_orden = (
+            db.query(func.max(ImagenHotel.orden)).filter(ImagenHotel.id_hotel == hotel_id).scalar() or 0
+        ) + 1
+        imagen = ImagenHotel(id_hotel=hotel_id, url=url, orden=siguiente_orden)
+        db.add(imagen)
+        db.commit()
+        db.refresh(imagen)
+        return imagen
+
+    @staticmethod
+    def get_imagen_galeria(db: Session, hotel_id: int, id_imagen: int):
+        """Busca por (id_imagen, id_hotel) juntos -- nunca solo por
+        id_imagen -- para que DELETE /hoteles/{id}/galeria/{id_imagen} nunca
+        pueda borrar una foto de OTRO hotel aunque alguien mande un
+        id_hotel de la URL que no corresponda al id_imagen real."""
+        return (
+            db.query(ImagenHotel)
+            .filter(ImagenHotel.id_imagen == id_imagen, ImagenHotel.id_hotel == hotel_id)
+            .first()
+        )
+
+    @staticmethod
+    def delete_imagen_galeria(db: Session, imagen: ImagenHotel) -> None:
+        db.delete(imagen)
+        db.commit()
 
     @staticmethod
     def create(db: Session, hotel_data: dict):

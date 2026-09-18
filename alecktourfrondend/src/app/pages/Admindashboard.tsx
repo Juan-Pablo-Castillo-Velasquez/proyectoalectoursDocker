@@ -41,6 +41,7 @@ import ModuleMensajes from "../components/admin/ModuleMensajes";
 import { temaService, type Tema, type TemaFormData } from "../services/tema.service";
 import { useTema } from "../context/TemaContext";
 import { hotelService } from "../services/hotel.service";
+import { paqueteService } from "../services/paquete.service";
 
 type PendingDelete =
   | { kind: "reserva"; id: number; label: string }
@@ -645,8 +646,20 @@ export default function AdminDashboard() {
   const submitPaquete = async (data: any, id?: number) => {
     setLoading(true);
     try {
-      if (id) await apiFetch(`/paquetes/${id}`, { method: "PUT", body: data });
-      else await apiFetch("/paquetes", { method: "POST", body: data });
+      // imagenFile viaja aparte del body JSON de creación/edición (el
+      // endpoint de imagen es multipart, ver reserva_route.py) -- se sube
+      // después, ya con un id_paquete real -- mismo patrón que submitHotel.
+      const { imagenFile, ...paqueteData } = data;
+      let paqueteId = id;
+      if (id) {
+        await apiFetch(`/paquetes/${id}`, { method: "PUT", body: paqueteData });
+      } else {
+        const creado = await apiFetch<{ id_paquete: number }>("/paquetes", { method: "POST", body: paqueteData });
+        paqueteId = creado.id_paquete;
+      }
+      if (imagenFile && paqueteId) {
+        await paqueteService.subirImagen(paqueteId, imagenFile);
+      }
       await fetchPaquetes();
       toast.success(id ? "Paquete actualizado correctamente" : "Paquete creado correctamente");
     } catch (e: any) {

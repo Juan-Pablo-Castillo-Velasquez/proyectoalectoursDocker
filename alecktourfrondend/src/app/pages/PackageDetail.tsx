@@ -8,6 +8,7 @@ import {
   Hotel as HotelIcon,
   MapPin,
   Plane,
+  Quote,
   ShieldCheck,
   Sparkles,
   Star,
@@ -25,16 +26,20 @@ import { Badge } from "../components/ui/badge";
 import Footer from "../components/Footer";
 import HalloweenAccentDiscreto from "../components/HalloweenAccentDiscreto";
 import HotelCard from "../components/HotelCard";
+import ImageLightbox from "../components/ui/ImageLightbox";
 import Navbar from "../components/Navbar";
+import PackageResultCard from "../components/PackageResultCard";
 import { resolveFotoUrl } from "../components/admin/types";
 import { useTema } from "../context/TemaContext";
 import { HotelDetailResponse, hotelService } from "../services/hotel.service";
 import {
   PaqueteDetalleResponse,
   PaqueteHotelDetalle,
+  PaqueteResponse,
   PaqueteServicioDetalle,
   paqueteService,
 } from "../services/paquete.service";
+import { resenaService, ResenaResponse } from "../services/resena.service";
 import { getCityImage, getDefaultImage } from "../utils/cityImages";
 
 // Fotos reales por ciudad, solo como respaldo cuando ningún hotel del
@@ -157,6 +162,14 @@ export default function PackageDetail() {
   // (pedido explícito: "quiero que reutilice componentes"). Se guarda por
   // id_hotel porque el fetch es independiente del orden en que resuelvan.
   const [hotelesDetalle, setHotelesDetalle] = useState<Record<number, HotelDetailResponse>>({});
+  // Reseñas reales del hotel principal del paquete (GET /resenas/hotel/{id})
+  // -- antes esta página no mostraba ninguna reseña.
+  const [resenas, setResenas] = useState<ResenaResponse[]>([]);
+  // Paquetes con destino real parecido para "también te puede interesar".
+  const [similares, setSimilares] = useState<PaqueteResponse[]>([]);
+  // Índice de la foto abierta en el lightbox (portada + galería en un solo
+  // arreglo navegable) -- null significa cerrado.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -168,6 +181,10 @@ export default function PackageDetail() {
       .then(setPkg)
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+    paqueteService
+      .getSimilares(parseInt(id))
+      .then(setSimilares)
+      .catch(() => setSimilares([]));
   }, [id]);
 
   useEffect(() => {
@@ -183,6 +200,20 @@ export default function PackageDetail() {
           // skeleton de carga en vez de romper el resto de la página.
         });
     });
+
+    // Reseñas del hotel PRINCIPAL del paquete (el primero vinculado, mismo
+    // criterio que heroImage/heroHotel más abajo) -- Resena está ligada a
+    // un hotel, no a un paquete, así que se reutilizan las mismas reseñas
+    // que ya se muestran en la ficha de ese hotel.
+    const primerHotel = pkg.hoteles[0];
+    if (!primerHotel) {
+      setResenas([]);
+      return;
+    }
+    resenaService
+      .getByHotel(primerHotel.id_hotel)
+      .then(setResenas)
+      .catch(() => setResenas([]));
   }, [pkg]);
 
   if (loading) {
@@ -224,8 +255,17 @@ export default function PackageDetail() {
 
   const destinoPrincipal = pkg.destinos[0] ?? pkg.hoteles[0]?.ciudad ?? pkg.nombre_paquete;
   const heroHotel = pkg.hoteles[0];
-  const heroImage = heroHotel ? getHotelImage(heroHotel) : getImage(pkg.destinos[0]);
+  // Portada propia del paquete (POST /paquetes/{id}/imagen) tiene prioridad
+  // -- antes Paquete no tenía ningún campo de imagen propio y esta ficha
+  // siempre usaba la foto del hotel incluido como respaldo (getHotelImage,
+  // que se mantiene como segundo respaldo para paquetes sin portada propia
+  // todavía).
+  const heroImage =
+    resolveFotoUrl(pkg.imagen_url) ?? (heroHotel ? getHotelImage(heroHotel) : getImage(pkg.destinos[0]));
   const heroPais = heroHotel?.pais ?? "Colombia";
+  // Portada + galería real del paquete, combinadas en un solo arreglo
+  // navegable para el lightbox (click para ampliar).
+  const fotosLightbox = [heroImage, ...pkg.imagenes.map((img) => resolveFotoUrl(img.url) ?? img.url)];
   const transportes = pkg.servicios.filter(esTransporte);
   const actividades = pkg.servicios.filter((s) => !esTransporte(s));
   const itinerario = agruparPorDia(actividades);
@@ -306,6 +346,30 @@ export default function PackageDetail() {
             </div>
           </div>
         </div>
+
+        {/* Miniaturas de la galería real del paquete (POST
+            /paquetes/{id}/galeria) -- antes no existía ninguna forma de
+            subir más de una foto por paquete. Si no hay ninguna, la
+            portada sigue siendo clickeable arriba y esta tira no se
+            muestra. */}
+        {pkg.imagenes.length > 0 && (
+          <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
+            {pkg.imagenes.map((img, idx) => (
+              <button
+                key={img.id_imagen}
+                type="button"
+                onClick={() => setLightboxIndex(idx + 1)}
+                className="relative h-20 w-28 shrink-0 rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity"
+              >
+                <img
+                  src={resolveFotoUrl(img.url) ?? img.url}
+                  alt={`Foto ${idx + 1} de ${pkg.nombre_paquete}`}
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Resumen — "este paquete incluye" de un vistazo, sin tener que
             leer las tres secciones completas para saber qué trae. */}
@@ -493,6 +557,51 @@ export default function PackageDetail() {
               </section>
             )}
 
+            {/* Reseñas de huéspedes -- reutiliza las mismas reseñas reales del
+                hotel principal del paquete (Resena está ligada a un hotel,
+                no a un paquete). Dato real (GET /resenas/hotel/{id}): si el
+                hotel todavía no tiene reseñas, la sección completa no se
+                muestra en vez de simularlas -- mismo criterio que
+                HotelDetail.tsx. */}
+            {resenas.length > 0 && (
+              <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
+                <EncabezadoSeccion icon={Star} titulo="Reseñas de huéspedes" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {resenas.slice(0, 6).map((r) => (
+                    <div key={r.id_resena} className="p-5 rounded-2xl border border-border bg-muted/30">
+                      <div className="flex items-center gap-3 mb-3">
+                        <img
+                          src={
+                            r.foto_url ||
+                            `https://ui-avatars.com/api/?background=random&name=${encodeURIComponent(r.nombre_cliente ?? "Huésped")}`
+                          }
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {r.nombre_cliente ?? "Huésped AlecTours"}
+                          </p>
+                        </div>
+                        <div className="ml-auto flex gap-0.5 shrink-0">
+                          {Array.from({ length: 5 }, (_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3.5 h-3.5 ${i < r.calificacion ? "fill-gold text-gold" : "fill-muted text-muted"}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        <Quote className="w-3.5 h-3.5 inline mr-1.5 text-primary/40 -mt-1" />
+                        {r.comentario}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Personalización — solo se muestra si el paquete de verdad tiene
                 actividades opcionales configuradas (Servicio.incluido = false);
                 antes enlazaba a una página con datos 100% inventados
@@ -656,7 +765,31 @@ export default function PackageDetail() {
             </div>
           </div>
         </div>
+
+        {/* También te puede interesar -- paquetes con destino real parecido
+            (GET /paquetes/{id}/similares), nunca una recomendación
+            inventada. Se reutiliza PackageResultCard.tsx tal cual. */}
+        {similares.length > 0 && (
+          <section className="mt-14">
+            <h2 className="text-2xl font-semibold mb-6">
+              También te puede interesar
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {similares.map((p, idx) => (
+                <PackageResultCard key={p.id_paquete} pkg={p} index={idx} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
+
+      <ImageLightbox
+        images={fotosLightbox}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+        alt={pkg.nombre_paquete}
+      />
 
       <Footer />
     </div>

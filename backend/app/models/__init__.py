@@ -2,11 +2,12 @@
 from app.models.auth_model import RecuperacionPassword, Rol, SesionUsuario, UsuarioRol
 from app.models.cliente_model import Cliente, Empleado, PreferenciaCliente
 from app.models.favorito_model import Favorito
-from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, TipoHabitacion
+from app.models.hotel_model import Caracteristica, Habitacion, Hotel, HotelCaracteristica, ImagenHotel, TipoHabitacion
 from app.models.mensaje_chat_model import MensajeChat
 from app.models.resena_model import Resena
 from app.models.reserva_model import (
     HistorialReserva,
+    ImagenPaquete,
     MetodoPago,
     Pago,
     Paquete,
@@ -50,4 +51,6 @@ __all__ = [
     "RecuperacionPassword",
     "Favorito",
     "MensajeChat",
+    "ImagenHotel",
+    "ImagenPaquete",
 ]

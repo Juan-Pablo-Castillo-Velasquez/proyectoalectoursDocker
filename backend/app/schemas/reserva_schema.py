@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.hotel_schema import ImagenGaleriaResponse
+
 
 class PaqueteHotelInput(BaseModel):
     """Un hotel real vinculado al paquete (tabla paquete_hotel, ya existía
@@ -63,6 +65,10 @@ class PaqueteResponse(BaseModel):
     # Calculada (Paquete.ciudad_destino), no una columna — ver el property
     # en el modelo. None si el paquete no tiene ningún hotel vinculado.
     ciudad_destino: str | None = None
+    # Portada del paquete (mismo patrón que Hotel.imagen_url) -- antes
+    # Paquete no tenía ningún campo de imagen propio, ver POST
+    # /paquetes/{id}/imagen en reserva_route.py.
+    imagen_url: str | None = None
 
     class Config:
         from_attributes = True
@@ -104,6 +110,9 @@ class PaqueteDetalleResponse(PaqueteResponse):
     destinos: list[str] = []
     hoteles: list[PaqueteHotelDetalle] = []
     servicios: list[PaqueteServicioDetalle] = []
+    # Galería de fotos reales del paquete (distinta de imagen_url, la
+    # portada) -- ver ImagenPaquete en reserva_model.py.
+    imagenes: list[ImagenGaleriaResponse] = []
 
 
 class MetodoPagoCreate(BaseModel):

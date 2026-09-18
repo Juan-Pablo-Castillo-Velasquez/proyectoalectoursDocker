@@ -29,6 +29,14 @@ export interface HabitacionResponse {
   tipo_habitacion?: TipoHabitacionResponse;
 }
 
+// Una foto de la galería del hotel (distinta de imagen_url, la portada) --
+// ver POST/DELETE /hoteles/{id}/galeria en hotel_route.py.
+export interface ImagenGaleriaResponse {
+  id_imagen: number;
+  url: string;
+  orden: number;
+}
+
 export interface HotelResponse {
   id_hotel: number;
   nombre_hotel: string;
@@ -50,6 +58,9 @@ export interface HotelResponse {
 export interface HotelDetailResponse extends HotelResponse {
   habitaciones: HabitacionResponse[];
   hotel_caracteristicas: HotelCaracteristicaResponse[];
+  // Galería de fotos reales (distinta de imagen_url, la portada) -- antes
+  // no existía ninguna forma de subir más de una foto por hotel.
+  imagenes?: ImagenGaleriaResponse[];
 }
 
 export interface RangoOcupado {
@@ -143,4 +154,21 @@ export const hotelService = {
 
   deleteHabitacion: (habitacionId: number) =>
     apiFetch<{ message: string }>(`/hoteles/habitaciones/${habitacionId}`, { method: 'DELETE' }),
+
+  // Hoteles de la misma ciudad (excluyendo este) para la sección "también
+  // te puede interesar" de la ficha de hotel -- ver GET
+  // /hoteles/{id}/similares en hotel_route.py.
+  getSimilares: (id: number, limit = 6) =>
+    apiFetch<HotelDetailResponse[]>(`/hoteles/${id}/similares?limit=${limit}`),
+
+  // Galería de fotos (distinta de la portada, ver subirImagen arriba) --
+  // antes no existía ninguna forma de subir más de una foto real por hotel.
+  subirFotoGaleria: (id: number, imagen: File) => {
+    const fd = new FormData();
+    fd.append('imagen', imagen);
+    return apiFetch<ImagenGaleriaResponse>(`/hoteles/${id}/galeria`, { method: 'POST', body: fd });
+  },
+
+  borrarFotoGaleria: (id: number, idImagen: number) =>
+    apiFetch<{ message: string }>(`/hoteles/${id}/galeria/${idImagen}`, { method: 'DELETE' }),
 };

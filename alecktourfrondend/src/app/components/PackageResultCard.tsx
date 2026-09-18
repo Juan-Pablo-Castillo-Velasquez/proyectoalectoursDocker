@@ -1,6 +1,7 @@
 import { ArrowRight, Clock, MapPin, Package as PackageIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { Link } from "react-router";
+import { resolveFotoUrl } from "./admin/types";
 import { PaqueteResponse } from "../services/paquete.service";
 import { getCityImage, getDefaultImage } from "../utils/cityImages";
 
@@ -20,7 +21,11 @@ function getImage(ciudad?: string | null) {
 }
 
 export default function PackageResultCard({ pkg, index = 0 }: PackageResultCardProps) {
-  const imagen = getImage(pkg.ciudad_destino ?? pkg.ciudad_salida);
+  // Portada real del paquete (POST /paquetes/{id}/imagen) tiene prioridad
+  // -- antes Paquete no tenía ningún campo de imagen propio y esta tarjeta
+  // siempre usaba una foto genérica por ciudad (que se mantiene como
+  // respaldo para paquetes sin portada propia todavía).
+  const imagen = resolveFotoUrl(pkg.imagen_url) ?? getImage(pkg.ciudad_destino ?? pkg.ciudad_salida);
   const ruta =
     pkg.ciudad_salida && pkg.ciudad_destino && pkg.ciudad_salida !== pkg.ciudad_destino
       ? `${pkg.ciudad_salida} → ${pkg.ciudad_destino}`

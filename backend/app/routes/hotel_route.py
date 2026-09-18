@@ -29,6 +29,7 @@ from app.schemas.hotel_schema import (
     HotelDetailResponse,
     HotelResponse,
     HotelUpdate,
+    ImagenGaleriaResponse,
     TipoHabitacionCreate,
     TipoHabitacionResponse,
 )
@@ -42,6 +43,9 @@ HOTELES_CACHE_PATTERN = "hoteles:list:*"
 HOTEL_IMAGEN_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 HOTEL_IMAGEN_TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
 HOTEL_IMAGEN_PUBLIC_PREFIX = "/uploads/hoteles"
+# Galería de fotos (distinta de la portada) -- misma validación, carpeta
+# propia para no mezclar portadas con fotos de galería en Cloudinary/disco.
+HOTEL_GALERIA_PUBLIC_PREFIX = "/uploads/hoteles-galeria"
 
 
 # ===================== HOTELES CRUD =====================
@@ -224,6 +228,63 @@ async def subir_imagen_hotel(
     db.refresh(hotel)
     delete_pattern(HOTELES_CACHE_PATTERN)
     return hotel
+
+
+@router.get("/{hotel_id}/similares", response_model=list[HotelDetailResponse])
+def get_hoteles_similares(
+    hotel_id: int,
+    limit: int = Query(6, ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    """Hoteles de la misma ciudad (excluyendo este) para la sección
+    "también te puede interesar" de la ficha de hotel -- ver
+    HotelRepository.get_similares. Vacío (nunca un 404) si el hotel no
+    tiene ciudad o no hay otro hotel real en la misma ciudad."""
+    return HotelRepository.get_similares(db, hotel_id, limit)
+
+
+@router.post("/{hotel_id}/galeria", response_model=ImagenGaleriaResponse, status_code=201)
+async def subir_foto_galeria_hotel(
+    hotel_id: int,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Agrega una foto a la galería del hotel (distinta de la portada, ver
+    subir_imagen_hotel arriba) -- antes Hotel no tenía forma de guardar más
+    de una imagen real, ver ImagenHotel en hotel_model.py."""
+    hotel = HotelRepository.get_by_id(db, hotel_id)
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel no encontrado")
+
+    contenido, extension = await validar_y_leer_archivo(
+        imagen,
+        tipos_permitidos=HOTEL_IMAGEN_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        tamano_maximo_bytes=HOTEL_IMAGEN_TAMANO_MAXIMO_BYTES,
+    )
+    url = guardar_imagen(contenido, extension, carpeta="hoteles-galeria", public_path_prefix=HOTEL_GALERIA_PUBLIC_PREFIX)
+    nueva = HotelRepository.add_imagen_galeria(db, hotel_id, url)
+    delete_pattern(HOTELES_CACHE_PATTERN)
+    return nueva
+
+
+@router.delete("/{hotel_id}/galeria/{id_imagen}")
+def borrar_foto_galeria_hotel(
+    hotel_id: int,
+    id_imagen: int,
+    db: Session = Depends(get_db),
+    admin_id: int = Depends(require_admin),
+):
+    """Elimina una foto de la galería del hotel (y su archivo real, en
+    Cloudinary o disco local según corresponda)."""
+    imagen = HotelRepository.get_imagen_galeria(db, hotel_id, id_imagen)
+    if not imagen:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    borrar_imagen(imagen.url, carpeta="hoteles-galeria", public_path_prefix=HOTEL_GALERIA_PUBLIC_PREFIX)
+    HotelRepository.delete_imagen_galeria(db, imagen)
+    delete_pattern(HOTELES_CACHE_PATTERN)
+    return {"message": "Imagen eliminada de la galería"}
 
 
 @router.delete("/{hotel_id}")

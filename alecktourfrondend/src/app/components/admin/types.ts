@@ -114,6 +114,9 @@ export interface HotelData {
   calificacion_promedio?: number | null;
   habitaciones?: HabitacionAdmin[];
   imagen_url?: string | null;
+  // Galería de fotos reales (distinta de imagen_url, la portada) -- ver
+  // POST/DELETE /hoteles/{id}/galeria en hotel_route.py.
+  imagenes?: { id_imagen: number; url: string; orden: number }[];
 }
 
 export interface Paquete {
@@ -129,6 +132,9 @@ export interface Paquete {
   // Calculada en el backend (primer hotel vinculado) — null si el paquete
   // todavía no tiene ningún hotel real asociado.
   ciudad_destino?: string | null;
+  // Portada del paquete (mismo patrón que Hotel.imagen_url) -- antes
+  // Paquete no tenía ningún campo de imagen propio.
+  imagen_url?: string | null;
 }
 
 export interface Cliente {

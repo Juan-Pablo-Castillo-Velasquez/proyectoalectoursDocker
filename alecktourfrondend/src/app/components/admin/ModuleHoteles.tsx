@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Search, Trash2, Pencil, PlusCircle, Star, MapPin, Bed, Hotel, AlertTriangle,
-  Eye, Plus, X, Clock, Loader2, DoorOpen, ImageIcon,
+  Eye, Plus, X, Clock, Loader2, DoorOpen, ImageIcon, ImagePlus,
 } from "lucide-react";
 import { HotelData, inputCls, labelCls, resolveFotoUrl } from "./types";
 import { hotelService, TipoHabitacionResponse, HabitacionResponse } from "../../services/hotel.service";
@@ -143,6 +143,11 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
   const [detailHotel, setDetailHotel] = useState<HotelData | null>(null);
   const [fechasOcupadas, setFechasOcupadas] = useState<Record<number, { fecha_checkin: string; fecha_checkout: string }[]>>({});
   const [cargandoFechas, setCargandoFechas] = useState(false);
+  // Galería de fotos (distinta de la portada, que se sube en el modal de
+  // crear/editar) -- antes no existía ninguna forma de subir más de una
+  // foto real por hotel, ver POST/DELETE /hoteles/{id}/galeria.
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [galeriaMsg, setGaleriaMsg] = useState("");
   const [habForm, setHabForm] = useState(EMPTY_HAB_FORM);
   const [editingHabId, setEditingHabId] = useState<number | null>(null);
   const [habMsg, setHabMsg] = useState("");
@@ -153,6 +158,7 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
     setHabForm(EMPTY_HAB_FORM);
     setEditingHabId(null);
     setHabMsg("");
+    setGaleriaMsg("");
     setCargandoFechas(true);
     hotelService.getFechasOcupadas(h.id_hotel)
       .then((lista) => {
@@ -170,6 +176,7 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
     setHabForm(EMPTY_HAB_FORM);
     setEditingHabId(null);
     setHabMsg("");
+    setGaleriaMsg("");
   }
 
   function proximaOcupacion(id_habitacion: number): string | null {
@@ -239,6 +246,34 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
       setDetailHotel(actualizado);
     } catch (err: any) {
       setHabMsg(err?.message || "No se pudo eliminar la habitación");
+    }
+  }
+
+  async function handleSubirFotoGaleria(file: File | undefined) {
+    if (!file || !detailHotel) return;
+    setGaleriaMsg("");
+    setSubiendoFoto(true);
+    try {
+      await hotelService.subirFotoGaleria(detailHotel.id_hotel, file);
+      const actualizado = await hotelService.getById(detailHotel.id_hotel);
+      setDetailHotel(actualizado);
+      onHabitacionesChanged?.();
+    } catch (err: any) {
+      setGaleriaMsg(err?.message || "No se pudo subir la foto");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  }
+
+  async function handleBorrarFotoGaleria(id_imagen: number) {
+    if (!detailHotel) return;
+    try {
+      await hotelService.borrarFotoGaleria(detailHotel.id_hotel, id_imagen);
+      const actualizado = await hotelService.getById(detailHotel.id_hotel);
+      setDetailHotel(actualizado);
+      onHabitacionesChanged?.();
+    } catch (err: any) {
+      setGaleriaMsg(err?.message || "No se pudo eliminar la foto");
     }
   }
 
@@ -597,6 +632,49 @@ export default function ModuleHoteles({ hoteles, onDelete, onSubmit, loading, on
                 <p className="text-[11px] text-muted-foreground/70">Todavía no hay ningún tipo de habitación registrado en el sistema.</p>
               )}
             </form>
+
+            {/* Galería de fotos -- distinta de la portada (que se sube en
+                el modal de crear/editar): antes no existía ninguna forma
+                de subir más de una foto real por hotel, ver
+                POST/DELETE /hoteles/{id}/galeria en hotel_route.py. */}
+            <div className="space-y-2.5 border-t border-border pt-4">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Galería de fotos
+              </p>
+              {galeriaMsg && <p className="text-xs text-destructive">{galeriaMsg}</p>}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {(detailHotel.imagenes ?? []).map((img) => (
+                  <div key={img.id_imagen} className="relative aspect-square rounded-lg overflow-hidden border border-border group">
+                    <img src={resolveFotoUrl(img.url)} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleBorrarFotoGaleria(img.id_imagen)}
+                      className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Eliminar foto"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                <label className="flex flex-col items-center justify-center gap-1 aspect-square rounded-lg border-2 border-dashed border-border bg-muted/40 cursor-pointer hover:border-primary/40 transition-colors text-muted-foreground">
+                  {subiendoFoto ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="w-4 h-4" />
+                      <span className="text-[10px]">Agregar</span>
+                    </>
+                  )}
+                  <input
+                    type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={subiendoFoto}
+                    onChange={(e) => handleSubirFotoGaleria(e.target.files?.[0])}
+                  />
+                </label>
+              </div>
+              {(detailHotel.imagenes ?? []).length === 0 && (
+                <p className="text-[11px] text-muted-foreground/70">Este hotel todavía no tiene ninguna foto en su galería.</p>
+              )}
+            </div>
           </div>
         )}
       </AdminModal>

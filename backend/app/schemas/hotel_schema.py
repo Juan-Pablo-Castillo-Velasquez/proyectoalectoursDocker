@@ -148,9 +148,25 @@ class HotelResponse(BaseModel):
         from_attributes = True
 
 
+class ImagenGaleriaResponse(BaseModel):
+    """Una foto de la galería (de un hotel o de un paquete -- se reutiliza
+    el mismo shape para ambos, ver ImagenHotel/ImagenPaquete en los
+    modelos). Distinta de `imagen_url` (la portada, un solo campo plano)."""
+
+    id_imagen: int
+    url: str
+    orden: int
+
+    class Config:
+        from_attributes = True
+
+
 class HotelDetailResponse(HotelResponse):
     habitaciones: list[HabitacionResponse] = []
     hotel_caracteristicas: list[HotelCaracteristicaResponse] = []
+    # Galería de fotos reales (distinta de imagen_url, la portada) -- antes
+    # no existía ninguna forma de subir más de una foto por hotel.
+    imagenes: list[ImagenGaleriaResponse] = []
 
 
 class DestinoRealResponse(BaseModel):

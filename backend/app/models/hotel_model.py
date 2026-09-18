@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, Column, ForeignKey, Integer, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -27,6 +27,15 @@ class Hotel(Base):
     habitaciones = relationship("Habitacion", back_populates="hotel", cascade="all, delete-orphan")
     hotel_caracteristicas = relationship("HotelCaracteristica", back_populates="hotel", cascade="all, delete-orphan")
     resenas = relationship("Resena", back_populates="hotel")
+    # Galería de fotos reales del hotel (distinta de imagen_url, que es solo
+    # la portada) -- antes no existía ninguna forma de subir más de una
+    # foto por hotel, ver ImagenHotel más abajo y POST /hoteles/{id}/galeria
+    # en hotel_route.py. order_by asegura que siempre viajen en el orden en
+    # que el admin las subió (no el orden de inserción en la BD, que en
+    # Postgres no está garantizado sin un ORDER BY explícito).
+    imagenes = relationship(
+        "ImagenHotel", back_populates="hotel", cascade="all, delete-orphan", order_by="ImagenHotel.orden"
+    )
 
     @property
     def total_resenas(self) -> int:
@@ -45,6 +54,25 @@ class Hotel(Base):
         if not self.resenas:
             return None
         return round(sum(r.calificacion for r in self.resenas) / len(self.resenas), 1)
+
+
+class ImagenHotel(Base):
+    """Una foto de la galería de un hotel (distinta de Hotel.imagen_url, que
+    es solo la portada) -- antes Hotel no tenía forma de guardar más de una
+    imagen: la ficha pública rellenaba la galería con fotos de stock
+    genéricas (ver AMENITY_POOL en HotelDetail.tsx). `orden` es la posición
+    en que el admin las subió/organizó (ver POST/DELETE
+    /hoteles/{id}/galeria en hotel_route.py)."""
+
+    __tablename__ = "imagenes_hotel"
+
+    id_imagen = Column(Integer, primary_key=True, index=True)
+    id_hotel = Column(Integer, ForeignKey("hoteles.id_hotel", ondelete="CASCADE"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    orden = Column(Integer, nullable=False, default=0)
+    fecha_creacion = Column(TIMESTAMP, server_default=func.now())
+
+    hotel = relationship("Hotel", back_populates="imagenes")
 
 
 class Caracteristica(Base):
