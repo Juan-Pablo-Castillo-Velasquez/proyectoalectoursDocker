@@ -624,10 +624,10 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                 </div>
               )}
 
-              {imagen && (
+              {archivo && (
                 <div className="px-5 pt-2 flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground truncate">{imagen.name}</span>
-                  <button onClick={limpiarImagen} className="text-muted-foreground hover:text-destructive transition-colors">
+                  <span className="text-xs text-muted-foreground truncate">{archivo.name}</span>
+                  <button onClick={limpiarArchivo} className="text-muted-foreground hover:text-destructive transition-colors">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -637,17 +637,17 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,application/pdf"
                   className="hidden"
-                  onChange={(e) => setImagen(e.target.files?.[0] ?? null)}
+                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="p-2.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-shrink-0"
-                  title="Adjuntar captura"
+                  title="Adjuntar imagen o PDF"
                   type="button"
                 >
-                  <ImageIcon className="w-4 h-4" />
+                  <Paperclip className="w-4 h-4" />
                 </button>
                 <div className="flex-1 flex flex-col gap-1">
                   <textarea
@@ -671,7 +671,7 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                 </div>
                 <button
                   onClick={enviar}
-                  disabled={enviando || excedeLimite || (!texto.trim() && !imagen)}
+                  disabled={enviando || excedeLimite || (!texto.trim() && !archivo)}
                   className="p-2.5 rounded-xl bg-primary text-primary-foreground disabled:opacity-40 transition-all flex-shrink-0"
                   title="Enviar"
                   type="button"

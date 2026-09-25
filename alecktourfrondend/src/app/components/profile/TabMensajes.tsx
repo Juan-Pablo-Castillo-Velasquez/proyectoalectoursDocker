@@ -3,10 +3,12 @@ import {
   CalendarDays,
   ChevronUp,
   CreditCard,
+  Download,
+  FileText,
   HelpCircle,
-  Image as ImageIcon,
   Loader2,
   MessageCircle,
+  Paperclip,
   Receipt,
   Send,
   UserRound,
@@ -59,7 +61,7 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [loading, setLoading] = useState(true);
   const [texto, setTexto] = useState("");
-  const [imagen, setImagen] = useState<File | null>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [idReservaSeleccionada, setIdReservaSeleccionada] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [imagenAmpliada, setImagenAmpliada] = useState<string | undefined>(undefined);
@@ -140,8 +142,8 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
     }
   };
 
-  const limpiarImagen = () => {
-    setImagen(null);
+  const limpiarArchivo = () => {
+    setArchivo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -153,19 +155,19 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
   };
 
   const enviar = async () => {
-    if ((!texto.trim() && !imagen) || excedeLimite) return;
+    if ((!texto.trim() && !archivo) || excedeLimite) return;
     setEnviando(true);
     try {
       const nuevo = await mensajeChatService.enviarComoCliente(
         texto.trim() || undefined,
-        imagen ?? undefined,
+        archivo ?? undefined,
         idReservaSeleccionada ?? undefined,
       );
       setMensajes((prev) => [...prev, nuevo]);
       setTexto("");
-      limpiarImagen();
+      limpiarArchivo();
     } catch {
-      // el texto/imagen quedan como estaban para poder reintentar
+      // el texto/archivo quedan como estaban para poder reintentar
     } finally {
       setEnviando(false);
     }
@@ -267,6 +269,23 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
                               onClick={() => setImagenAmpliada(resolveFotoUrl(m.imagen_url))}
                             />
                           )}
+                          {m.archivo_url && (
+                            <a
+                              href={resolveFotoUrl(m.archivo_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={m.archivo_nombre ?? undefined}
+                              className={`flex items-center gap-2 mb-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                m.remitente_tipo === "cliente"
+                                  ? "bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25"
+                                  : "bg-background text-foreground hover:bg-muted"
+                              }`}
+                            >
+                              <FileText className="w-4 h-4 flex-shrink-0" />
+                              <span className="truncate flex-1">{m.archivo_nombre || "Documento"}</span>
+                              <Download className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
+                            </a>
+                          )}
                           {m.contenido && <p className="text-sm whitespace-pre-wrap break-words">{m.contenido}</p>}
                           <p
                             className={`text-[10px] mt-1 ${
@@ -313,10 +332,10 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
               </div>
             )}
 
-            {imagen && (
+            {archivo && (
               <div className="px-5 pt-2 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground truncate">{imagen.name}</span>
-                <button onClick={limpiarImagen} className="text-muted-foreground hover:text-destructive transition-colors">
+                <span className="text-xs text-muted-foreground truncate">{archivo.name}</span>
+                <button onClick={limpiarArchivo} className="text-muted-foreground hover:text-destructive transition-colors">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -326,17 +345,17 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 className="hidden"
-                onChange={(e) => setImagen(e.target.files?.[0] ?? null)}
+                onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-shrink-0"
-                title="Adjuntar captura"
+                title="Adjuntar imagen o PDF"
                 type="button"
               >
-                <ImageIcon className="w-4 h-4" />
+                <Paperclip className="w-4 h-4" />
               </button>
               <div className="flex-1 flex flex-col gap-1">
                 <textarea
@@ -361,7 +380,7 @@ export default function TabMensajes({ reservas = [], reservaIdInicial = null }: 
               </div>
               <button
                 onClick={enviar}
-                disabled={enviando || excedeLimite || (!texto.trim() && !imagen)}
+                disabled={enviando || excedeLimite || (!texto.trim() && !archivo)}
                 className="p-2.5 rounded-xl bg-primary text-primary-foreground disabled:opacity-40 transition-all flex-shrink-0"
                 title="Enviar"
                 type="button"
