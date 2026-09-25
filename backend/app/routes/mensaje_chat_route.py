@@ -19,10 +19,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_usuario, usuario_es_admin
+from app.core.deps import get_current_usuario, usuario_es_staff
 from app.core.file_validation import validar_y_leer_archivo
 from app.core.image_storage import guardar_imagen
-from app.core.security import require_admin
+from app.core.security import require_empleado
 from app.models.reserva_model import Reserva
 from app.models.user_model import Usuario
 from app.repositories.mensaje_chat_repository import MensajeChatRepository
@@ -122,7 +122,7 @@ def get_hilos(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     """Clientes con hilo, ordenados por mensaje más reciente, paginados y
     con búsqueda opcional -- lo que alimenta la bandeja de
@@ -140,7 +140,7 @@ def get_hilo_admin(
     after_id: int | None = Query(None, description="Solo mensajes con id mayor a este -- polling incremental"),
     before_id: int | None = Query(None, description="Los mensajes anteriores a este id -- cargar historial previo"),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     _validar_after_before(after_id, before_id)
     return MensajeChatRepository.get_mensajes(db, id_cliente, after_id=after_id, before_id=before_id)
@@ -153,7 +153,7 @@ async def enviar_como_admin(
     archivo: UploadFile | None = File(None),
     id_reserva: int | None = Form(None, description="Reserva de la que se está hablando, opcional"),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     _validar_contenido_o_archivo(contenido, archivo)
     _validar_reserva_del_cliente(db, id_reserva, id_cliente)
@@ -233,7 +233,7 @@ def marcar_leido(
     marca los mensajes del CLIENTE de ese hilo. Cliente: body vacío/omitido,
     marca los mensajes del ADMIN de su propio hilo (mismo criterio de
     "nunca resolver id_cliente de un parámetro" que get_mi_hilo)."""
-    if usuario_es_admin(authorization):
+    if usuario_es_staff(authorization):
         if data.id_cliente is None:
             raise HTTPException(status_code=422, detail="id_cliente es requerido para administradores.")
         actualizados = MensajeChatRepository.marcar_leido(db, data.id_cliente, "cliente")
@@ -252,7 +252,7 @@ def get_no_leidos(
     """Nunca se cachea -- mismo criterio ya establecido para conteos de
     no-leídos (ver Notificacion en notificacion_route.py). Admin: total
     global de todos los hilos. Cliente: no-leídos de su propio hilo."""
-    if usuario_es_admin(authorization):
+    if usuario_es_staff(authorization):
         return {"no_leidos": MensajeChatRepository.contar_no_leidos_admin(db)}
     id_cliente = _exigir_cliente(current_user)
     return {"no_leidos": MensajeChatRepository.contar_no_leidos_cliente(db, id_cliente)}

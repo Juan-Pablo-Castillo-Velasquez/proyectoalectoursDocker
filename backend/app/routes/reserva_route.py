@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
-from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_admin
+from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_admin, usuario_es_staff
 from app.core.exceptions import (
     HabitacionNoDisponibleError,
     HabitacionNoEncontradaError,
@@ -24,7 +24,7 @@ from app.core.exceptions import (
 from app.core.file_validation import validar_y_leer_archivo
 from app.core.image_storage import borrar_imagen, guardar_imagen
 from app.core.mail import send_reservation_confirmation
-from app.core.security import require_admin
+from app.core.security import require_admin, require_empleado
 from app.models.hotel_model import Hotel, HotelCaracteristica
 from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 from app.models.reserva_model import HistorialReserva, MetodoPago, Pago, Paquete, PaqueteHotel, PaqueteServicio
@@ -428,7 +428,7 @@ def get_reservas(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     """Obtiene lista de reservas. Cacheada solo 60s (más corto que
     hoteles/paquetes/clientes) porque una reserva cambia por muchos caminos
@@ -925,7 +925,7 @@ def get_pagos(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=300),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     """Obtiene lista de pagos. Cacheada 60s — mismo criterio de TTL corto que
     reservas, ya que un pago cambia de estado por varios caminos."""
@@ -983,7 +983,7 @@ def get_pago(
     reserva = ReservaRepository.get_by_id(db, pago.id_reserva)
     if reserva:
         exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
-    elif not usuario_es_admin(authorization):
+    elif not usuario_es_staff(authorization):
         raise HTTPException(status_code=403, detail="No tienes permiso para acceder a estos datos")
     return pago
 

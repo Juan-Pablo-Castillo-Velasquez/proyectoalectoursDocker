@@ -88,6 +88,19 @@ export interface DashboardResumen {
   ingresos_ultimos_14d: SerieDiariaItem[];
 }
 
+// Espejo exacto de ResumenEmpleadoResponse (backend/app/schemas/dashboard_schema.py)
+// -- KPIs propios de UN empleado (asesor), para la sección "Mis KPIs" del
+// panel recortado del empleado. Complementa a DashboardResumen (arriba),
+// que el empleado sigue viendo tal cual -- ver GET /dashboard/resumen-empleado.
+export interface ResumenEmpleado {
+  chats_pendientes: number;
+  chats_respondidos_hoy: number;
+  tiempo_promedio_respuesta_minutos: number | null;
+  reservas_gestionadas: number;
+  cancelaciones_procesadas: number;
+}
+
 export const dashboardService = {
   getResumen: () => apiFetch<DashboardResumen>("/dashboard/resumen"),
+  getResumenEmpleado: () => apiFetch<ResumenEmpleado>("/dashboard/resumen-empleado"),
 };

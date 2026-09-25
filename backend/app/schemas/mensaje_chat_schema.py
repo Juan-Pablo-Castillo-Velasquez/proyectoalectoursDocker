@@ -61,6 +61,12 @@ class HiloResumenResponse(BaseModel):
     cliente_foto: str | None = None
     ultimo_mensaje: str | None = None
     ultimo_mensaje_fecha: datetime | None = None
+    # Quién escribió el último mensaje del hilo -- "cliente" | "admin". Lo
+    # usa ModuleMensajes.tsx para aproximar "en línea" (el cliente escribió
+    # hace poco y todavía no se le ha respondido) y para la alerta de "sin
+    # responder en 5 minutos", sin necesitar una tabla de presencia real
+    # (el chat es solo polling, ver mensaje_chat_route.py).
+    ultimo_mensaje_remitente_tipo: str | None = None
     no_leidos: int
 
 

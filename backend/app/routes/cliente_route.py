@@ -8,7 +8,7 @@ from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
 from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_admin
 from app.core.exceptions import ClienteDependencyError, EmpleadoDependencyError, NotFoundError
-from app.core.security import hash_password, require_admin, verify_password
+from app.core.security import hash_password, require_admin, require_empleado, verify_password
 from app.models.metodo_pago_guardado_model import MetodoPagoGuardado
 from app.models.user_model import Usuario
 from app.repositories.cliente_repository import ClienteRepository, EmpleadoRepository
@@ -35,7 +35,7 @@ def get_clientes(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=300),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     # Cacheado 2 min: este listado lo pide el panel de admin completo
     # (?limit=100) cada vez que se abre — invalidado en cualquier escritura
@@ -219,7 +219,7 @@ def get_empleados(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     cache_key = f"empleados:list:{skip}:{limit}"
     cached = get_cached(cache_key)

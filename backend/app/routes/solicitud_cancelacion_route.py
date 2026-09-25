@@ -13,7 +13,7 @@ from app.core.cache import delete_pattern
 from app.core.database import get_db
 from app.core.deps import get_current_usuario
 from app.core.mail import send_cancellation_email, send_email
-from app.core.security import require_admin
+from app.core.security import require_empleado
 from app.models.reserva_model import HistorialReserva, Reserva
 from app.models.user_model import Usuario
 from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
@@ -191,9 +191,10 @@ def admin_get_solicitudes(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
-    _admin: int = Depends(require_admin),
+    _admin: int = Depends(require_empleado),
 ):
-    """Cola de solicitudes de cancelación para el panel de admin (pendientes primero)."""
+    """Cola de solicitudes de cancelación para el panel de admin (y del
+    empleado, que reutiliza este mismo endpoint -- ver require_empleado)."""
     return SolicitudCancelacionRepository.get_all(db, estado=estado, skip=skip, limit=limit)
 
 
@@ -202,10 +203,12 @@ def admin_resolver_solicitud(
     id_solicitud: int,
     data: SolicitudCancelacionResolve,
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    admin_id: int = Depends(require_empleado),
 ):
     """
-    Aprueba o rechaza una solicitud de cancelación, con nota del admin.
+    Aprueba o rechaza una solicitud de cancelación, con nota del admin (o
+    del empleado que la atendió -- ver require_empleado; queda registrado
+    en id_empleado_resolutor más abajo).
     Aprobar cancela de verdad la reserva (y queda trazado en su historial);
     rechazar solo cierra la solicitud, la reserva sigue como estaba.
     """

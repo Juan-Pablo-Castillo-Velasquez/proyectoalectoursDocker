@@ -22,7 +22,7 @@ import ModulePagos, { type MetodoPago } from "../components/admin/ModulePagos";
 import ModuleActividad from "../components/admin/ModuleActividad";
 import ModuleConfiguracion from "../components/admin/ModuleConfiguracion";
 import ModuleMiCuenta from "../components/admin/ModuleMiCuenta";
-import AdminSidebar from "../components/admin/AdminSidebar";
+import AdminSidebar, { MODULOS_EMPLEADO } from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import AdminFooter from "../components/admin/AdminFooter";
 import ConfirmDialog from "../components/admin/ui/ConfirmDialog";
@@ -56,7 +56,7 @@ type PendingDelete =
   | { kind: "tema"; id: number; label: string };
 
 export default function AdminDashboard() {
-  const { usuario, logout, isAdmin, updateUsuario } = useAuth();
+  const { usuario, logout, isAdmin, isEmpleado, updateUsuario } = useAuth();
   const { refrescarTemaActivo } = useTema();
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState<Module>("dashboard");
@@ -102,6 +102,21 @@ export default function AdminDashboard() {
   // verdad) en vez de un fetch aparte solo para el contador — la campana
   // de notificaciones y el módulo de Cancelaciones ya no pueden desincronizarse.
   const pendingCancelaciones = solicitudes.filter(s => s.estado === "pendiente").length;
+
+  // "Panel recortado solo para empleado" (brief) -- true únicamente para
+  // quien tiene el rol "empleado" pero NO "admin". Un usuario con ambos
+  // roles sigue viendo el panel completo de admin, sin recortar nada.
+  const soloEmpleado = isEmpleado && !isAdmin;
+
+  // Red de seguridad: si por cualquier camino (deep-link interno, estado
+  // viejo en memoria) un empleado recortado terminara con un módulo fuera
+  // de su allowlist activo, lo manda de vuelta al Dashboard en vez de
+  // dejarlo en un módulo que ni siquiera está en su menú.
+  useEffect(() => {
+    if (soloEmpleado && !MODULOS_EMPLEADO.includes(activeModule)) {
+      setActiveModule("dashboard");
+    }
+  }, [soloEmpleado, activeModule]);
 
   const [confirmDelete, setConfirmDelete] = useState<PendingDelete | null>(null);
 
@@ -160,7 +175,9 @@ export default function AdminDashboard() {
     localStorage.setItem("admin-theme", dark ? "dark" : "light");
   }, [dark]);
 
-  useEffect(() => { if (!isAdmin) navigate("/"); }, [isAdmin]);
+  // Deja entrar tanto a admin como a empleado (asesor) -- el panel de
+  // adentro (soloEmpleado más abajo) decide qué tanto ve cada uno.
+  useEffect(() => { if (!isAdmin && !isEmpleado) navigate("/"); }, [isAdmin, isEmpleado]);
 
   // Antes cada dataset se pedía solo al entrar a su pestaña (ej. "clientes"
   // y "paquetes" no se cargaban al abrir el Dashboard), así que el
@@ -169,7 +186,7 @@ export default function AdminDashboard() {
   // vez al entrar al panel: el Dashboard queda correcto desde el primer
   // render y el buscador global del header tiene datos reales desde ya.
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isEmpleado) return;
     fetchReservas();
     fetchHoteles();
     fetchPaquetes();
@@ -186,7 +203,7 @@ export default function AdminDashboard() {
     fetchBanners();
     fetchTemas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [isAdmin, isEmpleado]);
 
   const fetchReservas  = async () => { try { setReservas(await apiFetch<Reserva[]>("/reservas?limit=100"));      } catch { /* no crítico */ } };
   // TTL de 120s: mismo valor que usa el backend para cachear estas listas en
@@ -721,16 +738,23 @@ export default function AdminDashboard() {
 
   // Accesos rápidos globales, visibles desde cualquier módulo (header) —
   // ver AdminHeader.tsx / ui/QuickActions.tsx.
-  const quickActions: QuickAction[] = [
-    { label: "Nueva reserva",    icon: PlusCircle, onClick: () => setActiveModule("crear-reserva") },
-    { label: "Registrar hotel",  icon: Hotel,      onClick: () => setActiveModule("hoteles") },
-    { label: "Crear paquete",    icon: Package,    onClick: () => setActiveModule("paquetes") },
-    { label: "Ver clientes",     icon: Users,      onClick: () => setActiveModule("clientes") },
-  ];
+  const quickActions: QuickAction[] = soloEmpleado
+    ? []
+    : [
+        { label: "Nueva reserva",    icon: PlusCircle, onClick: () => setActiveModule("crear-reserva") },
+        { label: "Registrar hotel",  icon: Hotel,      onClick: () => setActiveModule("hoteles") },
+        { label: "Crear paquete",    icon: Package,    onClick: () => setActiveModule("paquetes") },
+        { label: "Ver clientes",     icon: Users,      onClick: () => setActiveModule("clientes") },
+      ];
 
   const MODULES: Record<Module, React.ReactNode> = {
     dashboard: (
-      <ModuleDashboard setActiveModule={setActiveModule} onVerReserva={verReserva} onFiltrarModulo={irAModuloConFiltro} />
+      <ModuleDashboard
+        setActiveModule={setActiveModule}
+        onVerReserva={verReserva}
+        onFiltrarModulo={irAModuloConFiltro}
+        soloEmpleado={soloEmpleado}
+      />
     ),
     reservas: (
       <ModuleReservas
@@ -863,7 +887,7 @@ export default function AdminDashboard() {
     // componente padre.
     mensajes: (
       <ModuleMensajes
-        reservas={reservas} clientes={clientes}
+        reservas={reservas} clientes={clientes} pagos={pagos}
         clienteIdInicial={clienteIdParaMensajes}
         onVerReserva={verReserva}
       />
@@ -897,6 +921,7 @@ export default function AdminDashboard() {
           open={sidebarOpen}
           usuarioInicial={usuarioInicial}
           usuarioNombre={usuario?.username}
+          soloEmpleado={soloEmpleado}
         />
 
         {/* ── Main content ─────────────────────────────────────────────── */}

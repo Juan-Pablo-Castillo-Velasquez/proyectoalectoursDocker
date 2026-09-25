@@ -94,11 +94,14 @@ export const router = createBrowserRouter([
         ),
       },
 
-      // Ruta exclusiva admin
+      // Admin y empleado (asesor) -- ProtectedRoute con requiredRole="empleado"
+      // deja pasar a AMBOS roles (ver ProtectedRoute.tsx), el panel de
+      // adentro (Admindashboard.tsx) es el que muestra la versión recortada
+      // cuando quien entra no es admin.
       {
         path: "/admin",
         element: (
-          <ProtectedRoute requiredRole="admin">
+          <ProtectedRoute requiredRole="empleado">
             <AdminDashboard />
           </ProtectedRoute>
         ),

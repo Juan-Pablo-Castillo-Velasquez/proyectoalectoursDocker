@@ -72,18 +72,39 @@ def usuario_es_admin(authorization: str | None) -> bool:
     return "admin" in (payload.get("roles") or [])
 
 
+def usuario_es_staff(authorization: str | None) -> bool:
+    """Igual que usuario_es_admin, pero también deja pasar a "empleado"
+    (asesor) -- para los mismos endpoints de solo lectura que ya usa el
+    admin y que ahora reutiliza el panel recortado del empleado (ver
+    require_empleado en security.py). usuario_es_admin se deja intacto: lo
+    siguen usando los pocos lugares que de verdad deben ser SOLO admin
+    (ej. vincular una cuenta de usuario a un cliente)."""
+    if not authorization:
+        return False
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return False
+    payload = decode_token(parts[1])
+    if not payload:
+        return False
+    roles = payload.get("roles") or []
+    return "admin" in roles or "empleado" in roles
+
+
 def exigir_propietario_o_admin(
     current_user: Usuario,
     id_cliente_recurso: int | None,
     authorization: str | None,
 ) -> None:
     """Lanza 403 salvo que quien llama sea el dueño del recurso (mismo
-    id_cliente) o tenga rol admin en su JWT. Centraliza el patrón repetido
-    en las rutas de reservas/pagos/preferencias que exponen datos de UN
-    cliente en particular."""
+    id_cliente), tenga rol admin, o tenga rol empleado (ver usuario_es_staff
+    -- un asesor necesita poder ver los datos de CUALQUIER cliente para
+    atenderlo por chat, igual que ya puede un admin) en su JWT. Centraliza
+    el patrón repetido en las rutas de reservas/pagos/preferencias que
+    exponen datos de UN cliente en particular."""
     if id_cliente_recurso is not None and current_user.id_cliente == id_cliente_recurso:
         return
-    if usuario_es_admin(authorization):
+    if usuario_es_staff(authorization):
         return
     raise HTTPException(status_code=403, detail="No tienes permiso para acceder a estos datos")
 

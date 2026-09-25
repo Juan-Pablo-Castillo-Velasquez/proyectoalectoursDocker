@@ -20,7 +20,7 @@ con "sabemos que son cero".
 """
 
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
@@ -28,15 +28,17 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.cache import get_cached, set_cached
 from app.core.database import get_db
-from app.core.security import require_admin
+from app.core.security import require_admin, require_empleado
 from app.models.cliente_model import Cliente
 from app.models.hotel_model import Hotel
 from app.models.reserva_model import HistorialReserva, MetodoPago, Pago, Paquete, Reserva, SolicitudCancelacion
+from app.models.user_model import Usuario
 from app.schemas.dashboard_schema import (
     ConteoNombre,
     DashboardResumenResponse,
     ReservaProximaItem,
     ReservasPorMesItem,
+    ResumenEmpleadoResponse,
     SerieDiariaItem,
     TendenciaValor,
 )
@@ -69,7 +71,13 @@ def _variacion(actual: float, anterior: float) -> TendenciaValor:
 
 
 @router.get("/resumen", response_model=DashboardResumenResponse)
-def get_dashboard_resumen(db: Session = Depends(get_db), admin_id: int = Depends(require_admin)):
+def get_dashboard_resumen(db: Session = Depends(get_db), admin_id: int = Depends(require_empleado)):
+    # require_empleado (no solo require_admin): el panel recortado del
+    # empleado reutiliza este mismo endpoint tal cual -- ver la opción
+    # "Los mismos KPIs generales del admin, sin cambios" del brief. Los
+    # datos son globales de la agencia (no hay una versión "solo mía" de
+    # ingresos totales, tasa de conversión, etc.), igual que ya ve
+    # cualquier admin.
     cached = get_cached(DASHBOARD_CACHE_KEY)
     if cached is not None:
         return cached
@@ -375,3 +383,100 @@ def get_dashboard_resumen(db: Session = Depends(get_db), admin_id: int = Depends
     data = resultado.model_dump(mode="json")
     set_cached(DASHBOARD_CACHE_KEY, data, ttl_seconds=DASHBOARD_CACHE_TTL)
     return data
+
+
+# Nunca se cachea (mismo criterio que /mensajes/no-leidos y /mensajes/hilos):
+# son los KPIs propios del empleado que está viendo su panel en ESTE
+# momento, no una cifra global de la agencia que valga la pena compartir
+# entre peticiones distintas.
+@router.get("/resumen-empleado", response_model=ResumenEmpleadoResponse)
+def get_dashboard_resumen_empleado(db: Session = Depends(get_db), usuario_id: int = Depends(require_empleado)):
+    """KPIs propios del empleado (asesor) que llama -- sección "Mis KPIs"
+    del panel recortado del empleado (ver ResumenEmpleadoResponse). Un
+    admin que llame este endpoint sin tener un perfil de empleado
+    vinculado (Usuario.id_empleado) recibe todo en 0/None: no hay ningún
+    "yo" que medir en ese caso."""
+    from app.models.mensaje_chat_model import MensajeChat
+
+    usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
+    id_empleado = usuario.id_empleado if usuario else None
+
+    hoy = date.today()
+    inicio_dia = datetime.combine(hoy, datetime.min.time())
+
+    # ---------- Chat: bandeja compartida, "pendientes" es el mismo total
+    # para cualquier asesor (no hay asignación 1-a-1) ----------
+    chats_pendientes = (
+        db.query(func.count(func.distinct(MensajeChat.id_cliente)))
+        .filter(MensajeChat.remitente_tipo == "cliente", MensajeChat.leido.is_(False))
+        .scalar()
+        or 0
+    )
+
+    # Respuestas de HOY hechas por ESTE usuario (id_usuario_remitente, no
+    # id_empleado -- un admin sin perfil de empleado también puede
+    # responder chats, y sigue contando como "su" respuesta).
+    respuestas_hoy = (
+        db.query(MensajeChat)
+        .filter(
+            MensajeChat.remitente_tipo == "admin",
+            MensajeChat.id_usuario_remitente == usuario_id,
+            MensajeChat.fecha_envio >= inicio_dia,
+        )
+        .all()
+    )
+    chats_respondidos_hoy = len({m.id_cliente for m in respuestas_hoy})
+
+    # Tiempo de respuesta: para cada respuesta de hoy, el mensaje del
+    # cliente inmediatamente anterior en el MISMO hilo (mismo id_cliente,
+    # id_mensaje menor) -- N consultas pequeñas (N = mensajes que este
+    # empleado respondió hoy, típicamente unas pocas decenas), no una sola
+    # consulta agregada, porque "el mensaje anterior en el hilo" no es una
+    # agregación simple por cliente cuando un mismo cliente escribe varias
+    # veces en el día.
+    tiempos_respuesta_min: list[float] = []
+    for m in respuestas_hoy:
+        anterior = (
+            db.query(MensajeChat)
+            .filter(
+                MensajeChat.id_cliente == m.id_cliente,
+                MensajeChat.remitente_tipo == "cliente",
+                MensajeChat.id_mensaje < m.id_mensaje,
+            )
+            .order_by(MensajeChat.id_mensaje.desc())
+            .first()
+        )
+        if anterior and anterior.fecha_envio and m.fecha_envio:
+            diff_min = (m.fecha_envio - anterior.fecha_envio).total_seconds() / 60.0
+            if diff_min >= 0:
+                tiempos_respuesta_min.append(diff_min)
+
+    tiempo_promedio_respuesta_minutos = (
+        round(sum(tiempos_respuesta_min) / len(tiempos_respuesta_min), 1) if tiempos_respuesta_min else None
+    )
+
+    # ---------- Operación propia (0 si el usuario no tiene perfil de
+    # empleado vinculado -- ej. un admin puro) ----------
+    reservas_gestionadas = 0
+    cancelaciones_procesadas = 0
+    if id_empleado is not None:
+        reservas_gestionadas = (
+            db.query(func.count(Reserva.id_reserva)).filter(Reserva.id_empleado == id_empleado).scalar() or 0
+        )
+        cancelaciones_procesadas = (
+            db.query(func.count(SolicitudCancelacion.id_solicitud))
+            .filter(
+                SolicitudCancelacion.id_empleado_resolutor == id_empleado,
+                SolicitudCancelacion.estado != "pendiente",
+            )
+            .scalar()
+            or 0
+        )
+
+    return ResumenEmpleadoResponse(
+        chats_pendientes=chats_pendientes,
+        chats_respondidos_hoy=chats_respondidos_hoy,
+        tiempo_promedio_respuesta_minutos=tiempo_promedio_respuesta_minutos,
+        reservas_gestionadas=reservas_gestionadas,
+        cancelaciones_procesadas=cancelaciones_procesadas,
+    )

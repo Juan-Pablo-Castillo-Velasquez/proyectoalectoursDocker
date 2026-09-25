@@ -88,6 +88,23 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+// Módulos visibles para un "empleado" (asesor) SIN rol admin -- panel
+// recortado (ver brief: "vamos por el apartador de empleado... re utiliza
+// componentes que ya existen"). Todo lo de catálogo/gestión de cuenta
+// (hoteles, paquetes, usuarios, roles, empresas, banners, temas,
+// configuración) queda fuera: sigue siendo exclusivo de admin. Exportado
+// para que Admindashboard.tsx pueda reusar el mismo allowlist al decidir
+// qué módulo renderizar (nunca confiar solo en que el ítem de nav esté
+// oculto -- ver MODULOS_EMPLEADO en Admindashboard.tsx).
+export const MODULOS_EMPLEADO: Module[] = [
+  "dashboard",
+  "reservas",
+  "cancelaciones",
+  "pagos",
+  "mensajes",
+  "mi-cuenta",
+];
+
 const SIDEBAR_COLLAPSE_KEY = "admin-sidebar-collapsed";
 
 interface AdminSidebarProps {
@@ -97,6 +114,9 @@ interface AdminSidebarProps {
   open: boolean;
   usuarioInicial: string;
   usuarioNombre?: string;
+  /** true = quien entró tiene rol "empleado" pero NO "admin" -- muestra
+   * solo MODULOS_EMPLEADO y la etiqueta "Asesor" en vez de "Administrador". */
+  soloEmpleado?: boolean;
 }
 
 export default function AdminSidebar({
@@ -105,7 +125,17 @@ export default function AdminSidebar({
   open,
   usuarioInicial,
   usuarioNombre,
+  soloEmpleado = false,
 }: AdminSidebarProps) {
+  // Mismas secciones para admin (sin filtrar); para "empleado" sin admin,
+  // solo los ítems de MODULOS_EMPLEADO, y se descartan las secciones que
+  // quedarían vacías (ej. "Productos", "Comercial", "Administración").
+  const NAV_SECTIONS_FILTRADAS = soloEmpleado
+    ? NAV_SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => MODULOS_EMPLEADO.includes(i.id)) })).filter(
+        (s) => s.items.length > 0,
+      )
+    : NAV_SECTIONS;
+
   // "Colapsado" = solo íconos. Se recuerda entre navegaciones (persiste en
   // localStorage, mismo patrón que el toggle de tema oscuro del admin).
   const [collapsed, setCollapsed] = useState(
@@ -164,7 +194,7 @@ export default function AdminSidebar({
           </div>
 
           <nav className="flex-1 py-2.5 px-2.5 space-y-3 overflow-y-auto">
-            {NAV_SECTIONS.map((section) => (
+            {NAV_SECTIONS_FILTRADAS.map((section) => (
               <div key={section.label}>
                 {!collapsed && (
                   <p className="px-2.5 mb-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
@@ -252,7 +282,7 @@ export default function AdminSidebar({
                   <p className="text-xs font-semibold text-sidebar-foreground truncate">
                     {usuarioNombre}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Administrador</p>
+                  <p className="text-[10px] text-muted-foreground">{soloEmpleado ? "Asesor" : "Administrador"}</p>
                 </div>
               )}
             </div>

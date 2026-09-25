@@ -169,3 +169,30 @@ def require_admin(authorization: str | None = Header(None)) -> int:
         raise HTTPException(status_code=403, detail="Requiere rol de administrador")
 
     return int(payload["sub"])
+
+
+def require_empleado(authorization: str | None = Header(None)) -> int:
+    """
+    Dependency reutilizable para endpoints que debe poder usar tanto un
+    administrador como un empleado ("asesor") -- exige un JWT válido cuyo
+    claim `roles` incluya "admin" O "empleado". Se usa en las rutas que
+    alimentan el panel recortado del empleado (dashboard, reservas, pagos,
+    mensajes, solicitudes de cancelación) para que ese panel pueda
+    reutilizar exactamente los mismos endpoints que ya usa el admin, sin
+    duplicar rutas por rol.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    payload = decode_token(parts[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Token expirado o inválido")
+
+    roles = payload.get("roles") or []
+    if "admin" not in roles and "empleado" not in roles:
+        raise HTTPException(status_code=403, detail="Requiere rol de administrador o empleado")
+
+    return int(payload["sub"])

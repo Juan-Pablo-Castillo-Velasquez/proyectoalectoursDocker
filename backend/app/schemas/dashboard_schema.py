@@ -116,3 +116,28 @@ class DashboardResumenResponse(BaseModel):
     # ---- Series diarias (últimos 14 días) para sparklines ----
     reservas_ultimos_14d: list[SerieDiariaItem]
     ingresos_ultimos_14d: list[SerieDiariaItem]
+
+
+class ResumenEmpleadoResponse(BaseModel):
+    """KPIs propios de UN empleado (asesor) para la sección "Mis KPIs" del
+    panel recortado del empleado -- ver GET /api/dashboard/resumen-empleado.
+    Complementa (no reemplaza) a DashboardResumenResponse: el panel del
+    empleado sigue mostrando también los KPIs generales de arriba, sin
+    cambios (mismo endpoint /resumen que ya usa el admin)."""
+
+    # ---- Chat (bandeja compartida -- no hay asignación 1-a-1 admin/empleado
+    # <-> cliente, así que "pendientes" es el mismo total que ve cualquier
+    # asesor: cuántas conversaciones tienen al menos un mensaje del cliente
+    # todavía sin responder) ----
+    chats_pendientes: int
+    # De ESTOS, cuántos respondió HOY el empleado que pide este resumen.
+    chats_respondidos_hoy: int
+    # Minutos promedio entre el mensaje del cliente y la respuesta de este
+    # empleado, sobre las respuestas de HOY. None si hoy todavía no respondió
+    # ningún mensaje (no hay base sobre la que calcular un promedio).
+    tiempo_promedio_respuesta_minutos: float | None = None
+
+    # ---- Operación propia (Reserva.id_empleado / SolicitudCancelacion.
+    # id_empleado_resolutor -- reales, ya existían en el modelo) ----
+    reservas_gestionadas: int
+    cancelaciones_procesadas: int

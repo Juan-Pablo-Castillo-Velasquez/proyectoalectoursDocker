@@ -134,6 +134,7 @@ class MensajeChatRepository:
                 "cliente_foto": cliente.foto_perfil,
                 "ultimo_mensaje": ultimo_mensaje.contenido or ("📷 Imagen" if ultimo_mensaje.imagen_url else None),
                 "ultimo_mensaje_fecha": ultimo_mensaje.fecha_envio,
+                "ultimo_mensaje_remitente_tipo": ultimo_mensaje.remitente_tipo,
                 "no_leidos": no_leidos_por_cliente.get(cliente.id_cliente, 0),
             }
             for ultimo_mensaje, cliente in filas

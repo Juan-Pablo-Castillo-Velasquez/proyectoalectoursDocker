@@ -53,6 +53,11 @@ export interface HiloResumen {
   cliente_foto: string | null;
   ultimo_mensaje: string | null;
   ultimo_mensaje_fecha: string | null;
+  // Quién escribió el último mensaje -- "cliente" | "admin". Lo usa
+  // ModuleMensajes.tsx para aproximar "en línea" (cliente activo hace
+  // poco) y la alerta de "sin responder en 5 minutos" -- ver
+  // ultimo_mensaje_remitente_tipo en HiloResumenResponse (backend).
+  ultimo_mensaje_remitente_tipo: "admin" | "cliente" | null;
   no_leidos: number;
 }
 

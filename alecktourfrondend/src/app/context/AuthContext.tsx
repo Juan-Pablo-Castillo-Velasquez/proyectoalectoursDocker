@@ -10,6 +10,12 @@ interface Usuario {
   username: string;
   user_id?: number;
   id_cliente?: number;
+  // Vinculo real con Empleado (Usuario.id_empleado, ver login_user en
+  // auth_service.py) -- lo necesita el panel recortado del empleado para
+  // pedir sus propios KPIs (GET /dashboard/resumen-empleado). undefined en
+  // sesiones guardadas antes de este cambio -- tratar igual que null (sin
+  // perfil de empleado vinculado).
+  id_empleado?: number | null;
   roles?: string[];
   foto_perfil?: string | null;
   // Reflejan Usuario.verificado/Usuario.activo del backend (ver

@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import {
   CalendarDays, CheckCircle, Hotel, PlusCircle, Package, Users,
   TrendingUp, TrendingDown, Minus, DollarSign, ArrowUpRight, AlertCircle,
-  XCircle, Activity, Building2, Info, Percent, Clock,
+  XCircle, Activity, Building2, Info, Percent, Clock, MessageCircle,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
   ComposedChart, Line, LineChart,
 } from "recharts";
-import { dashboardService, type DashboardResumen, type TendenciaValor } from "../../services/dashboard.service";
+import { dashboardService, type DashboardResumen, type ResumenEmpleado, type TendenciaValor } from "../../services/dashboard.service";
 import { reservaDetailService, type ActividadRecienteItem } from "../../services/reserva.service";
 import StatusBadge from "./ui/StatusBadge";
 import {
@@ -29,11 +29,28 @@ interface Props {
    * en "Pendientes" de la tarjeta de Pagos abre Pagos ya filtrado por
    * "pendiente") — ver ModuleReservas/ModulePagos.estadoInicial. */
   onFiltrarModulo: (m: any, estado?: string) => void;
+  /** true = quien ve este dashboard es un "empleado" (asesor) sin rol
+   * admin -- además del resumen operativo general (sin cambios), muestra
+   * una tarjeta "Mis KPIs" con sus propias cifras (chats, reservas
+   * gestionadas, cancelaciones procesadas). */
+  soloEmpleado?: boolean;
 }
 
 function formatDuracionHoras(horas: number): string {
   if (horas > 48) return `${(horas / 24).toFixed(1)} días`;
   return `${horas.toFixed(1)} h`;
+}
+
+// Para el tiempo de respuesta del chat (minutos, ver ResumenEmpleado) --
+// escala mucho más chica que formatDuracionHoras (horas), así que redondear
+// a horas de una perdería la precisión que sí importa acá (la diferencia
+// entre responder en 3 minutos y en 25 es justo lo que este número debe
+// mostrar).
+function formatDuracionMinutos(minutos: number): string {
+  if (minutos < 60) return `${minutos.toFixed(1)} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = Math.round(minutos % 60);
+  return `${horas} h ${resto} min`;
 }
 
 // Formato relativo simple ("Hace 5 min", "Ayer") para el feed de actividad
@@ -85,11 +102,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltrarModulo }: Props) {
+export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltrarModulo, soloEmpleado = false }: Props) {
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [actividad, setActividad] = useState<ActividadRecienteItem[]>([]);
+  // "Mis KPIs" -- solo se pide para el panel recortado del empleado (el
+  // admin sigue viendo exactamente el mismo dashboard de siempre, sin
+  // cambios, tal como se decidió en el brief). No crítico si falla: el
+  // resto del dashboard (resumen operativo general) sigue funcionando
+  // igual, la tarjeta simplemente no aparece.
+  const [resumenEmpleado, setResumenEmpleado] = useState<ResumenEmpleado | null>(null);
 
   useEffect(() => {
     dashboardService.getResumen()
@@ -97,6 +120,11 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
       .catch(() => { setError(true); setLoading(false); });
     reservaDetailService.getActividadReciente(12).then(setActividad).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!soloEmpleado) return;
+    dashboardService.getResumenEmpleado().then(setResumenEmpleado).catch(() => {});
+  }, [soloEmpleado]);
 
   if (loading) {
     return (
@@ -217,6 +245,54 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
           </div>
         )}
       </div>
+
+      {/* Mis KPIs -- solo panel recortado del empleado */}
+      {soloEmpleado && resumenEmpleado && (
+        <div>
+          <h3 className="font-semibold text-foreground mb-3">Mis KPIs</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <GrupoResumen icon={MessageCircle} titulo="Chats">
+              <FilaResumen
+                label="Pendientes por responder"
+                value={resumenEmpleado.chats_pendientes}
+                strong
+                onClick={() => setActiveModule("mensajes")}
+              />
+              <FilaResumen
+                label="Respondidos hoy"
+                value={resumenEmpleado.chats_respondidos_hoy}
+                onClick={() => setActiveModule("mensajes")}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Tiempo de respuesta (hoy)</span>
+                {resumenEmpleado.tiempo_promedio_respuesta_minutos == null ? (
+                  <span className="text-xs text-muted-foreground italic">Sin datos</span>
+                ) : (
+                  <span className="font-medium text-foreground">
+                    {formatDuracionMinutos(resumenEmpleado.tiempo_promedio_respuesta_minutos)}
+                  </span>
+                )}
+              </div>
+            </GrupoResumen>
+            <GrupoResumen icon={CalendarDays} titulo="Reservas">
+              <FilaResumen
+                label="Gestionadas por mí"
+                value={resumenEmpleado.reservas_gestionadas}
+                strong
+                onClick={() => setActiveModule("reservas")}
+              />
+            </GrupoResumen>
+            <GrupoResumen icon={XCircle} titulo="Cancelaciones">
+              <FilaResumen
+                label="Procesadas por mí"
+                value={resumenEmpleado.cancelaciones_procesadas}
+                strong
+                onClick={() => setActiveModule("cancelaciones")}
+              />
+            </GrupoResumen>
+          </div>
+        </div>
+      )}
 
       {/* Resumen operativo */}
       <div>

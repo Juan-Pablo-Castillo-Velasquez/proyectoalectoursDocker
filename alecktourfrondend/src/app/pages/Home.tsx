@@ -9,6 +9,7 @@ import Newsletter from "../components/Newsletter";
 import OffersHighlight from "../components/OffersHighlight";
 import PromoBar from "../components/PromoBar";
 import PromocionAccordeon from "../components/PromocionAccordeon";
+import ScrollToTopButton from "../components/ScrollToTopButton";
 import Testimonials from "../components/Testimonials";
 import WhyChooseUs from "../components/WhyChooseUs";
 import { useSeoMeta } from "../hooks/useSeoMeta";
@@ -22,7 +23,7 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-x-clip">
       <PromoBar />
       <Navbar />
       <Hero />
@@ -40,6 +41,7 @@ export default function Home() {
       </div>
 
       <Footer />
+      <ScrollToTopButton />
     </div>
   );
 }

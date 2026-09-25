@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, ChevronUp, Copy, CreditCard, Download, FileText, Info, Mail, MapPin, MessageCircle, Paperclip, Phone, Search, Send, X, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronUp, Circle, Copy, CreditCard, Download, FileText, Info, Mail, MapPin, MessageCircle, Paperclip, Phone, Receipt, Search, Send, X, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
 import EmptyState from "./ui/EmptyState";
 import SectionHeader from "./ui/SectionHeader";
-import { Cliente, Reserva, inputCls, resolveFotoUrl } from "./types";
+import { Cliente, ESTADO_COLOR, Pago, Reserva, inputCls, resolveFotoUrl } from "./types";
+import { generarFacturaPdf } from "../../utils/generarFacturaPdf";
 import {
   MENSAJE_CONTENIDO_MAX_LENGTH,
   mensajeChatService,
   type HiloResumen,
   type MensajeChat,
 } from "../../services/mensajeChat.service";
+
+// "En línea" es una aproximación honesta, no presencia real: el chat es
+// solo polling (ver el comentario grande más abajo y mensaje_chat_route.py
+// -- el backend duerme tras 15 min de inactividad en el plan free de
+// Render, así que nunca hubo un socket que pudiera reportar presencia de
+// verdad). Un cliente se muestra "activo hace poco" cuando SU último
+// mensaje en el hilo llegó dentro de esta ventana; y una conversación
+// dispara la alerta de "sin responder" cuando pasa esta misma ventana
+// todavía sin respuesta -- mismo número, dos caras de la misma idea.
+const VENTANA_ACTIVO_MS = 5 * 60 * 1000;
 
 // Chat privado admin<->cliente -- bandeja compartida (cualquier admin ve y
 // responde cualquier hilo) y un solo hilo continuo por cliente (no uno por
@@ -41,9 +53,13 @@ interface Props {
   // Deep-link inverso: abrir en Módulo Reservas la reserva etiquetada en un
   // mensaje -- mismo prop que ya reciben ModulePagos/ModuleCancelaciones.
   onVerReserva?: (id: number) => void;
+  // Ya cargados por Admindashboard.tsx (mismos datos que usa ModulePagos) --
+  // alimentan la sección "Pagos y facturas" de la info del cliente (brief:
+  // "que el pueda ver reservas pagos facturas" sin salir del chat).
+  pagos?: Pago[];
 }
 
-export default function ModuleMensajes({ reservas = [], clientes = [], clienteIdInicial = null, onVerReserva }: Props) {
+export default function ModuleMensajes({ reservas = [], clientes = [], pagos = [], clienteIdInicial = null, onVerReserva }: Props) {
   const [hilos, setHilos] = useState<HiloResumen[]>([]);
   const [totalHilos, setTotalHilos] = useState(0);
   const [hilosLoading, setHilosLoading] = useState(true);
@@ -71,6 +87,103 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
   hilosRef.current = hilos;
   const searchHilosRef = useRef(searchHilos);
   searchHilosRef.current = searchHilos;
+
+  // Filtro leído/no leído de la bandeja (brief: "debe tener por ejemplo
+  // almenos un filtro leido no leidos") -- sobre los hilos YA cargados en
+  // esta página, mismo criterio que el resto de filtros client-side del
+  // panel (ej. ModuleCancelaciones).
+  const [filtroHilos, setFiltroHilos] = useState<"todos" | "no_leidos">("todos");
+
+  // "Reloj" que solo existe para forzar un re-render cada 20s y que "en
+  // línea"/"esperando respuesta" se actualicen con el paso del tiempo
+  // aunque no haya llegado ningún mensaje nuevo (el polling de hilos ya
+  // fuerza uno cada POLL_HILOS_MS, pero eso no basta si la bandeja está
+  // quieta).
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setAhora(Date.now()), 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Hilos ya alertados por "sin responder hace 5+ minutos" -- evita que la
+  // misma conversación dispare toast/sonido en cada ciclo de polling
+  // (9s) mientras sigue sin respuesta. Se limpia sola en cuanto el hilo
+  // deja de cumplir la condición (se responde, o el cliente vuelve a
+  // escribir) para poder alertar de nuevo si vuelve a pasar.
+  const hilosAlertadosRef = useRef<Set<number>>(new Set());
+
+  const clienteEstaActivo = (h: HiloResumen) =>
+    h.ultimo_mensaje_remitente_tipo === "cliente" &&
+    !!h.ultimo_mensaje_fecha &&
+    ahora - new Date(h.ultimo_mensaje_fecha).getTime() < VENTANA_ACTIVO_MS;
+
+  const esperaRespuestaHaceRato = (h: HiloResumen) =>
+    h.ultimo_mensaje_remitente_tipo === "cliente" &&
+    h.no_leidos > 0 &&
+    !!h.ultimo_mensaje_fecha &&
+    ahora - new Date(h.ultimo_mensaje_fecha).getTime() >= VENTANA_ACTIVO_MS;
+
+  // Beep corto con Web Audio -- sin agregar ningún archivo de audio nuevo
+  // al proyecto, y sin depender de que el navegador permita autoplay de
+  // <audio> (esto sí lo permite, porque solo se dispara como reacción a
+  // datos que llegaron por polling, nunca al cargar la página).
+  const reproducirAlertaSonora = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+      osc.onended = () => ctx.close().catch(() => {});
+    } catch {
+      /* algunos navegadores bloquean AudioContext sin interacción previa
+         del usuario -- la alerta visual (toast + badge) sigue funcionando
+         igual, el sonido es un extra, nunca la única señal. */
+    }
+  };
+
+  // Detecta hilos que llevan 5+ minutos esperando respuesta y todavía no
+  // se avisaron -- corre cada vez que cambia la bandeja (cada poll de
+  // POLL_HILOS_MS, o cada "tic" del reloj de arriba). Facilitarle la vida
+  // al asesor (brief) significa avisar aunque esté en otro módulo del
+  // panel -- por eso el toast + sonido, no solo un badge que solo se ve
+  // si ya está mirando la bandeja de Mensajes.
+  useEffect(() => {
+    const vistos = hilosAlertadosRef.current;
+    const idsVigentes = new Set<number>();
+    for (const h of hilos) {
+      if (!esperaRespuestaHaceRato(h)) continue;
+      idsVigentes.add(h.id_cliente);
+      if (vistos.has(h.id_cliente)) continue;
+      vistos.add(h.id_cliente);
+      toast.warning(`${h.cliente_nombre} lleva más de 5 min sin respuesta`, {
+        description: h.ultimo_mensaje ?? undefined,
+        action: { label: "Responder", onClick: () => setIdClienteActivo(h.id_cliente) },
+      });
+      reproducirAlertaSonora();
+    }
+    // Si un hilo ya no cumple la condición (se respondió, o el cliente
+    // volvió a escribir después de la alerta), se olvida -- para que
+    // pueda alertar de nuevo si vuelve a pasar.
+    for (const id of vistos) {
+      if (!idsVigentes.has(id)) vistos.delete(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hilos]);
+
+  const hilosFiltrados = useMemo(
+    () => (filtroHilos === "no_leidos" ? hilos.filter((h) => h.no_leidos > 0) : hilos),
+    [hilos, filtroHilos],
+  );
 
   // Debounce simple del cuadro de búsqueda -- evita una petición por cada
   // tecla presionada (ver getHilos(search) en mensajeChat.service.ts).
@@ -236,6 +349,16 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
     [reservas, idClienteActivo],
   );
 
+  // Pagos/facturas del cliente activo (brief: "que el pueda ver reservas
+  // pagos facturas... chatear con el cliente") -- Pago no guarda id_cliente
+  // directo (types.ts), así que se filtra por las reservas del cliente que
+  // ya se calcularon arriba, igual criterio que usa ModuleCancelaciones
+  // para encontrar los pagos de una reserva.
+  const pagosDelClienteActivo = useMemo(() => {
+    const idsReservas = new Set(reservasDelClienteActivo.map((r) => r.id_reserva));
+    return pagos.filter((p) => idsReservas.has(p.id_reserva));
+  }, [pagos, reservasDelClienteActivo]);
+
   const reservasFiltradas = useMemo(() => {
     const q = busquedaReserva.trim().toLowerCase();
     if (!q) return reservasDelClienteActivo;
@@ -289,7 +412,7 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
       <div className="mt-5 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-220px)] min-h-[480px]">
         {/* ── Bandeja de hilos ── */}
         <div className={panelCls}>
-          <div className="p-3 border-b border-border">
+          <div className="p-3 border-b border-border space-y-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
@@ -299,17 +422,35 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                 className="w-full pl-8 pr-3 py-2 text-xs bg-muted/40 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
+            <div className="flex items-center gap-1.5">
+              {(["todos", "no_leidos"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFiltroHilos(f)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                    filtroHilos === f
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted/60 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {f === "todos" ? "Todos" : "No leídos"}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="overflow-y-auto flex-1">
             {hilosLoading ? (
               <p className="p-6 text-sm text-muted-foreground text-center">Cargando conversaciones...</p>
-            ) : hilos.length === 0 ? (
+            ) : hilosFiltrados.length === 0 ? (
               <div className="p-6">
                 <EmptyState
                   icon={MessageCircle}
-                  title="Sin conversaciones todavía"
+                  title={filtroHilos === "no_leidos" && hilos.length > 0 ? "Nada sin leer" : "Sin conversaciones todavía"}
                   description={
-                    searchHilos
+                    filtroHilos === "no_leidos" && hilos.length > 0
+                      ? "Ya respondiste todas las conversaciones de esta página."
+                      : searchHilos
                       ? "Ningún cliente coincide con esa búsqueda."
                       : "Los mensajes que te escriban tus clientes aparecerán aquí."
                   }
@@ -317,35 +458,60 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
               </div>
             ) : (
               <>
-                {hilos.map((h) => (
-                  <button
-                    key={h.id_cliente}
-                    onClick={() => setIdClienteActivo(h.id_cliente)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border transition-colors ${
-                      idClienteActivo === h.id_cliente ? "bg-primary/10" : "hover:bg-muted"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {h.cliente_foto ? (
-                        <img src={resolveFotoUrl(h.cliente_foto)} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-sm font-bold text-muted-foreground">
-                          {h.cliente_nombre[0]?.toUpperCase()}
+                {hilosFiltrados.map((h) => {
+                  const activo = clienteEstaActivo(h);
+                  const esperando = esperaRespuestaHaceRato(h);
+                  return (
+                    <button
+                      key={h.id_cliente}
+                      onClick={() => setIdClienteActivo(h.id_cliente)}
+                      title={activo ? "Activo hace poco" : undefined}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border transition-colors ${
+                        idClienteActivo === h.id_cliente
+                          ? "bg-primary/10"
+                          : esperando
+                          ? "bg-destructive/5 hover:bg-destructive/10"
+                          : "hover:bg-muted"
+                      }`}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                          {h.cliente_foto ? (
+                            <img src={resolveFotoUrl(h.cliente_foto)} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-bold text-muted-foreground">
+                              {h.cliente_nombre[0]?.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        {activo && (
+                          <Circle className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-success fill-success stroke-card" strokeWidth={2} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1.5">
+                          {h.cliente_nombre}
+                          {esperando && (
+                            <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive">
+                              +5 min
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{h.ultimo_mensaje ?? "Sin mensajes"}</p>
+                      </div>
+                      {h.no_leidos > 0 && (
+                        <span
+                          className={`flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full text-primary-foreground text-[11px] font-bold flex items-center justify-center ${
+                            esperando ? "bg-destructive animate-pulse" : "bg-primary"
+                          }`}
+                        >
+                          {h.no_leidos}
                         </span>
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{h.cliente_nombre}</p>
-                      <p className="text-xs text-muted-foreground truncate">{h.ultimo_mensaje ?? "Sin mensajes"}</p>
-                    </div>
-                    {h.no_leidos > 0 && (
-                      <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center">
-                        {h.no_leidos}
-                      </span>
-                    )}
-                  </button>
-                ))}
-                {hilos.length < totalHilos && (
+                    </button>
+                  );
+                })}
+                {filtroHilos === "todos" && hilos.length < totalHilos && (
                   <div className="p-3 flex justify-center">
                     <button
                       onClick={() => cargarHilos(true)}
@@ -381,7 +547,14 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                     <span className="text-xs font-bold text-muted-foreground">{nombreActivo[0]?.toUpperCase()}</span>
                   )}
                 </div>
-                <p className="text-sm font-semibold text-foreground">{nombreActivo}</p>
+                <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  {nombreActivo}
+                  {hiloActivo && clienteEstaActivo(hiloActivo) && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-success">
+                      <Circle className="w-2 h-2 fill-success stroke-none" /> Activo hace poco
+                    </span>
+                  )}
+                </p>
                 {clienteFallback && (
                   <button
                     type="button"
@@ -484,6 +657,46 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                                     <Copy className="w-3 h-3" />
                                   )}
                                 </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {pagosDelClienteActivo.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-border/60">
+                          <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
+                            Pagos y facturas ({pagosDelClienteActivo.length})
+                          </p>
+                          <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                            {pagosDelClienteActivo.map((p) => (
+                              <div key={p.id_pago} className="flex items-center justify-between gap-2 text-xs">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span
+                                    className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
+                                      ESTADO_COLOR[p.estado] ?? "bg-muted text-muted-foreground"
+                                    }`}
+                                  >
+                                    {p.estado}
+                                  </span>
+                                  <span className="truncate text-foreground">
+                                    ${p.monto.toLocaleString("es-CO")}
+                                  </span>
+                                </div>
+                                {p.numero_factura ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      generarFacturaPdf(p, reservasDelClienteActivo.find((r) => r.id_reserva === p.id_reserva), clienteFallback ?? undefined)
+                                    }
+                                    title={`Descargar factura ${p.numero_factura}`}
+                                    className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
+                                  >
+                                    <Receipt className="w-3 h-3" /> {p.numero_factura}
+                                  </button>
+                                ) : (
+                                  <span className="flex-shrink-0 text-[10px] text-muted-foreground">Sin factura</span>
+                                )}
                               </div>
                             ))}
                           </div>

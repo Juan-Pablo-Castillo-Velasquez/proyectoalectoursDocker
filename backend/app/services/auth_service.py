@@ -121,6 +121,12 @@ def _emitir_tokens_sesion(db: Session, user) -> dict:
             "user_id": user.id_usuario,
             "username": user.username,
             "id_cliente": user.id_cliente,
+            # Igual que id_cliente: se manda explicito para que
+            # AuthContext.usuario lo tenga desde el login (lo necesita el
+            # panel recortado del empleado para pedir sus propios KPIs,
+            # ver GET /api/dashboard/resumen-empleado). None para
+            # cualquier cuenta sin perfil de empleado vinculado.
+            "id_empleado": user.id_empleado,
             "roles": roles,
             "foto_perfil": user.foto_perfil,
             "verificado": True,
@@ -238,6 +244,12 @@ def login_user(db: Session, correo_electronico: str, password: str):
             "user_id": user.id_usuario,
             "username": user.username,
             "id_cliente": user.id_cliente,
+            # Igual que id_cliente: se manda explicito para que
+            # AuthContext.usuario lo tenga desde el login (lo necesita el
+            # panel recortado del empleado para pedir sus propios KPIs,
+            # ver GET /api/dashboard/resumen-empleado). None para
+            # cualquier cuenta sin perfil de empleado vinculado.
+            "id_empleado": user.id_empleado,
             "roles": roles,
             "foto_perfil": user.foto_perfil,
             # Ya se validaron arriba (if not user.verificado / if not
