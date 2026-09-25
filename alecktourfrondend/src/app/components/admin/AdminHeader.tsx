@@ -29,6 +29,10 @@ interface AdminHeaderProps {
   // Real (Usuario.foto_perfil vía /me) — si no hay foto o falla al cargar,
   // se cae de vuelta al círculo con el ícono genérico de siempre.
   usuarioFoto?: string | null;
+  // true cuando la cuenta es empleado sin el rol admin -- cambia la
+  // etiqueta bajo el nombre (ver AdminSidebar.tsx, que ya usa el mismo
+  // criterio para su propio pie de pagina).
+  soloEmpleado?: boolean;
   onLogout: () => void;
   pendingCancelaciones: number;
   /** Conteo real de Notificacion.leido = false (ver notificacion_route.py) —
@@ -52,6 +56,7 @@ interface AdminHeaderProps {
 // nuevo), acciones rápidas, campana con el conteo REAL de solicitudes de
 // cancelación pendientes, tema y menú de usuario.
 export default function AdminHeader({
+  soloEmpleado,
   activeModule,
   onToggleSidebar,
   sidebarOpen,
@@ -250,12 +255,12 @@ export default function AdminHeader({
         >
           <div className="text-right hidden sm:block">
             <p className="text-white text-sm font-medium">{usuarioNombre}</p>
-            <p className="text-white/60 text-xs">Administrador</p>
+            <p className="text-white/60 text-xs">{soloEmpleado ? "Asesor" : "Administrador"}</p>
           </div>
           {fotoUrl && !fotoError ? (
             <img
               src={fotoUrl}
-              alt={usuarioNombre ?? "Administrador"}
+              alt={usuarioNombre ?? (soloEmpleado ? "Asesor" : "Administrador")}
               onError={() => setFotoError(true)}
               className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-white/30"
             />

@@ -294,6 +294,14 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
         </div>
       )}
 
+      {/* Todo lo de aqui para abajo es agregado/negocio de TODA la
+          agencia (resumen operativo, tendencias, charts, actividad
+          reciente) -- nunca datos propios del empleado, asi que el
+          panel recortado no lo muestra (ver "Mis KPIs" arriba, que si
+          es de el). Acciones rapidas tambien se oculta aca porque
+          duplica el quickActions de soloEmpleado en Admindashboard.tsx. */}
+      {!soloEmpleado && (
+      <>
       {/* Resumen operativo */}
       <div>
         <h3 className="font-semibold text-foreground mb-3">Resumen operativo</h3>
@@ -581,6 +589,8 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
           ))}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

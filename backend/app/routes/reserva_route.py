@@ -603,7 +603,7 @@ def create_reserva(
     # sesión podía crear reservas a nombre de otro cliente. El frontend
     # (Checkout.tsx) ya siempre manda el id_cliente del usuario logueado,
     # así que esto no cambia el comportamiento normal.
-    if current_user.id_cliente != reserva.id_cliente and not usuario_es_admin(authorization):
+    if current_user.id_cliente != reserva.id_cliente and not usuario_es_staff(authorization):
         raise HTTPException(status_code=403, detail="No puedes crear una reserva a nombre de otro cliente")
     try:
         nueva = ReservaRepository.create(db, reserva.dict())

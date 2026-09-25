@@ -625,7 +625,14 @@ export default function AdminDashboard() {
   const submitReserva = async (data: any) => {
     setLoading(true);
     try {
-      await apiFetch("/reservas", { method: "POST", body: data });
+      // Si quien crea tiene perfil de Empleado vinculado (admin o
+      // empleado, ver Usuario.id_empleado), se le asigna la reserva
+      // automaticamente -- antes id_empleado siempre quedaba en null sin
+      // importar quien la creara, y ni el KPI "reservas gestionadas" del
+      // dashboard de empleado ni su filtro de "mis reservas" tenian de
+      // donde sacar el dato.
+      const payload = usuario?.id_empleado != null ? { ...data, id_empleado: usuario.id_empleado } : data;
+      await apiFetch("/reservas", { method: "POST", body: payload });
       await fetchReservas();
       toast.success("Reserva creada correctamente");
       // Tras crear, llevar al admin al listado para que la vea de una vez
@@ -754,13 +761,22 @@ export default function AdminDashboard() {
   // Accesos rápidos globales, visibles desde cualquier módulo (header) —
   // ver AdminHeader.tsx / ui/QuickActions.tsx.
   const quickActions: QuickAction[] = soloEmpleado
-    ? []
+    ? [
+        { label: "Nueva reserva",    icon: PlusCircle, onClick: () => setActiveModule("crear-reserva") },
+      ]
     : [
         { label: "Nueva reserva",    icon: PlusCircle, onClick: () => setActiveModule("crear-reserva") },
         { label: "Registrar hotel",  icon: Hotel,      onClick: () => setActiveModule("hoteles") },
         { label: "Crear paquete",    icon: Package,    onClick: () => setActiveModule("paquetes") },
         { label: "Ver clientes",     icon: Users,      onClick: () => setActiveModule("clientes") },
       ];
+
+  // Un empleado solo ve las reservas que gestiona el mismo -- comparar
+  // contra usuario.id_empleado (vinculo real Usuario -> Empleado, ver
+  // login_user en auth_service.py), nunca contra usuario.user_id.
+  const reservasVisibles = soloEmpleado
+    ? reservas.filter(r => r.id_empleado != null && r.id_empleado === usuario?.id_empleado)
+    : reservas;
 
   const MODULES: Record<Module, React.ReactNode> = {
     dashboard: (
@@ -773,7 +789,7 @@ export default function AdminDashboard() {
     ),
     reservas: (
       <ModuleReservas
-        reservas={reservas} clientes={clientes} empleados={empleados}
+        reservas={reservasVisibles} clientes={clientes} empleados={empleados}
         paquetes={paquetes} pagos={pagos} solicitudes={solicitudes}
         onDelete={deleteReserva}
         onNueva={() => setActiveModule("crear-reserva")}
@@ -847,6 +863,7 @@ export default function AdminDashboard() {
         onMarcarLeida={marcarNotificacionLeida}
         onMarcarTodasLeidas={marcarTodasNotificacionesLeidas}
         onDelete={deleteNotificacion}
+        soloEmpleado={soloEmpleado}
       />
     ),
     roles: (
@@ -916,6 +933,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background flex flex-col transition-colors duration-300">
       <AdminHeader
+        soloEmpleado={soloEmpleado}
         activeModule={activeModule}
         onToggleSidebar={() => setSidebarOpen(s => !s)}
         sidebarOpen={sidebarOpen}

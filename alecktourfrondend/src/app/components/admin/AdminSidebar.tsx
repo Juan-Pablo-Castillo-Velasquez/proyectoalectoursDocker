@@ -99,9 +99,15 @@ export const NAV_SECTIONS: NavSection[] = [
 export const MODULOS_EMPLEADO: Module[] = [
   "dashboard",
   "reservas",
+  // No es un item de nav (no tiene entrada propia en NAV_SECTIONS, se llega
+  // por el boton "Nueva reserva" del header o dentro de Reservas), pero
+  // tiene que estar en este allowlist o el guard de Admindashboard.tsx lo
+  // redirige de vuelta al dashboard apenas el empleado intenta crear una.
+  "crear-reserva",
   "cancelaciones",
   "pagos",
   "mensajes",
+  "notificaciones",
   "mi-cuenta",
 ];
 

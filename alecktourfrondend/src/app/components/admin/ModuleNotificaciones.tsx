@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Bell, Mail, XCircle, Building2, Wallet, Check, Trash2, CheckCheck, Loader2, Search,
+  Bell, Mail, XCircle, Building2, Wallet, Check, Trash2, CheckCheck, Loader2, Search, Send,
 } from "lucide-react";
 import type { NotificacionItem } from "../../services/notificacion.service";
 import SectionHeader from "./ui/SectionHeader";
@@ -10,6 +10,20 @@ import { usePagination } from "../../hooks/usePagination";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
+
+// Contacto llega como una sola cadena armada por el backend ("nombre
+// (correo): mensaje", ver enviar_contacto en contacto_route.py) porque
+// Notificacion es una tabla generica compartida con cancelacion/
+// corporativo/pago, sin columnas propias para nombre/correo. Se separa acá
+// solo para mostrarlo mas claro y armar el link de "Responder por correo"
+// -- si el formato no calza (por ejemplo un nombre con parentesis), se cae
+// de vuelta al mensaje tal cual, sin romper nada.
+function parseContacto(mensaje: string | null): { nombre: string; correo: string; cuerpo: string } | null {
+  if (!mensaje) return null;
+  const m = mensaje.match(/^(.+?) \(([^()]+@[^()]+)\):\s*([\s\S]*)$/);
+  if (!m) return null;
+  return { nombre: m[1], correo: m[2], cuerpo: m[3] };
+}
 
 function tiempoRelativo(fechaISO: string): string {
   const fecha = new Date(fechaISO).getTime();
@@ -45,6 +59,10 @@ interface Props {
   onMarcarLeida: (id: number) => void;
   onMarcarTodasLeidas: () => void;
   onDelete: (id: number) => void;
+  // El backend deja "eliminar notificacion" solo para admin (ver
+  // notificacion_route.py) -- se oculta el boton en vez de dejarlo fallar
+  // con un 403 al hacer clic.
+  soloEmpleado?: boolean;
 }
 
 // Bandeja real de notificaciones (ver Notificacion en
@@ -52,7 +70,7 @@ interface Props {
 // ocurrió un evento real (mensaje de contacto, solicitud de cancelación,
 // solicitud corporativa, pago aprobado), nunca un evento inventado.
 export default function ModuleNotificaciones({
-  notificaciones, loading, onMarcarLeida, onMarcarTodasLeidas, onDelete,
+  notificaciones, loading, onMarcarLeida, onMarcarTodasLeidas, onDelete, soloEmpleado,
 }: Props) {
   const [tipoFilter, setTipoFilter] = useState("todos");
   const [leidoFilter, setLeidoFilter] = useState<"todos" | "leidas" | "no_leidas">("todos");
@@ -139,7 +157,9 @@ export default function ModuleNotificaciones({
       ) : filtered.length > 0 ? (
         <>
         <div className="bg-card rounded-2xl shadow-sm border border-border divide-y divide-border/50">
-          {slice.map(n => (
+          {slice.map(n => {
+            const contacto = n.tipo === "contacto" ? parseContacto(n.mensaje) : null;
+            return (
             <div
               key={n.id_notificacion}
               className={`flex items-start gap-3 p-4 transition-colors ${!n.leido ? "bg-primary/[0.03]" : ""}`}
@@ -149,10 +169,23 @@ export default function ModuleNotificaciones({
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm ${!n.leido ? "font-semibold text-foreground" : "text-foreground/80"}`}>
-                  {n.titulo}
+                  {contacto ? `Mensaje de contacto de ${contacto.nombre}` : n.titulo}
                   {!n.leido && <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle" />}
                 </p>
-                {n.mensaje && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.mensaje}</p>}
+                {contacto ? (
+                  <>
+                    <p className="text-xs text-muted-foreground/80 mt-0.5">{contacto.correo}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{contacto.cuerpo}</p>
+                    <a
+                      href={`mailto:${contacto.correo}?subject=${encodeURIComponent(`Re: ${n.titulo.replace(/^Nuevo mensaje de contacto:\s*/, "")}`)}`}
+                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-primary hover:underline"
+                    >
+                      <Send className="w-3 h-3" /> Responder por correo
+                    </a>
+                  </>
+                ) : (
+                  n.mensaje && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.mensaje}</p>
+                )}
                 <p className="text-[11px] text-muted-foreground/70 mt-1">{tiempoRelativo(n.fecha_creacion)}</p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -161,12 +194,15 @@ export default function ModuleNotificaciones({
                     <Check className="w-4 h-4" />
                   </button>
                 )}
-                <button onClick={() => onDelete(n.id_notificacion)} className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all" title="Eliminar">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {!soloEmpleado && (
+                  <button onClick={() => onDelete(n.id_notificacion)} className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all" title="Eliminar">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         <Pagination page={page} pageCount={pageCount} onPageChange={setPage} className="mt-4" />
         </>
