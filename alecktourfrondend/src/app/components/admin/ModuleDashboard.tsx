@@ -32,7 +32,8 @@ interface Props {
   /** true = quien ve este dashboard es un "empleado" (asesor) sin rol
    * admin -- además del resumen operativo general (sin cambios), muestra
    * una tarjeta "Mis KPIs" con sus propias cifras (chats, reservas
-   * gestionadas, cancelaciones procesadas). */
+   * gestionadas) más un donut de cancelaciones de TODA la agencia (ya no
+   * "procesadas por mí" -- solo admin resuelve, ver solicitud_cancelacion_route.py). */
   soloEmpleado?: boolean;
 }
 
@@ -192,6 +193,15 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
     .map(([estado, value]) => ({ name: ESTADO_LABELS[estado] ?? estado, value, color: ESTADO_COLORS[estado] ?? "#999" }))
     .filter((d) => d.value > 0);
 
+  // Cancelaciones de TODA la agencia, para el donut de "Mis KPIs" del
+  // empleado (ver ResumenEmpleado) -- mismos colores que los StatCard de
+  // ModuleCancelaciones.tsx para que se reconozca de un vistazo.
+  const cancelacionesData = resumenEmpleado ? [
+    { name: "Pendientes", value: resumenEmpleado.cancelaciones_pendientes, color: "#C9A227" },
+    { name: "Aprobadas", value: resumenEmpleado.cancelaciones_aprobadas, color: "#10b981" },
+    { name: "Rechazadas", value: resumenEmpleado.cancelaciones_rechazadas, color: "#ef4444" },
+  ].filter((d) => d.value > 0) : [];
+
   const evolucionMensual = resumen.reservas_por_mes.map((r, i) => ({
     mes: formatMes(r.mes),
     reservas: r.total,
@@ -282,14 +292,43 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
                 onClick={() => setActiveModule("reservas")}
               />
             </GrupoResumen>
-            <GrupoResumen icon={XCircle} titulo="Cancelaciones">
-              <FilaResumen
-                label="Procesadas por mí"
-                value={resumenEmpleado.cancelaciones_procesadas}
-                strong
-                onClick={() => setActiveModule("cancelaciones")}
-              />
-            </GrupoResumen>
+            <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+              <p className="text-xs font-bold uppercase tracking-wide text-foreground/70 mb-3 flex items-center gap-1.5">
+                <XCircle className="w-3.5 h-3.5" /> Cancelaciones (agencia)
+              </p>
+              {cancelacionesData.length > 0 ? (
+                <div className="flex items-center gap-3">
+                  <ResponsiveContainer width={84} height={84}>
+                    <PieChart>
+                      <Pie data={cancelacionesData} cx="50%" cy="50%" outerRadius={41} innerRadius={25} dataKey="value" paddingAngle={2}>
+                        {cancelacionesData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-1.5 text-sm min-w-0">
+                    <FilaResumen label="Pendientes" value={resumenEmpleado.cancelaciones_pendientes} onClick={() => setActiveModule("cancelaciones")} />
+                    <FilaResumen label="Aprobadas" value={resumenEmpleado.cancelaciones_aprobadas} onClick={() => setActiveModule("cancelaciones")} />
+                    <FilaResumen label="Rechazadas" value={resumenEmpleado.cancelaciones_rechazadas} onClick={() => setActiveModule("cancelaciones")} />
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setActiveModule("cancelaciones")}
+                  className="w-full h-[84px] flex items-center justify-center text-muted-foreground text-xs hover:text-foreground transition-colors"
+                >
+                  Sin solicitudes registradas todavía
+                </button>
+              )}
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <FilaResumen
+                  label="Total"
+                  value={resumenEmpleado.cancelaciones_total}
+                  strong
+                  onClick={() => setActiveModule("cancelaciones")}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -556,33 +595,42 @@ export default function ModuleDashboard({ setActiveModule, onVerReserva, onFiltr
       {/* Acciones rápidas con contexto real */}
       <div className="bg-card rounded-2xl p-6 shadow-sm border border-border">
         <h3 className="font-semibold text-foreground mb-4">Acciones rápidas</h3>
+        {/* Antes cada botón tenía su propio gradiente saturado (granate,
+            rosa, dorado, rojo, gris, azul) compitiendo entre sí -- se veía
+            como un arcoíris en vez de un panel. Ahora todos comparten el
+            mismo fondo neutro (misma tarjeta que el resto del dashboard) y
+            solo el ícono lleva un acento de color, que sigue marcando la
+            urgencia real (rojo = cancelaciones, dorado = pendiente) sin
+            gritar. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {[
-            { label: "Nueva reserva", mod: "crear-reserva", icon: PlusCircle, gradient: "from-[#7B1E3A] to-[#A13B55]" },
-            { label: "Registrar hotel", mod: "hoteles", icon: Hotel, gradient: "from-[#A13B55] to-[#7B1E3A]" },
-            { label: "Crear paquete", mod: "paquetes", icon: Package, gradient: "from-[#C9A227] to-[#e6b830]" },
+            { label: "Nueva reserva", mod: "crear-reserva", icon: PlusCircle, tint: "bg-primary/10 text-primary" },
+            { label: "Registrar hotel", mod: "hoteles", icon: Hotel, tint: "bg-primary/10 text-primary" },
+            { label: "Crear paquete", mod: "paquetes", icon: Package, tint: "bg-[#C9A227]/15 text-[#8a6d10] dark:text-[#C9A227]" },
             {
               label: `Ver cancelaciones${resumen.solicitudes_cancelacion_pendientes ? ` (${resumen.solicitudes_cancelacion_pendientes})` : ""}`,
-              mod: "cancelaciones", icon: XCircle, gradient: "from-[#c62828] to-[#8f1d1d]",
+              mod: "cancelaciones", icon: XCircle, tint: "bg-destructive/10 text-destructive",
             },
             {
               label: `Pagos pendientes${resumen.pagos_pendientes ? ` (${resumen.pagos_pendientes})` : ""}`,
-              mod: "pagos", icon: DollarSign, gradient: "from-[#2E2E2E] to-[#555555]",
+              mod: "pagos", icon: DollarSign, tint: "bg-muted text-foreground",
             },
             ...(resumen.contactos_empresariales_pendientes != null
               ? [{
                   label: `Contactos pendientes${resumen.contactos_empresariales_pendientes ? ` (${resumen.contactos_empresariales_pendientes})` : ""}`,
-                  mod: "empresas", icon: Building2, gradient: "from-[#2563EB] to-[#1d4ed8]",
+                  mod: "empresas", icon: Building2, tint: "bg-[#2563EB]/10 text-[#2563EB]",
                 }]
               : []),
-            { label: "Ver clientes", mod: "clientes", icon: Users, gradient: "from-[#7B1E3A] to-[#A13B55]" },
-          ].map(({ label, mod, icon: Icon, gradient }) => (
+            { label: "Ver clientes", mod: "clientes", icon: Users, tint: "bg-primary/10 text-primary" },
+          ].map(({ label, mod, icon: Icon, tint }) => (
             <button
               key={mod}
               onClick={() => setActiveModule(mod)}
-              className={`w-full flex items-center gap-3 p-3 bg-gradient-to-r ${gradient} text-white rounded-xl text-sm font-medium hover:shadow-lg hover:scale-[1.02] transition-all`}
+              className="w-full flex items-center gap-3 p-3 bg-card border border-border rounded-xl text-sm font-medium text-foreground hover:border-primary/30 hover:shadow-md transition-all"
             >
-              <Icon className="w-4 h-4 flex-shrink-0" />
+              <span className={`flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 ${tint}`}>
+                <Icon className="w-4 h-4" />
+              </span>
               {label}
               <ArrowUpRight className="w-3 h-3 ml-auto opacity-70 flex-shrink-0" />
             </button>

@@ -137,7 +137,18 @@ class ResumenEmpleadoResponse(BaseModel):
     # ningún mensaje (no hay base sobre la que calcular un promedio).
     tiempo_promedio_respuesta_minutos: float | None = None
 
-    # ---- Operación propia (Reserva.id_empleado / SolicitudCancelacion.
-    # id_empleado_resolutor -- reales, ya existían en el modelo) ----
+    # ---- Operación propia (Reserva.id_empleado -- ya existía en el
+    # modelo) ----
     reservas_gestionadas: int
-    cancelaciones_procesadas: int
+
+    # ---- Cancelaciones: vista de TODA la agencia, no solo "mías" -- desde
+    # que solo el admin puede aprobar/rechazar (ver
+    # solicitud_cancelacion_route.py), "cancelaciones que procesé yo" ya no
+    # tiene sentido para un asesor. El asesor sigue viendo la cola completa
+    # y puede registrar solicitudes nuevas (rol de "llamar y avisar al
+    # admin"), así que estas cifras son agregadas de toda la agencia, igual
+    # que las que ya ve el admin en el módulo de Cancelaciones. ----
+    cancelaciones_pendientes: int
+    cancelaciones_aprobadas: int
+    cancelaciones_rechazadas: int
+    cancelaciones_total: int

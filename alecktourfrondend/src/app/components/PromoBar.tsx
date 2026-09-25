@@ -36,8 +36,14 @@ export default function PromoBar() {
         <div
             className="h-[38px] flex items-center justify-center gap-3 sm:gap-6 px-4 text-white text-[11px] font-semibold text-center"
             style={{
+                // Antes eran 3 tonos casi iguales, todos muy oscurecidos
+                // (deep-2 -> shade -> deep) sin una dirección clara -- se
+                // veía como una mancha oscura plana en vez de un
+                // degradado. Ahora son solo 2 paradas, de oscuro a el
+                // --primary real (sin oscurecer), así que se nota más vivo
+                // y coherente con una barra de "oferta especial".
                 background:
-                    "linear-gradient(90deg, var(--primary-deep-2) 0%, var(--primary-shade) 50%, var(--primary-deep) 100%)",
+                    "linear-gradient(90deg, var(--primary-shade) 0%, var(--primary) 100%)",
             }}
         >
             {imagenTema && (

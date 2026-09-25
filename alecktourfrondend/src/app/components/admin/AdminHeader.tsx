@@ -151,7 +151,12 @@ export default function AdminHeader({
   };
 
   return (
-    <header className="h-16 bg-gradient-to-r from-[#7B1E3A] via-[#A13B55] to-[#C9A227] flex items-center px-4 sm:px-6 gap-3 sm:gap-4 sticky top-0 z-40 shadow-lg">
+    // Antes iba de granate a un dorado brillante (#C9A227) en un solo salto
+    // diagonal -- se veía como dos colores peleando en vez de un degradado.
+    // Ahora se queda dentro de la misma familia (los mismos tokens
+    // derivados de --primary que ya usa PromoBar.tsx/footer-brand), así
+    // que también se recolorea solo si cambia el tema de temporada.
+    <header className="h-16 bg-gradient-to-r from-[var(--primary-deep)] via-[var(--primary-shade)] to-[var(--primary)] flex items-center px-4 sm:px-6 gap-3 sm:gap-4 sticky top-0 z-40 shadow-lg">
       <button
         onClick={onToggleSidebar}
         className="text-white/80 hover:text-white transition-colors lg:hidden flex-shrink-0"

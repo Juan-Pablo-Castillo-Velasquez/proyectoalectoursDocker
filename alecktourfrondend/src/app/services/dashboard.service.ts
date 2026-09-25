@@ -97,7 +97,13 @@ export interface ResumenEmpleado {
   chats_respondidos_hoy: number;
   tiempo_promedio_respuesta_minutos: number | null;
   reservas_gestionadas: number;
-  cancelaciones_procesadas: number;
+  // Cancelaciones de TODA la agencia (no solo las que resolvió este
+  // empleado) -- desde que solo el admin aprueba/rechaza, ver nota en
+  // ResumenEmpleadoResponse en el backend.
+  cancelaciones_pendientes: number;
+  cancelaciones_aprobadas: number;
+  cancelaciones_rechazadas: number;
+  cancelaciones_total: number;
 }
 
 export const dashboardService = {

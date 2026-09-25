@@ -622,6 +622,21 @@ export default function AdminDashboard() {
     }
   };
 
+  // El asesor (o el admin) registra una solicitud en nombre de un cliente
+  // que llamó por teléfono -- queda "pendiente" igual que si la hubiera
+  // mandado el cliente desde su perfil; la decisión de aprobar/rechazar
+  // sigue siendo exclusiva de admin (ver ModuleCancelaciones/soloEmpleado).
+  const crearSolicitudCancelacion = async (reservaId: number, data: { motivo: string; motivo_detalle?: string }) => {
+    try {
+      await solicitudCancelacionService.crear(reservaId, data);
+      await fetchSolicitudes();
+      toast.success("Solicitud de cancelación registrada — queda pendiente de revisión del admin");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo registrar la solicitud");
+      throw e;
+    }
+  };
+
   const submitReserva = async (data: any) => {
     setLoading(true);
     try {
@@ -835,6 +850,8 @@ export default function AdminDashboard() {
         reservas={reservas}
         onResolve={resolverSolicitud}
         onVerReserva={verReserva}
+        onCrearSolicitud={crearSolicitudCancelacion}
+        soloEmpleado={soloEmpleado}
       />
     ),
     empresas: (

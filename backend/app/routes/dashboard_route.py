@@ -458,25 +458,30 @@ def get_dashboard_resumen_empleado(db: Session = Depends(get_db), usuario_id: in
     # ---------- Operación propia (0 si el usuario no tiene perfil de
     # empleado vinculado -- ej. un admin puro) ----------
     reservas_gestionadas = 0
-    cancelaciones_procesadas = 0
     if id_empleado is not None:
         reservas_gestionadas = (
             db.query(func.count(Reserva.id_reserva)).filter(Reserva.id_empleado == id_empleado).scalar() or 0
         )
-        cancelaciones_procesadas = (
-            db.query(func.count(SolicitudCancelacion.id_solicitud))
-            .filter(
-                SolicitudCancelacion.id_empleado_resolutor == id_empleado,
-                SolicitudCancelacion.estado != "pendiente",
-            )
-            .scalar()
-            or 0
-        )
+
+    # ---------- Cancelaciones: de TODA la agencia, no solo las que este
+    # empleado resolvió (ver nota en ResumenEmpleadoResponse) ----------
+    conteo_por_estado = dict(
+        db.query(SolicitudCancelacion.estado, func.count(SolicitudCancelacion.id_solicitud))
+        .group_by(SolicitudCancelacion.estado)
+        .all()
+    )
+    cancelaciones_pendientes = conteo_por_estado.get("pendiente", 0)
+    cancelaciones_aprobadas = conteo_por_estado.get("aprobada", 0)
+    cancelaciones_rechazadas = conteo_por_estado.get("rechazada", 0)
+    cancelaciones_total = sum(conteo_por_estado.values())
 
     return ResumenEmpleadoResponse(
         chats_pendientes=chats_pendientes,
         chats_respondidos_hoy=chats_respondidos_hoy,
         tiempo_promedio_respuesta_minutos=tiempo_promedio_respuesta_minutos,
         reservas_gestionadas=reservas_gestionadas,
-        cancelaciones_procesadas=cancelaciones_procesadas,
+        cancelaciones_pendientes=cancelaciones_pendientes,
+        cancelaciones_aprobadas=cancelaciones_aprobadas,
+        cancelaciones_rechazadas=cancelaciones_rechazadas,
+        cancelaciones_total=cancelaciones_total,
     )

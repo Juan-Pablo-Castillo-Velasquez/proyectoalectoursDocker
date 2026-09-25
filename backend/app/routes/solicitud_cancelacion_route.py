@@ -6,14 +6,14 @@ import logging
 import threading
 from datetime import UTC
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.cache import delete_pattern
 from app.core.database import get_db
-from app.core.deps import get_current_usuario
+from app.core.deps import exigir_propietario_o_admin, get_current_usuario
 from app.core.mail import send_cancellation_email, send_email
-from app.core.security import require_empleado
+from app.core.security import require_admin, require_empleado
 from app.models.reserva_model import HistorialReserva, Reserva
 from app.models.user_model import Usuario
 from app.repositories.solicitud_cancelacion_repository import SolicitudCancelacionRepository
@@ -68,21 +68,21 @@ async def crear_solicitud_cancelacion(
     data: SolicitudCancelacionCreate,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_usuario),
+    authorization: str | None = Header(None),
 ):
     """
-    El cliente autenticado envía una solicitud de cancelación para una de
-    SUS reservas. Queda en estado 'pendiente' hasta que un asesor la
-    apruebe o rechace (eso lo hará el futuro panel de admin).
+    Registra una solicitud de cancelación para una reserva. Normalmente la
+    envía el propio cliente dueño de la reserva desde su perfil, pero un
+    asesor/admin también puede registrarla en nombre de un cliente que
+    llamó por teléfono (ver exigir_propietario_o_admin) -- ese es el flujo
+    "el asesor llama y envía la solicitud a admin" del panel de empleado.
+    Queda en estado 'pendiente' hasta que el admin la apruebe o rechace.
     """
-    if not usuario.cliente:
-        raise HTTPException(status_code=403, detail="Solo los clientes pueden solicitar cancelaciones")
-
     reserva = db.query(Reserva).filter(Reserva.id_reserva == reserva_id).first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
 
-    if reserva.id_cliente != usuario.cliente.id_cliente:
-        raise HTTPException(status_code=403, detail="No puedes solicitar la cancelación de una reserva que no es tuya")
+    exigir_propietario_o_admin(usuario, reserva.id_cliente, authorization)
 
     if reserva.estado in ("cancelada", "finalizada"):
         raise HTTPException(
@@ -101,7 +101,7 @@ async def crear_solicitud_cancelacion(
     solicitud = SolicitudCancelacionRepository.create(
         db,
         id_reserva=reserva_id,
-        id_cliente=usuario.cliente.id_cliente,
+        id_cliente=reserva.id_cliente,
         motivo=data.motivo,
         motivo_detalle=data.motivo_detalle,
     )
@@ -118,12 +118,16 @@ async def crear_solicitud_cancelacion(
         id_referencia=reserva_id,
     )
 
-    # Confirmación por correo al cliente (best-effort: si falla el envío,
-    # la solicitud ya quedó guardada, no rompemos la respuesta por esto).
-    if usuario.correo_electronico:
+    # Confirmación por correo al CLIENTE de la reserva (best-effort: si
+    # falla el envío, la solicitud ya quedó guardada, no rompemos la
+    # respuesta por esto). Antes se mandaba a usuario.correo_electronico,
+    # que cuando la solicitud la registra un asesor en nombre del cliente
+    # terminaba siendo el correo del asesor, no el del cliente afectado.
+    cliente_email = reserva.cliente.correo_electronico if reserva.cliente else None
+    if cliente_email:
         with contextlib.suppress(Exception):
             await send_email(
-                email=usuario.correo_electronico,
+                email=cliente_email,
                 subject=f"Recibimos tu solicitud de cancelación - Reserva #{reserva_id} - AlecTours",
                 body=(
                     f"Hola,\n\nRecibimos tu solicitud de cancelación para la reserva #{reserva_id}.\n"
@@ -203,12 +207,18 @@ def admin_resolver_solicitud(
     id_solicitud: int,
     data: SolicitudCancelacionResolve,
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_empleado),
+    admin_id: int = Depends(require_admin),
 ):
     """
-    Aprueba o rechaza una solicitud de cancelación, con nota del admin (o
-    del empleado que la atendió -- ver require_empleado; queda registrado
-    en id_empleado_resolutor más abajo).
+    Aprueba o rechaza una solicitud de cancelación, con nota del admin.
+
+    Por ahora esto se queda exclusivo de admin (a diferencia del resto del
+    panel de empleado): el asesor puede ver la cola y registrar solicitudes
+    nuevas cuando un cliente llama, pero la decisión final de aprobar o
+    rechazar (que cancela la reserva de verdad) la toma el admin. Si el
+    admin tiene perfil de Empleado vinculado igual queda registrado en
+    id_empleado_resolutor más abajo, para no perder ese dato.
+
     Aprobar cancela de verdad la reserva (y queda trazado en su historial);
     rechazar solo cierra la solicitud, la reserva sigue como estaba.
     """

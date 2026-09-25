@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Search, XCircle, CheckCircle, Clock, MessageSquare, ChevronRight,
-  AlertCircle, MessageCircle, ArrowUpRight,
+  AlertCircle, MessageCircle, ArrowUpRight, Plus,
 } from "lucide-react";
 import { Cliente, Empleado, Reserva, ESTADO_COLOR } from "./types";
 import type { SolicitudCancelacionResponse } from "../../services/solicitudCancelacion.service";
@@ -15,6 +15,7 @@ import Pagination from "../ui/pagination";
 import { usePagination } from "../../hooks/usePagination";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Timeline, { type TimelineItem } from "./ui/Timeline";
+import { MOTIVOS } from "../profile/TabReservas/constants";
 
 // Solo estos 3 estados existen de verdad en la base de datos (CHECK
 // constraint en SolicitudCancelacion.estado, ver reserva_model.py). El
@@ -71,19 +72,48 @@ interface Props {
    * `reservaIdInicial` en ModuleReservas.tsx) — para no forzar al admin a
    * buscarla manualmente cuando necesita más contexto del que cabe acá. */
   onVerReserva?: (id: number) => void;
+  /** Registra una solicitud nueva en nombre de un cliente que llamó por
+   * teléfono -- tanto admin como asesor pueden hacerlo; la decisión final
+   * de aprobar/rechazar sigue siendo exclusiva de admin (ver soloEmpleado
+   * más abajo). */
+  onCrearSolicitud?: (reservaId: number, data: { motivo: string; motivo_detalle?: string }) => Promise<void>;
+  /** Oculta las acciones de Aprobar/Rechazar para el asesor: por ahora
+   * solo el admin decide el estado final de una cancelación. El asesor
+   * puede ver la cola y registrar solicitudes nuevas igual. */
+  soloEmpleado?: boolean;
 }
 
 export default function ModuleCancelaciones({
   solicitudes, clientes = [], empleados = [], reservas = [], onResolve, onVerReserva,
+  onCrearSolicitud, soloEmpleado = false,
 }: Props) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoSolicitudFilter>("todos");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<"aprobada" | "rechazada" | null>(null);
 
+  // "Nueva solicitud" -- el asesor llama al cliente, confirma que quiere
+  // cancelar y la registra acá mismo en vez de tener que avisarle al admin
+  // por otro lado (ver onCrearSolicitud).
+  const [creando, setCreando] = useState(false);
+  const [crearReservaId, setCrearReservaId] = useState("");
+  const [crearMotivo, setCrearMotivo] = useState(MOTIVOS[0]);
+  const [crearDetalle, setCrearDetalle] = useState("");
+  const [creandoSubmitting, setCreandoSubmitting] = useState(false);
+
   const clienteMap  = Object.fromEntries(clientes.map(c => [c.id_cliente, c]));
   const empleadoMap = Object.fromEntries(empleados.map(e => [e.id_empleado, e]));
   const reservaMap  = Object.fromEntries(reservas.map(r => [r.id_reserva, r]));
+
+  // Reservas que de verdad tiene sentido ofrecer en el selector: no las que
+  // ya están canceladas/finalizadas, ni las que ya tienen una solicitud
+  // pendiente (el backend la rechazaría con 409 por duplicada).
+  const idsConSolicitudPendiente = new Set(
+    solicitudes.filter(s => s.estado === "pendiente").map(s => s.id_reserva)
+  );
+  const reservasElegibles = reservas.filter(
+    r => r.estado !== "cancelada" && r.estado !== "finalizada" && !idsConSolicitudPendiente.has(r.id_reserva)
+  );
 
   const selected = solicitudes.find(s => s.id_solicitud === selectedId) ?? null;
 
@@ -145,6 +175,28 @@ export default function ModuleCancelaciones({
     setSelectedId(null);
   }
 
+  function cerrarCrearSolicitud() {
+    setCreando(false);
+    setCrearReservaId("");
+    setCrearMotivo(MOTIVOS[0]);
+    setCrearDetalle("");
+  }
+
+  async function handleCrearSolicitud() {
+    if (!onCrearSolicitud || !crearReservaId) return;
+    if (crearMotivo === "Otro motivo" && !crearDetalle.trim()) return;
+    setCreandoSubmitting(true);
+    try {
+      await onCrearSolicitud(Number(crearReservaId), {
+        motivo: crearMotivo,
+        motivo_detalle: crearDetalle.trim() || undefined,
+      });
+      cerrarCrearSolicitud();
+    } finally {
+      setCreandoSubmitting(false);
+    }
+  }
+
   const thCls = "px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap";
 
   return (
@@ -152,6 +204,14 @@ export default function ModuleCancelaciones({
       <SectionHeader
         title="Cancelaciones"
         subtitle={`${solicitudes.length} solicitud${solicitudes.length === 1 ? "" : "es"} en total`}
+        action={onCrearSolicitud && (
+          <button
+            onClick={() => setCreando(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-xl text-xs font-semibold hover:shadow-md hover:shadow-primary/20 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" /> Nueva solicitud
+          </button>
+        )}
       />
 
       {/* KPIs reales */}
@@ -292,20 +352,26 @@ export default function ModuleCancelaciones({
             description={`Reserva #${selected.id_reserva}`}
             maxWidth="sm:max-w-2xl"
             footer={selected.estado === "pendiente" ? (
-              <div className="flex items-center gap-2 w-full">
-                <button
-                  onClick={() => setPendingAction("rechazada")}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs font-semibold transition-colors"
-                >
-                  <XCircle className="w-3.5 h-3.5" /> Rechazar
-                </button>
-                <button
-                  onClick={() => setPendingAction("aprobada")}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-lg text-xs font-semibold hover:shadow-md hover:shadow-primary/20 transition-all"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" /> Aprobar
-                </button>
-              </div>
+              soloEmpleado ? (
+                <p className="text-xs text-muted-foreground w-full text-center py-1">
+                  Pendiente de revisión del admin — ya quedó registrada.
+                </p>
+              ) : (
+                <div className="flex items-center gap-2 w-full">
+                  <button
+                    onClick={() => setPendingAction("rechazada")}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Rechazar
+                  </button>
+                  <button
+                    onClick={() => setPendingAction("aprobada")}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-lg text-xs font-semibold hover:shadow-md hover:shadow-primary/20 transition-all"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" /> Aprobar
+                  </button>
+                </div>
+              )
             ) : undefined}
           >
             <div className="space-y-5">
@@ -392,6 +458,90 @@ export default function ModuleCancelaciones({
         reasonPlaceholder="Explica la decisión para el registro interno..."
         onConfirm={handleResolve}
       />
+
+      {/* Nueva solicitud -- flujo de "el asesor llama y envía la solicitud
+       * al admin" (ver onCrearSolicitud). No decide nada: solo la deja en
+       * 'pendiente' para que el admin la revise desde este mismo módulo. */}
+      <AdminModal
+        open={creando}
+        onOpenChange={(o) => { if (!o) cerrarCrearSolicitud(); else setCreando(true); }}
+        title="Nueva solicitud de cancelación"
+        description="Regístrala cuando un cliente llame o escriba pidiendo cancelar. El admin la revisa y decide desde esta misma bandeja."
+        maxWidth="sm:max-w-lg"
+        footer={
+          <div className="flex items-center gap-2 w-full justify-end">
+            <button
+              onClick={cerrarCrearSolicitud}
+              className="px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleCrearSolicitud}
+              disabled={!crearReservaId || creandoSubmitting || (crearMotivo === "Otro motivo" && !crearDetalle.trim())}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-primary to-[#A13B55] text-white rounded-lg text-xs font-semibold hover:shadow-md hover:shadow-primary/20 transition-all disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {creandoSubmitting ? "Enviando..." : "Enviar solicitud"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">
+              Reserva
+            </label>
+            <select
+              value={crearReservaId}
+              onChange={e => setCrearReservaId(e.target.value)}
+              className="w-full px-3 py-2.5 border border-border rounded-xl text-sm outline-none
+                bg-card text-foreground focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+            >
+              <option value="">Selecciona la reserva a cancelar...</option>
+              {reservasElegibles.map(r => {
+                const cl = clienteMap[r.id_cliente];
+                return (
+                  <option key={r.id_reserva} value={r.id_reserva}>
+                    #{r.id_reserva} — {cl ? `${cl.nombre} ${cl.apellido}` : `Cliente #${r.id_cliente}`}
+                    {r.hotel_nombre ? ` — ${r.hotel_nombre}` : ""}
+                  </option>
+                );
+              })}
+            </select>
+            {reservasElegibles.length === 0 && (
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                No hay reservas activas disponibles para solicitar cancelación.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">
+              Motivo
+            </label>
+            <select
+              value={crearMotivo}
+              onChange={e => setCrearMotivo(e.target.value)}
+              className="w-full px-3 py-2.5 border border-border rounded-xl text-sm outline-none
+                bg-card text-foreground focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+            >
+              {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">
+              Detalle {crearMotivo === "Otro motivo" ? "(obligatorio)" : "(opcional)"}
+            </label>
+            <textarea
+              value={crearDetalle}
+              onChange={e => setCrearDetalle(e.target.value)}
+              rows={3}
+              placeholder="Lo que te contó el cliente por teléfono..."
+              className="w-full px-3 py-2.5 border border-border rounded-xl text-sm outline-none resize-none
+                bg-card text-foreground placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+            />
+          </div>
+        </div>
+      </AdminModal>
     </div>
   );
 }
