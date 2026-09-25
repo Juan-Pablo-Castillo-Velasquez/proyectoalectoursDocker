@@ -734,6 +734,21 @@ export default function AdminDashboard() {
     }
   };
 
+  // Antes los roles de un usuario ya existente eran de solo lectura en su
+  // perfil (ModuleUsuarios.tsx) -- solo se podian elegir al crear la
+  // cuenta. Reusa el mismo usuarioAdminService.update({roles}) que el
+  // backend ya soporta (ver UsuarioAdminUpdate en usuario_schema.py).
+  const updateRolesUsuario = async (usuarioObj: Usuario, roles: string[]) => {
+    try {
+      await usuarioAdminService.update(usuarioObj.id_usuario, { roles });
+      setUsuarios(prev => prev.map(u => u.id_usuario === usuarioObj.id_usuario ? { ...u, roles } : u));
+      toast.success("Roles actualizados correctamente");
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudieron actualizar los roles");
+      throw e;
+    }
+  };
+
   const handleLogout = () => { logout(); navigate("/"); };
 
   // Accesos rápidos globales, visibles desde cualquier módulo (header) —
@@ -791,7 +806,9 @@ export default function AdminDashboard() {
       <ModuleUsuarios
         usuarios={usuarios} roles={roles}
         onDelete={deleteUsuario} onSubmit={submitUsuario}
-        onToggleActivo={toggleActivoUsuario} onToggleVerificado={toggleVerificadoUsuario} loading={loading}
+        onToggleActivo={toggleActivoUsuario} onToggleVerificado={toggleVerificadoUsuario}
+        onUpdateRoles={updateRolesUsuario} currentUsuarioId={usuario?.user_id}
+        loading={loading}
       />
     ),
     cancelaciones: (

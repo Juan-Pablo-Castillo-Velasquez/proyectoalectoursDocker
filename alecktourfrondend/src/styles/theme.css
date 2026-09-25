@@ -566,7 +566,13 @@
    estando clara en la franja superior (::before) y en el badge del logo,
    no en toda la barra. */
 .navbar-surface {
-  position: relative;
+  /* Sin position: relative a proposito -- el <nav> ya es sticky (ver
+     Navbar.tsx), y position:sticky funciona igual que relative como
+     containing block para el ::before de abajo. Antes esta regla
+     ponia position:relative acá, que empataba en especificidad con la
+     utilidad .sticky de Tailwind y ganaba por orden de aparicion en el
+     CSS compilado (misma especificidad, mismo peso) -- eso pisaba el
+     position:sticky y el navbar dejaba de quedarse fijo al hacer scroll. */
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Trash2, PlusCircle, ShieldCheck, ShieldOff, Users, UserCheck, UserX, Mail, ChevronRight } from "lucide-react";
 import { Usuario, Rol, inputCls, labelCls, resolveFotoUrl } from "./types";
 import AdminModal from "./ui/AdminModal";
@@ -83,19 +83,57 @@ interface Props {
   // admin puede marcar la cuenta como verificada a mano en vez de dejarlo
   // sin poder usar su cuenta indefinidamente.
   onToggleVerificado: (usuario: Usuario) => Promise<void>;
+  // Antes los roles de un usuario ya existente eran de solo lectura en su
+  // perfil -- solo se podian elegir al crear la cuenta (ver toggleRol, que
+  // sigue siendo exclusivo del modal de creacion). Reusa el mismo
+  // usuarioAdminService.update({roles}) que ya soporta el backend.
+  onUpdateRoles: (usuario: Usuario, roles: string[]) => Promise<void>;
+  // Id del usuario con la sesion activa -- evita que un admin se quite a si
+  // mismo el rol de admin y quede fuera del panel sin querer.
+  currentUsuarioId?: number;
   loading: boolean;
 }
 
-export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, onToggleActivo, onToggleVerificado, loading }: Props) {
+export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, onToggleActivo, onToggleVerificado, onUpdateRoles, currentUsuarioId, loading }: Props) {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [modalOpen, setModalOpen] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+  const [profileRoles, setProfileRoles] = useState<string[]>([]);
+  const [savingRoles, setSavingRoles] = useState(false);
 
   const profile = usuarios.find(u => u.id_usuario === profileId) ?? null;
   const toggleCopy = pendingToggle ? getToggleCopy(pendingToggle) : null;
+
+  // Sincroniza el estado editable de roles con el usuario abierto en el
+  // modal -- se resetea al abrir otro perfil y tambien cuando `usuarios`
+  // se actualiza tras guardar (para reflejar lo que realmente quedo en el
+  // backend), pero no mientras el admin esta togglenado botones sin haber
+  // guardado aun (eso no toca `usuarios`).
+  useEffect(() => {
+    setProfileRoles(profile ? [...profile.roles] : []);
+  }, [profileId, usuarios]);
+
+  const esPropioUsuario = profile != null && profile.id_usuario === currentUsuarioId;
+  const rolesCambiaron = profile != null && (
+    profileRoles.length !== profile.roles.length || profileRoles.some(r => !profile.roles.includes(r))
+  );
+
+  const toggleProfileRol = (nombre_rol: string) => {
+    setProfileRoles(prev => prev.includes(nombre_rol) ? prev.filter(r => r !== nombre_rol) : [...prev, nombre_rol]);
+  };
+
+  async function handleGuardarRoles() {
+    if (!profile) return;
+    setSavingRoles(true);
+    try {
+      await onUpdateRoles(profile, profileRoles);
+    } finally {
+      setSavingRoles(false);
+    }
+  }
 
   async function handleConfirmToggle() {
     if (!pendingToggle) return;
@@ -407,10 +445,45 @@ export default function ModuleUsuarios({ usuarios, roles, onDelete, onSubmit, on
         >
           <div className="space-y-0.5">
             <Row label="Correo" value={profile.correo_electronico} />
-            <Row
-              label="Roles"
-              value={profile.roles.length > 0 ? profile.roles.join(", ") : "—"}
-            />
+            <div className="py-2.5 border-b border-border/50">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="text-xs text-muted-foreground min-w-[120px]">Roles</span>
+                {rolesCambiaron && (
+                  <button
+                    type="button"
+                    onClick={handleGuardarRoles}
+                    disabled={savingRoles}
+                    className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                  >
+                    {savingRoles ? "Guardando..." : "Guardar cambios"}
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {roles.map(r => {
+                  const activo = profileRoles.includes(r.nombre_rol);
+                  // Un admin no puede quitarse a si mismo el rol de admin --
+                  // evita que quede fuera del panel por accidente sin que
+                  // quede otro admin para devolverselo.
+                  const bloqueado = esPropioUsuario && r.nombre_rol === "admin" && activo;
+                  return (
+                    <button
+                      key={r.id_rol}
+                      type="button"
+                      disabled={bloqueado}
+                      title={bloqueado ? "No puedes quitarte el rol de admin a ti mismo" : undefined}
+                      onClick={() => toggleProfileRol(r.nombre_rol)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activo
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "bg-card border-border text-muted-foreground hover:border-primary/40"
+                        } ${bloqueado ? "opacity-60 cursor-not-allowed" : ""}`}
+                    >
+                      {r.nombre_rol}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <Row label="Estado" value={<StatusBadge status={profile.activo ? "activo" : "inactivo"} />} />
             <Row label="Verificado" value={<StatusBadge status={profile.verificado ? "verificado" : "no_verificado"} />} />
             <Row label="Cuenta creada" value={formatFechaHora(profile.fecha_creacion)} />
