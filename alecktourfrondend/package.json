@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@11.0.9",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-seo.mjs",
     "dev": "vite",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

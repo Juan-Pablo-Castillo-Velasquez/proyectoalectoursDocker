@@ -64,3 +64,9 @@ htmlcov/
 # OS
 *.DS_Store
 Thumbs.db
+
+# Restos de comandos de git ejecutados vía el puente a este equipo
+# (el punto de montaje bloquea unlink(), así que git deja index.lock
+# atascado y los archivos temporales de "pnpm install" no se pueden
+# borrar directo -- se mueven acá en vez de perderlos).
+_to_delete/
