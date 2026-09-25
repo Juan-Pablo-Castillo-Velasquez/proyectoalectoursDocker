@@ -1,23 +1,40 @@
 // components/payment/NequiConfirmar.tsx
 // Paso posterior a NequiPayment.tsx: el pago quedó "procesando" en el
 // backend (ver payment_service.py / reserva_route.py) y aquí se le pide al
-// cliente que confirme que YA transfirió a NEQUI_DESTINO antes de crear la
-// reserva de verdad -- a diferencia de PSE (que sigue auto-confirmándose
-// solo tras una espera simulada), Nequi ahora depende de esta acción
-// explícita del cliente, igual que pediría un negocio real sin pasarela.
-import { Loader2, Smartphone } from "lucide-react";
+// cliente que confirme que YA transfirió a NEQUI_DESTINO -- puede adjuntar
+// el comprobante ahí mismo (opcional) o simplemente guardarlo, porque un
+// asesor/admin va a revisar y confirmar el pago después de verificarlo
+// (ver confirmar_pago), no se aprueba solo como antes.
+import { useRef, useState } from "react";
+import { AlertCircle, Check, Loader2, Paperclip, Smartphone, X } from "lucide-react";
 import { motion } from "motion/react";
 import { formatNequiDestino } from "./types";
 
 export default function NequiConfirmar({
   amount,
-  confirmando,
+  comprobanteSubiendo,
+  comprobanteSubido,
+  comprobanteError,
+  onSubirComprobante,
   onConfirmar,
 }: {
   amount: number;
-  confirmando: boolean;
+  comprobanteSubiendo: boolean;
+  comprobanteSubido: boolean;
+  comprobanteError?: string | null;
+  onSubirComprobante: (file: File) => void;
   onConfirmar: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [nombreArchivo, setNombreArchivo] = useState("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNombreArchivo(file.name);
+    onSubirComprobante(file);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -32,20 +49,45 @@ export default function NequiConfirmar({
         Envía <strong className="text-foreground">${amount.toLocaleString("es-CO")}</strong> a{" "}
         <span className="font-mono font-semibold text-foreground">{formatNequiDestino()}</span> desde tu app Nequi.
       </p>
-      <p className="text-[11px] text-muted-foreground mt-1">Cuando ya lo hayas hecho, confirma aquí para crear tu reserva.</p>
+
+      {/* Comprobante: opcional acá mismo, o simplemente lo guarda -- de
+          cualquier forma un asesor se pondrá en contacto para verificar el
+          pago antes de confirmar la reserva. */}
+      <div className="mt-4 text-left rounded-lg border border-dashed border-border bg-card p-3.5">
+        <input ref={inputRef} type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+        {comprobanteSubido ? (
+          <p className="flex items-center gap-2 text-xs font-medium text-success">
+            <Check className="w-4 h-4 flex-shrink-0" /> Comprobante adjuntado{nombreArchivo ? `: ${nombreArchivo}` : ""}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={comprobanteSubiendo}
+            className="flex items-center gap-2 text-xs font-medium text-primary hover:text-primary/80 disabled:opacity-60 transition-colors"
+          >
+            {comprobanteSubiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+            {comprobanteSubiendo ? "Subiendo comprobante..." : "Adjuntar comprobante (opcional)"}
+          </button>
+        )}
+        {comprobanteError && (
+          <p className="flex items-center gap-1.5 text-[11px] text-destructive mt-1.5">
+            <X className="w-3 h-3 flex-shrink-0" /> {comprobanteError}
+          </p>
+        )}
+        <p className="text-[11px] text-muted-foreground mt-1.5 flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+          Si prefieres no subirlo ahora, guárdalo: un agente se pondrá en contacto contigo para verificar el pago.
+        </p>
+      </div>
+
       <button
         type="button"
         onClick={onConfirmar}
-        disabled={confirmando}
+        disabled={comprobanteSubiendo}
         className="mt-5 inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground text-sm font-semibold rounded-xl hover:opacity-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {confirmando ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" /> Confirmando...
-          </>
-        ) : (
-          "Ya transferí, confirmar pago"
-        )}
+        Ya transferí
       </button>
     </motion.div>
   );

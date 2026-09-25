@@ -527,6 +527,18 @@ export default function ModulePagos({
               )}
             </div>
 
+            {/* Celular Nequi que el cliente escribió en el checkout (ver
+                NequiPayment.tsx / Pago.celular_nequi) -- para que quien
+                verifica pueda cruzarlo contra su propia app Nequi antes de
+                confirmar el pago (ver confirmar_pago, exclusivo de staff
+                para este método). */}
+            {editing.celular_nequi && (
+              <div className="pt-3 border-t border-border">
+                <label className={labelCls}>Celular Nequi del cliente</label>
+                <p className="mt-1.5 font-mono text-sm font-semibold text-foreground">{editing.celular_nequi}</p>
+              </div>
+            )}
+
             {/* Comprobante externo: voucher de transferencia/consignación que
                 el cliente envía por fuera de la plataforma (ver
                 POST/DELETE /api/pagos/{id}/comprobante). */}

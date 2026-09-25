@@ -158,6 +158,7 @@ class PagoResponse(BaseModel):
     estado: str
     numero_factura: str | None = None
     comprobante_url: str | None = None
+    celular_nequi: str | None = None
     metodo_pago: MetodoPagoResponse | None = None
 
     class Config:

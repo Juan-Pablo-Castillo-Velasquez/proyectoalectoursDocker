@@ -72,5 +72,9 @@ export function formatNequiDestino(numero: string = NEQUI_DESTINO): string {
   return numero.replace(/(\d{3})(\d{3})(\d{4})/, "$1 $2 $3");
 }
 
-/** Estado visual del pago — coincide con PENDING/PROCESSING/APPROVED/REJECTED del brief. */
-export type PaymentOutcome = "idle" | "processing" | "approved" | "rejected";
+/** Estado visual del pago — coincide con PENDING/PROCESSING/APPROVED/REJECTED del brief.
+ * "pendiente_verificacion" es exclusivo de Nequi: el cliente ya dijo que
+ * transfirió (ver NequiConfirmar.tsx) pero un asesor/admin todavía no lo
+ * confirma -- no es "processing" (que sigue siendo la espera automática de
+ * PSE) ni "approved". */
+export type PaymentOutcome = "idle" | "processing" | "approved" | "rejected" | "pendiente_verificacion";

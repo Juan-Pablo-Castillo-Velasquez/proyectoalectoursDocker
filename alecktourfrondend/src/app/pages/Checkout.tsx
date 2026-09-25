@@ -69,10 +69,13 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   // Nequi ya no se auto-confirma solo tras una espera fija (como PSE) --
   // se le pide al cliente que confirme que YA transfirió a NEQUI_DESTINO
-  // (ver NequiConfirmar.tsx) antes de crear la reserva de verdad. Este id
-  // es el Pago que quedó 'procesando' esperando esa confirmación.
+  // (ver NequiConfirmar.tsx). Este id es el Pago que quedó 'procesando'
+  // esperando que un asesor/admin lo revise y confirme de verdad (ver
+  // confirmar_pago, ahora exclusivo de staff para este método).
   const [pagoPendienteId, setPagoPendienteId] = useState<number | null>(null);
-  const [confirmandoNequi, setConfirmandoNequi] = useState(false);
+  const [comprobanteSubiendo, setComprobanteSubiendo] = useState(false);
+  const [comprobanteSubido, setComprobanteSubido] = useState(false);
+  const [comprobanteError, setComprobanteError] = useState<string | null>(null);
   // Paso real (1-3) y error del overlay de checkout (ver ReservationLoader) —
   // solo cubre crear reserva + iniciar pago; el resto del flujo (espera PSE,
   // aprobado/rechazado) lo sigue manejando <PaymentStatus /> como antes.
@@ -517,23 +520,37 @@ export default function Checkout() {
     }
   };
 
-  const handleRetryPago = () => { setPaymentStatus('idle'); setPagoPendienteId(null); };
+  const handleRetryPago = () => {
+    setPaymentStatus('idle');
+    setPagoPendienteId(null);
+    setComprobanteSubiendo(false);
+    setComprobanteSubido(false);
+    setComprobanteError(null);
+  };
 
-  // El cliente ya transfirió por su cuenta (o dice que lo hizo) y confirma
-  // acá -- recién ahí se llama a /pagos/{id}/confirmar y, si sale aprobado,
-  // se crea/confirma la reserva de verdad (ver finalizarPago).
-  const handleConfirmarNequi = async () => {
+  // Adjunta el comprobante de la transferencia (opcional) al Pago que
+  // quedó 'procesando' -- el backend valida que el cliente sea dueño de
+  // la reserva ligada a ese pago (ver subir_comprobante_pago).
+  const handleSubirComprobanteNequi = async (file: File) => {
     if (!pagoPendienteId) return;
-    setConfirmandoNequi(true);
+    setComprobanteSubiendo(true);
+    setComprobanteError(null);
     try {
-      const confirmado = await pagoService.confirmar(pagoPendienteId);
-      setPagoPendienteId(null);
-      finalizarPago(confirmado.pago.estado, confirmado.reserva, confirmado.pago);
+      await pagoService.subirComprobante(pagoPendienteId, file);
+      setComprobanteSubido(true);
     } catch (err: any) {
-      toast.error(err.message || 'No se pudo confirmar el pago. Intenta de nuevo.');
+      setComprobanteError(err.message || 'No se pudo subir el comprobante.');
     } finally {
-      setConfirmandoNequi(false);
+      setComprobanteSubiendo(false);
     }
+  };
+
+  // El cliente ya transfirió (con o sin comprobante adjunto) -- esto ya NO
+  // confirma el pago de una vez: solo cierra este paso y deja la reserva
+  // pendiente hasta que un asesor/admin revise y confirme de verdad (ver
+  // confirmar_pago, ahora exclusivo de staff para Nequi).
+  const handleConfirmarNequi = () => {
+    setPaymentStatus('pendiente_verificacion');
   };
 
   const goNext = () => {
@@ -1050,7 +1067,10 @@ export default function Checkout() {
                     paymentStatus === 'processing' && pagoPendienteId ? (
                       <NequiConfirmar
                         amount={paymentAmount}
-                        confirmando={confirmandoNequi}
+                        comprobanteSubiendo={comprobanteSubiendo}
+                        comprobanteSubido={comprobanteSubido}
+                        comprobanteError={comprobanteError}
+                        onSubirComprobante={handleSubirComprobanteNequi}
                         onConfirmar={handleConfirmarNequi}
                       />
                     ) : (
@@ -1328,7 +1348,7 @@ export default function Checkout() {
                     </p>
                   )}
                   <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                    type="submit" disabled={isProcessing || paymentStatus === 'processing' || paymentStatus === 'approved'}
+                    type="submit" disabled={isProcessing || paymentStatus === 'processing' || paymentStatus === 'approved' || paymentStatus === 'pendiente_verificacion'}
                     className="min-w-[220px] py-3.5 px-6 bg-primary text-primary-foreground text-sm font-semibold rounded-xl border border-transparent shadow-md hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden">
                     <span className="relative flex items-center justify-center gap-2.5">
                       {isProcessing ? 'Garantizando transacciones...' : (

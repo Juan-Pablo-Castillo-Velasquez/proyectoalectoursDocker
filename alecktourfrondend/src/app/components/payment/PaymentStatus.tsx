@@ -1,7 +1,7 @@
 // components/payment/PaymentStatus.tsx
-// Estado visual del pago (PROCESSING / APPROVED / REJECTED), reutilizable
-// sin importar el método elegido.
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+// Estado visual del pago (PROCESSING / APPROVED / REJECTED / PENDIENTE_VERIFICACION),
+// reutilizable sin importar el método elegido.
+import { AlertTriangle, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function PaymentStatus({
@@ -9,10 +9,25 @@ export default function PaymentStatus({
   amount,
   onRetry,
 }: {
-  state: "processing" | "approved" | "rejected";
+  state: "processing" | "approved" | "rejected" | "pendiente_verificacion";
   amount: number;
   onRetry?: () => void;
 }) {
+  if (state === "pendiente_verificacion") {
+    // Exclusivo de Nequi: el cliente ya confirmó que transfirió (ver
+    // NequiConfirmar.tsx) pero todavía falta que un asesor/admin revise el
+    // comprobante y confirme de verdad (ver confirmar_pago en el backend).
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border border-primary/25 bg-primary/[0.04] p-8 text-center">
+        <Clock className="w-8 h-8 text-primary mx-auto mb-4" />
+        <p className="font-medium text-foreground">Pago pendiente de verificación</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Registramos tu reserva por ${amount.toLocaleString("es-CO")}. Un asesor revisará tu comprobante y se pondrá en contacto contigo para confirmarla.
+        </p>
+      </motion.div>
+    );
+  }
+
   if (state === "processing") {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border border-border bg-card p-8 text-center">

@@ -39,10 +39,15 @@ export interface PagoResponse {
   // Reales (PagoResponse.numero_factura / .comprobante_url en el backend,
   // ver reserva_schema.py) -- numero_factura se asigna solo cuando el pago
   // llega a 'pagado'; comprobante_url es el voucher de transferencia/
-  // consignación subido por un admin (ruta relativa, resolver con
-  // resolveFotoUrl antes de usarlo en un <a>/<img>).
+  // consignación (ruta relativa, resolver con resolveFotoUrl antes de
+  // usarlo en un <a>/<img>) que ahora puede subir el propio cliente o un
+  // admin.
   numero_factura?: string | null;
   comprobante_url?: string | null;
+  // Celular Nequi que el cliente escribió en el checkout -- solo se llena
+  // para pagos con ese método, para que un asesor pueda verificar la
+  // transferencia real contra su propia app (ver ModulePagos.tsx).
+  celular_nequi?: string | null;
 }
 
 export interface ReservaDetail {
@@ -136,9 +141,19 @@ export const pagoService = {
     apiFetch<PagoResponse>('/pagos', { method: 'POST', body: data }),
   // Confirma un pago que quedo 'procesando' (PSE/Nequi) — simula que el
   // banco o la app ya respondieron. Tarjeta/PayPal/otros no necesitan esto,
-  // resuelven al instante dentro de reservaService.pagar().
+  // resuelven al instante dentro de reservaService.pagar(). Para Nequi el
+  // backend ahora exige que quien llame sea un asesor/admin (ver
+  // confirmar_pago en reserva_route.py) -- el cliente ya no se autoconfirma.
   confirmar: (idPago: number) =>
     apiFetch<PagarResponse>(`/pagos/${idPago}/confirmar`, { method: 'POST' }),
+  // El propio cliente adjunta su comprobante de transferencia (ej. Nequi)
+  // desde el checkout -- el backend valida que sea dueño de la reserva
+  // ligada a ese pago (ver subir_comprobante_pago).
+  subirComprobante: (idPago: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiFetch<PagoResponse>(`/pagos/${idPago}/comprobante`, { method: 'POST', body: formData });
+  },
 };
 
 

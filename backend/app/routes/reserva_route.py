@@ -737,6 +737,7 @@ def pagar_reserva(
         referencia=f"PAY-{uuid.uuid4().hex[:10].upper()}",
         estado=estado_pago,
         simular_rechazo=rechazo_simulado,
+        celular_nequi=getattr(datos_simulacion, "celular", None) if metodo.codigo == "nequi" else None,
     )
     db.add(pago)
 
@@ -811,7 +812,20 @@ def confirmar_pago(
     reserva = ReservaRepository.get_by_id(db, pago.id_reserva)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
-    exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
+
+    # Nequi ya no se autoconfirma solo: el cliente transfiere y queda
+    # "procesando" hasta que un asesor/admin revisa el comprobante (y el
+    # celular_nequi que quedó guardado) y confirma de verdad -- ver
+    # NequiConfirmar.tsx. PSE y el resto siguen autoconfirmándose desde la
+    # propia sesión del cliente, sin cambios.
+    if pago.metodo_pago and pago.metodo_pago.codigo == "nequi":
+        if not usuario_es_staff(authorization):
+            raise HTTPException(
+                status_code=403,
+                detail="Un asesor debe revisar el comprobante antes de confirmar un pago por Nequi.",
+            )
+    else:
+        exigir_propietario_o_admin(current_user, reserva.id_cliente, authorization)
 
     estado_anterior = reserva.estado
 
@@ -1038,14 +1052,24 @@ async def subir_comprobante_pago(
     pago_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    admin_id: int = Depends(require_admin),
+    current_user: Usuario = Depends(get_current_usuario),
+    authorization: str | None = Header(None),
 ):
     """Adjunta un comprobante externo (imagen o PDF) a un pago — por ejemplo
-    el voucher de una transferencia o consignación que el cliente envía por
-    fuera de la plataforma. Reemplaza el anterior si ya existía uno."""
+    el voucher de una transferencia Nequi que el cliente envía por fuera de
+    la plataforma. Reemplaza el anterior si ya existía uno.
+
+    Antes era exclusivo de admin; ahora el propio cliente dueño de la
+    reserva también puede adjuntar su comprobante desde el checkout (ver
+    NequiConfirmar.tsx) -- un asesor/admin lo revisa después para verificar
+    el pago (ver confirmar_pago)."""
     pago = db.query(Pago).filter(Pago.id_pago == pago_id).first()
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
+    reserva_del_pago = ReservaRepository.get_by_id(db, pago.id_reserva)
+    if not reserva_del_pago:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    exigir_propietario_o_admin(current_user, reserva_del_pago.id_cliente, authorization)
 
     if file.content_type not in COMPROBANTES_TIPOS_PERMITIDOS:
         raise HTTPException(

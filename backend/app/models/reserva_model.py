@@ -243,9 +243,15 @@ class Pago(Base):
     # en reserva_route.py. Nunca un consecutivo separado inventado.
     numero_factura = Column(String(20), unique=True, nullable=True)
     # Voucher/comprobante externo (transferencia, consignación) que el
-    # cliente envía por fuera de la plataforma — subido por un admin vía
-    # POST /api/pagos/{id}/comprobante.
+    # cliente envía por fuera de la plataforma — vía POST /api/pagos/{id}/
+    # comprobante (el propio cliente de la reserva o un admin).
     comprobante_url = Column(String(255), nullable=True)
+    # Celular Nequi que el cliente escribió en el checkout (ver
+    # NequiPayment.tsx) -- antes se usaba solo para decidir la simulación
+    # de rechazo (payment_service.py) y se descartaba. Ahora se guarda para
+    # que un asesor/admin pueda verificar la transferencia real contra su
+    # propia app Nequi antes de confirmar (ver confirmar_pago).
+    celular_nequi = Column(String(15), nullable=True)
 
     reserva = relationship("Reserva", back_populates="pagos")
     metodo_pago = relationship("MetodoPago", back_populates="pagos")
