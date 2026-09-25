@@ -20,6 +20,11 @@ export interface MensajeChat {
   remitente_tipo: "admin" | "cliente";
   contenido: string | null;
   imagen_url: string | null;
+  // Adjunto que no es una imagen (por ahora, PDF real) -- nunca coexiste
+  // con imagen_url en el mismo mensaje. Ver archivo_url en
+  // mensaje_chat_schema.py.
+  archivo_url: string | null;
+  archivo_nombre: string | null;
   // Reserva de la que se está hablando en este mensaje, si se etiquetó una
   // -- null si no se etiquetó ninguna, o si la reserva ya se borró.
   id_reserva: number | null;
@@ -62,10 +67,10 @@ export interface HilosPaginados {
   limit: number;
 }
 
-function construirFormData(contenido?: string, imagen?: File, idReserva?: number): FormData {
+function construirFormData(contenido?: string, archivo?: File, idReserva?: number): FormData {
   const fd = new FormData();
   if (contenido) fd.append("contenido", contenido);
-  if (imagen) fd.append("imagen", imagen);
+  if (archivo) fd.append("archivo", archivo);
   if (idReserva != null) fd.append("id_reserva", String(idReserva));
   return fd;
 }
@@ -109,8 +114,8 @@ export const mensajeChatService = {
   getHilo: (idCliente: number, opts?: OpcionesHilo) =>
     apiFetch<MensajeChat[]>(`/mensajes/hilos/${idCliente}${construirQueryHilo(opts)}`),
 
-  enviarComoAdmin: (idCliente: number, contenido?: string, imagen?: File, idReserva?: number) => {
-    const fd = construirFormData(contenido, imagen, idReserva);
+  enviarComoAdmin: (idCliente: number, contenido?: string, archivo?: File, idReserva?: number) => {
+    const fd = construirFormData(contenido, archivo, idReserva);
     fd.append("id_cliente", String(idCliente));
     return apiFetch<MensajeChat>("/mensajes/enviar", { method: "POST", body: fd });
   },
@@ -118,10 +123,10 @@ export const mensajeChatService = {
   // ── Cliente (su propio hilo) ─────────────────────────────────────────
   getMiHilo: (opts?: OpcionesHilo) => apiFetch<MensajeChat[]>(`/mensajes/me${construirQueryHilo(opts)}`),
 
-  enviarComoCliente: (contenido?: string, imagen?: File, idReserva?: number) =>
+  enviarComoCliente: (contenido?: string, archivo?: File, idReserva?: number) =>
     apiFetch<MensajeChat>("/mensajes/me/enviar", {
       method: "POST",
-      body: construirFormData(contenido, imagen, idReserva),
+      body: construirFormData(contenido, archivo, idReserva),
     }),
 
   // ── Compartidos por ambos roles ──────────────────────────────────────

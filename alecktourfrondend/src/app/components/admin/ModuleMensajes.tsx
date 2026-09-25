@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, ChevronUp, Copy, CreditCard, Image as ImageIcon, Info, Mail, MapPin, MessageCircle, Phone, Search, Send, X, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronUp, Copy, CreditCard, Download, FileText, Info, Mail, MapPin, MessageCircle, Paperclip, Phone, Search, Send, X, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import EmptyState from "./ui/EmptyState";
 import SectionHeader from "./ui/SectionHeader";
@@ -56,7 +56,7 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
   const [hayMasAnteriores, setHayMasAnteriores] = useState(false);
   const [cargandoAnteriores, setCargandoAnteriores] = useState(false);
   const [texto, setTexto] = useState("");
-  const [imagen, setImagen] = useState<File | null>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [idReservaSeleccionada, setIdReservaSeleccionada] = useState<number | null>(null);
   const [busquedaReserva, setBusquedaReserva] = useState("");
   const [infoClienteAbierta, setInfoClienteAbierta] = useState(false);
@@ -187,29 +187,29 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
     }
   };
 
-  const limpiarImagen = () => {
-    setImagen(null);
+  const limpiarArchivo = () => {
+    setArchivo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const excedeLimite = texto.length > MENSAJE_CONTENIDO_MAX_LENGTH;
 
   const enviar = async () => {
-    if (idClienteActivo == null || (!texto.trim() && !imagen) || excedeLimite) return;
+    if (idClienteActivo == null || (!texto.trim() && !archivo) || excedeLimite) return;
     setEnviando(true);
     try {
       const nuevo = await mensajeChatService.enviarComoAdmin(
         idClienteActivo,
         texto.trim() || undefined,
-        imagen ?? undefined,
+        archivo ?? undefined,
         idReservaSeleccionada ?? undefined,
       );
       setMensajes((prev) => [...prev, nuevo]);
       setTexto("");
-      limpiarImagen();
+      limpiarArchivo();
       cargarHilos(false);
     } catch {
-      // el texto/imagen quedan como estaban para que el admin pueda reintentar
+      // el texto/archivo quedan como estaban para que el admin pueda reintentar
     } finally {
       setEnviando(false);
     }
@@ -551,6 +551,23 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                               className="rounded-lg mb-1.5 max-h-56 object-cover cursor-pointer"
                               onClick={() => setImagenAmpliada(resolveFotoUrl(m.imagen_url))}
                             />
+                          )}
+                          {m.archivo_url && (
+                            <a
+                              href={resolveFotoUrl(m.archivo_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={m.archivo_nombre ?? undefined}
+                              className={`flex items-center gap-2 mb-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                m.remitente_tipo === "admin"
+                                  ? "bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25"
+                                  : "bg-background text-foreground hover:bg-muted"
+                              }`}
+                            >
+                              <FileText className="w-4 h-4 flex-shrink-0" />
+                              <span className="truncate flex-1">{m.archivo_nombre || "Documento"}</span>
+                              <Download className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
+                            </a>
                           )}
                           {m.contenido && <p className="text-sm whitespace-pre-wrap break-words">{m.contenido}</p>}
                           <p

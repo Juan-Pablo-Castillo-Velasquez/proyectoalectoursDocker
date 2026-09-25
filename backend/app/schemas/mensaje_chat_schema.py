@@ -28,6 +28,11 @@ class MensajeChatResponse(BaseModel):
     remitente_tipo: str
     contenido: str | None = None
     imagen_url: str | None = None
+    # Adjunto que no es una imagen (por ahora, PDF) -- ver comentario en
+    # MensajeChat.archivo_url (mensaje_chat_model.py). Nunca coexiste con
+    # imagen_url en el mismo mensaje.
+    archivo_url: str | None = None
+    archivo_nombre: str | None = None
     id_reserva: int | None = None
     # None si el mensaje no tiene reserva asociada, o si la tenía y esa
     # reserva ya se borró (id_reserva queda en NULL por el ondelete="SET

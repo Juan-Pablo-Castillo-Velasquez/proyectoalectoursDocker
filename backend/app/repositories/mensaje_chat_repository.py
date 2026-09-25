@@ -57,6 +57,8 @@ def _a_response_dict(db: Session, mensaje: MensajeChat) -> dict:
         "remitente_tipo": mensaje.remitente_tipo,
         "contenido": mensaje.contenido,
         "imagen_url": mensaje.imagen_url,
+        "archivo_url": mensaje.archivo_url,
+        "archivo_nombre": mensaje.archivo_nombre,
         "id_reserva": mensaje.id_reserva,
         "reserva": _reserva_resumen(db, mensaje.id_reserva),
         "leido": mensaje.leido,
@@ -182,6 +184,8 @@ class MensajeChatRepository:
         remitente_tipo: str,
         contenido: str | None,
         imagen_url: str | None,
+        archivo_url: str | None = None,
+        archivo_nombre: str | None = None,
         id_reserva: int | None = None,
     ) -> dict:
         mensaje = MensajeChat(
@@ -190,6 +194,8 @@ class MensajeChatRepository:
             remitente_tipo=remitente_tipo,
             contenido=contenido,
             imagen_url=imagen_url,
+            archivo_url=archivo_url,
+            archivo_nombre=archivo_nombre,
             id_reserva=id_reserva,
         )
         db.add(mensaje)

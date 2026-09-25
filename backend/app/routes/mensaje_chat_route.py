@@ -38,7 +38,14 @@ PUBLIC_PATH_PREFIX = "/uploads/chat"
 # Mismo criterio de formato/tamaño que banner_route.py -- una captura de
 # pantalla de reserva/pago no necesita más que esto.
 IMAGEN_TIPOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024  # 5MB
+# application/pdf ya estaba soportado por validar_y_leer_archivo (magic
+# number "%PDF", ver file_validation.py) desde antes -- solo faltaba
+# permitirlo acá. Cubre lo más común en un chat de soporte de viajes:
+# voucher, itinerario o cédula escaneada en PDF, además de capturas.
+ARCHIVO_TIPOS_PERMITIDOS = IMAGEN_TIPOS_PERMITIDOS | {"application/pdf"}
+# Subido un poco de 5MB a 8MB al agregar PDF: un voucher/itinerario
+# escaneado de varias páginas pesa más que una captura de pantalla.
+TAMANO_MAXIMO_BYTES = 8 * 1024 * 1024  # 8MB
 # Mensajes de chat de soporte, no documentos -- 500 caracteres alcanza de
 # sobra para explicar un problema puntual y evita mensajes desproporcionados
 # en la bandeja compartida del admin. Mismo límite reflejado en el frontend
@@ -59,9 +66,9 @@ def _exigir_cliente(usuario: Usuario) -> int:
     return usuario.cliente.id_cliente
 
 
-def _validar_contenido_o_imagen(contenido: str | None, imagen: UploadFile | None) -> None:
-    if not contenido and imagen is None:
-        raise HTTPException(status_code=400, detail="El mensaje necesita texto o una imagen.")
+def _validar_contenido_o_archivo(contenido: str | None, archivo: UploadFile | None) -> None:
+    if not contenido and archivo is None:
+        raise HTTPException(status_code=400, detail="El mensaje necesita texto, una imagen o un PDF.")
     if contenido and len(contenido) > CONTENIDO_MAX_LENGTH:
         raise HTTPException(
             status_code=400,
@@ -86,14 +93,24 @@ def _validar_reserva_del_cliente(db: Session, id_reserva: int | None, id_cliente
         raise HTTPException(status_code=404, detail="La reserva indicada no existe o no pertenece a este cliente.")
 
 
-async def _guardar_imagen_chat(imagen: UploadFile) -> str:
+async def _guardar_archivo_chat(archivo: UploadFile) -> tuple[str | None, str | None, str | None]:
+    """Devuelve (imagen_url, archivo_url, archivo_nombre) -- exactamente una
+    de las dos primeras queda poblada, según el tipo REAL del archivo (bytes
+    de cabecera, no el content_type que declaró el cliente): una imagen
+    sigue el camino de siempre (imagen_url, se muestra inline con
+    lightbox); un PDF va a archivo_url + su nombre original, para
+    mostrarse como tarjeta de documento descargable (ver
+    MensajeChat.archivo_url)."""
     contenido, extension = await validar_y_leer_archivo(
-        imagen,
-        tipos_permitidos=IMAGEN_TIPOS_PERMITIDOS,
-        mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
+        archivo,
+        tipos_permitidos=ARCHIVO_TIPOS_PERMITIDOS,
+        mensaje_tipo="Formato no soportado. Usa JPG, PNG, WEBP o PDF.",
         tamano_maximo_bytes=TAMANO_MAXIMO_BYTES,
     )
-    return guardar_imagen(contenido, extension, carpeta="chat", public_path_prefix=PUBLIC_PATH_PREFIX)
+    url = guardar_imagen(contenido, extension, carpeta="chat", public_path_prefix=PUBLIC_PATH_PREFIX)
+    if archivo.content_type == "application/pdf":
+        return None, url, archivo.filename or f"documento.{extension}"
+    return url, None, None
 
 
 # ===================== ADMIN (bandeja compartida) =====================
@@ -133,14 +150,16 @@ def get_hilo_admin(
 async def enviar_como_admin(
     id_cliente: int = Form(...),
     contenido: str | None = Form(None),
-    imagen: UploadFile | None = File(None),
+    archivo: UploadFile | None = File(None),
     id_reserva: int | None = Form(None, description="Reserva de la que se está hablando, opcional"),
     db: Session = Depends(get_db),
     admin_id: int = Depends(require_admin),
 ):
-    _validar_contenido_o_imagen(contenido, imagen)
+    _validar_contenido_o_archivo(contenido, archivo)
     _validar_reserva_del_cliente(db, id_reserva, id_cliente)
-    imagen_url = await _guardar_imagen_chat(imagen) if imagen is not None else None
+    imagen_url, archivo_url, archivo_nombre = (
+        await _guardar_archivo_chat(archivo) if archivo is not None else (None, None, None)
+    )
     return MensajeChatRepository.crear_mensaje(
         db,
         id_cliente=id_cliente,
@@ -148,6 +167,8 @@ async def enviar_como_admin(
         remitente_tipo="admin",
         contenido=contenido,
         imagen_url=imagen_url,
+        archivo_url=archivo_url,
+        archivo_nombre=archivo_nombre,
         id_reserva=id_reserva,
     )
 
@@ -173,15 +194,17 @@ def get_mi_hilo(
 @router.post("/me/enviar", response_model=MensajeChatResponse, status_code=201)
 async def enviar_como_cliente(
     contenido: str | None = Form(None),
-    imagen: UploadFile | None = File(None),
+    archivo: UploadFile | None = File(None),
     id_reserva: int | None = Form(None, description="Reserva de la que se está hablando, opcional"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_usuario),
 ):
     id_cliente = _exigir_cliente(current_user)
-    _validar_contenido_o_imagen(contenido, imagen)
+    _validar_contenido_o_archivo(contenido, archivo)
     _validar_reserva_del_cliente(db, id_reserva, id_cliente)
-    imagen_url = await _guardar_imagen_chat(imagen) if imagen is not None else None
+    imagen_url, archivo_url, archivo_nombre = (
+        await _guardar_archivo_chat(archivo) if archivo is not None else (None, None, None)
+    )
     return MensajeChatRepository.crear_mensaje(
         db,
         id_cliente=id_cliente,
@@ -189,6 +212,8 @@ async def enviar_como_cliente(
         remitente_tipo="cliente",
         contenido=contenido,
         imagen_url=imagen_url,
+        archivo_url=archivo_url,
+        archivo_nombre=archivo_nombre,
         id_reserva=id_reserva,
     )
 

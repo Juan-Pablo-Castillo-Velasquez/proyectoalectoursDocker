@@ -42,6 +42,19 @@ class MensajeChat(Base):
     # app/core/image_storage.py, resuelto igual que foto_perfil/comprobante_url
     # (ver resolveFotoUrl en el frontend).
     imagen_url = Column(String, nullable=True)
+    # Adjunto que NO es una imagen (por ahora solo PDF real, validado por
+    # bytes de cabecera -- ver ARCHIVO_TIPOS_PERMITIDOS en
+    # mensaje_chat_route.py) -- separado de imagen_url a propósito: el
+    # frontend sigue mostrando imagen_url inline con <img>/lightbox exacto
+    # como siempre, y renderiza archivo_url como una tarjeta de documento
+    # descargable en vez de intentar pintarlo como imagen. Un mensaje nunca
+    # tiene ambos a la vez (viene de un solo <input type="file"> por
+    # mensaje, ver _guardar_archivo_chat).
+    archivo_url = Column(String, nullable=True)
+    # Nombre original del archivo (ej. "itinerario.pdf") -- guardar_imagen()
+    # nombra el archivo en disco/Cloudinary con un uuid, así que sin esto
+    # la tarjeta de descarga no tendría ningún nombre real que mostrar.
+    archivo_nombre = Column(String, nullable=True)
     # Reserva de la que se esta hablando en este mensaje -- opcional, no
     # crea un hilo nuevo (sigue siendo "un solo hilo por cliente"). SET
     # NULL: si la reserva se borra, el mensaje sobrevive sin la etiqueta,
