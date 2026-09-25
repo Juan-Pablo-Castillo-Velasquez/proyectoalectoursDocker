@@ -125,6 +125,21 @@ def admin_update_usuario(
         usuario.verificado = data.verificado
 
     if data.roles is not None:
+        # Limite de seguridad del lado del servidor: un admin no puede
+        # quitarse a si mismo el rol de admin por esta via. El selector de
+        # ModuleUsuarios.tsx ya deshabilita el boton en el frontend, pero
+        # eso depende de que localStorage.usuario (ver AuthContext.tsx)
+        # tenga cacheado el user_id de la sesion actual -- si esa cache
+        # esta vieja el boton del frontend no bloquea nada. Este chequeo no
+        # depende de ningun estado del navegador: usa _u (el id del que
+        # llama, sacado del propio JWT en require_permission, deps.py), asi
+        # que es la unica fuente de verdad real.
+        if usuario_id == _u and 'admin' not in data.roles:
+            raise HTTPException(
+                status_code=400,
+                detail='No puedes quitarte el rol de admin a ti mismo.',
+            )
+
         roles_validos = (
             {r.nombre_rol: r.id_rol for r in db.query(Rol).filter(Rol.nombre_rol.in_(data.roles)).all()}
             if data.roles
