@@ -63,5 +63,14 @@ export function isNequiValueValid(v: NequiPaymentValue): boolean {
   return /^3\d{9}$/.test(v.celular.trim());
 }
 
+// Nequi real de AlekTours al que el cliente transfiere en la simulación
+// (ver NequiPayment.tsx / NequiConfirmar.tsx) -- no hay pasarela conectada,
+// así que el flujo es "transfiere a este número y confírmalo aquí" como
+// hacen de verdad muchos negocios chicos en Colombia sin pasarela.
+export const NEQUI_DESTINO = "3228174200";
+export function formatNequiDestino(numero: string = NEQUI_DESTINO): string {
+  return numero.replace(/(\d{3})(\d{3})(\d{4})/, "$1 $2 $3");
+}
+
 /** Estado visual del pago — coincide con PENDING/PROCESSING/APPROVED/REJECTED del brief. */
 export type PaymentOutcome = "idle" | "processing" | "approved" | "rejected";

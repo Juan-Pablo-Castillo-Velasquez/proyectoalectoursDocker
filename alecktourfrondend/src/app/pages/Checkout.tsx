@@ -15,6 +15,7 @@ import { MetodoPagoGuardado, metodoPagoGuardadoService } from "../services/metod
 import CardPayment from "../components/payment/CardPayment";
 import PSEPayment from "../components/payment/PSEPayment";
 import NequiPayment from "../components/payment/NequiPayment";
+import NequiConfirmar from "../components/payment/NequiConfirmar";
 import PayPalPayment from "../components/payment/PayPalPayment";
 import PaymentSelector from "../components/payment/PaymentSelector";
 import PaymentStatus from "../components/payment/PaymentStatus";
@@ -66,6 +67,12 @@ export default function Checkout() {
   const [metodosGuardados, setMetodosGuardados] = useState<MetodoPagoGuardado[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Nequi ya no se auto-confirma solo tras una espera fija (como PSE) --
+  // se le pide al cliente que confirme que YA transfirió a NEQUI_DESTINO
+  // (ver NequiConfirmar.tsx) antes de crear la reserva de verdad. Este id
+  // es el Pago que quedó 'procesando' esperando esa confirmación.
+  const [pagoPendienteId, setPagoPendienteId] = useState<number | null>(null);
+  const [confirmandoNequi, setConfirmandoNequi] = useState(false);
   // Paso real (1-3) y error del overlay de checkout (ver ReservationLoader) —
   // solo cubre crear reserva + iniciar pago; el resto del flujo (espera PSE,
   // aprobado/rechazado) lo sigue manejando <PaymentStatus /> como antes.
@@ -376,6 +383,13 @@ export default function Checkout() {
 
     if (pago.estado === 'procesando') {
       setPaymentStatus('processing');
+      if (esNequi) {
+        // A diferencia de PSE, Nequi espera a que el cliente confirme de
+        // verdad que ya transfirió (ver NequiConfirmar.tsx / handleConfirmarNequi)
+        // en vez de auto-confirmarse solo tras una espera fija.
+        setPagoPendienteId(pago.id_pago);
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 2200));
       const confirmado = await pagoService.confirmar(pago.id_pago);
       finalizarPago(confirmado.pago.estado, confirmado.reserva, confirmado.pago);
@@ -503,7 +517,24 @@ export default function Checkout() {
     }
   };
 
-  const handleRetryPago = () => setPaymentStatus('idle');
+  const handleRetryPago = () => { setPaymentStatus('idle'); setPagoPendienteId(null); };
+
+  // El cliente ya transfirió por su cuenta (o dice que lo hizo) y confirma
+  // acá -- recién ahí se llama a /pagos/{id}/confirmar y, si sale aprobado,
+  // se crea/confirma la reserva de verdad (ver finalizarPago).
+  const handleConfirmarNequi = async () => {
+    if (!pagoPendienteId) return;
+    setConfirmandoNequi(true);
+    try {
+      const confirmado = await pagoService.confirmar(pagoPendienteId);
+      setPagoPendienteId(null);
+      finalizarPago(confirmado.pago.estado, confirmado.reserva, confirmado.pago);
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo confirmar el pago. Intenta de nuevo.');
+    } finally {
+      setConfirmandoNequi(false);
+    }
+  };
 
   const goNext = () => {
     if (step === 1 && !paso1Valido) {
@@ -1016,11 +1047,19 @@ export default function Checkout() {
                   className="space-y-6"
                 >
                   {paymentStatus !== 'idle' ? (
+                    paymentStatus === 'processing' && pagoPendienteId ? (
+                      <NequiConfirmar
+                        amount={paymentAmount}
+                        confirmando={confirmandoNequi}
+                        onConfirmar={handleConfirmarNequi}
+                      />
+                    ) : (
                     <PaymentStatus
                       state={paymentStatus}
                       amount={paymentAmount}
                       onRetry={paymentStatus === 'rejected' ? handleRetryPago : undefined}
                     />
+                    )
                   ) : (
                   <>
                   {/* Paso 1: Fraccionamiento de Pago */}
