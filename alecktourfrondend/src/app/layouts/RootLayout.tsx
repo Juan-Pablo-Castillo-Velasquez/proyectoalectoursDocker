@@ -1,7 +1,7 @@
 import { Outlet } from "react-router";
 import { Suspense } from "react";
 import { Plane } from "lucide-react";
-import { Toaster } from "sonner";
+import { Toaster } from "../components/ui/sonner";
 import { AuthModalProvider } from "../context/AuthModalContext";
 import WhatsAppButton from "../components/WhatsAppButton";
 import CookieConsent from "../components/CookieConsent";
@@ -22,7 +22,7 @@ function RouteFallback() {
 export default function RootLayout() {
     return (
         <AuthModalProvider>
-            <Toaster position="top-center" richColors />
+            <Toaster position="top-right" richColors closeButton />
             <Suspense fallback={<RouteFallback />}>
                 <Outlet />
             </Suspense>
