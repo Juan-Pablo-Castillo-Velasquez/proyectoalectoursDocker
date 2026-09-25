@@ -100,6 +100,11 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
 
         const roles = res.roles ?? [];
         const isAdmin = roles.includes("admin");
+        // Antes solo isAdmin mandaba a /admin -- una cuenta con el rol
+        // empleado (panel recortado, ver ProtectedRoute.tsx) hacia login
+        // normal y terminaba en /profile como cualquier cliente, sin forma
+        // visible de llegar a su propio panel.
+        const isEmpleado = roles.includes("empleado");
         const displayName = res.username ?? formData.username;
 
         setWelcomeInfo({ username: displayName, isAdmin });
@@ -107,7 +112,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToRegister }: Logi
 
         setTimeout(() => {
             resetAndClose();
-            navigate(isAdmin ? "/admin" : "/profile");
+            navigate(isAdmin || isEmpleado ? "/admin" : "/profile");
         }, 1800);
     };
 

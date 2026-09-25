@@ -46,8 +46,12 @@ export default function ProtectedRoute({ children, requiredRole, redirectTo = "/
     return <Navigate to={redirectTo} replace />;
   }
 
-  // Si es admin intentando entrar a una ruta de cliente → mandarlo a /admin
-  if (!requiredRole && isAdmin) {
+  // Si es admin o empleado intentando entrar a una ruta de cliente →
+  // mandarlo a /admin -- antes esto solo revisaba isAdmin, asi que una
+  // cuenta empleado que llegaba a una ruta generica (ej. /profile, justo
+  // despues de loguearse) se quedaba ahi viendo la vista de cliente en vez
+  // de su propio panel.
+  if (!requiredRole && (isAdmin || isEmpleado)) {
     return <Navigate to="/admin" replace />;
   }
 
