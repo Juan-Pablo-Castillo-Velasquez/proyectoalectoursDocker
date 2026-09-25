@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronUp, Image as ImageIcon, MessageCircle, Search, Send, X } from "lucide-react";
+import { CalendarDays, Check, ChevronUp, Copy, CreditCard, Image as ImageIcon, Info, Mail, MapPin, MessageCircle, Phone, Search, Send, X, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import EmptyState from "./ui/EmptyState";
 import SectionHeader from "./ui/SectionHeader";
@@ -58,6 +58,9 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
   const [texto, setTexto] = useState("");
   const [imagen, setImagen] = useState<File | null>(null);
   const [idReservaSeleccionada, setIdReservaSeleccionada] = useState<number | null>(null);
+  const [busquedaReserva, setBusquedaReserva] = useState("");
+  const [infoClienteAbierta, setInfoClienteAbierta] = useState(false);
+  const [campoCopiado, setCampoCopiado] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [imagenAmpliada, setImagenAmpliada] = useState<string | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -116,6 +119,8 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
     let vivo = true;
     setMensajesLoading(true);
     setIdReservaSeleccionada(null);
+    setBusquedaReserva("");
+    setInfoClienteAbierta(false);
     mensajeChatService
       .getHilo(idClienteActivo)
       .then((data) => {
@@ -231,6 +236,49 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
     [reservas, idClienteActivo],
   );
 
+  const reservasFiltradas = useMemo(() => {
+    const q = busquedaReserva.trim().toLowerCase();
+    if (!q) return reservasDelClienteActivo;
+    return reservasDelClienteActivo.filter((r) => {
+      const texto = `${r.hotel_nombre ?? ""} ${r.destino ?? ""} #${r.id_reserva} ${r.estado ?? ""}`.toLowerCase();
+      return texto.includes(q);
+    });
+  }, [reservasDelClienteActivo, busquedaReserva]);
+
+  const formatFechaCorta = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+
+  const copiarInfo = (texto: string, campo: string) => {
+    navigator.clipboard
+      .writeText(texto)
+      .then(() => {
+        setCampoCopiado(campo);
+        setTimeout(() => setCampoCopiado((actual) => (actual === campo ? null : actual)), 1500);
+      })
+      .catch(() => {});
+  };
+
+  const textoInfoClienteCompleta = clienteFallback
+    ? [
+        nombreActivo,
+        `Cédula: ${clienteFallback.cedula}`,
+        `Teléfono: ${clienteFallback.celular}`,
+        `Correo: ${clienteFallback.correo}`,
+        clienteFallback.direccion ? `Dirección: ${clienteFallback.direccion}` : null,
+        reservasDelClienteActivo.length > 0
+          ? [
+              "Reservas:",
+              ...reservasDelClienteActivo.map(
+                (r) =>
+                  `- #${r.id_reserva} ${r.hotel_nombre || r.destino || ""} · ${formatFechaCorta(r.fecha_inicio)} a ${formatFechaCorta(r.fecha_fin)} · ${r.estado}`,
+              ),
+            ].join("\n")
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+
   return (
     <div>
       <SectionHeader
@@ -325,7 +373,7 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
             </div>
           ) : (
             <>
-              <div className="px-5 py-3 border-b border-border flex items-center gap-3">
+              <div className="relative px-5 py-3 border-b border-border flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
                   {fotoActiva ? (
                     <img src={resolveFotoUrl(fotoActiva)} alt="" className="w-full h-full object-cover" />
@@ -334,6 +382,125 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
                   )}
                 </div>
                 <p className="text-sm font-semibold text-foreground">{nombreActivo}</p>
+                {clienteFallback && (
+                  <button
+                    type="button"
+                    onClick={() => setInfoClienteAbierta((v) => !v)}
+                    className={`p-1.5 rounded-full transition-colors ${
+                      infoClienteAbierta ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                    title="Ver información del cliente"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                )}
+
+                {infoClienteAbierta && clienteFallback && (
+                  <div className="fixed inset-0 z-40" onClick={() => setInfoClienteAbierta(false)} />
+                )}
+                <AnimatePresence>
+                  {infoClienteAbierta && clienteFallback && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute left-5 top-full mt-1.5 z-50 w-72 rounded-xl border border-border bg-card shadow-lg p-3.5"
+                    >
+                      <div className="flex items-center justify-between mb-2.5">
+                        <p className="text-xs font-semibold text-foreground">Información del cliente</p>
+                        <button
+                          type="button"
+                          onClick={() => setInfoClienteAbierta(false)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <CampoInfoCliente
+                          icon={CreditCard}
+                          label="Cédula"
+                          valor={clienteFallback.cedula}
+                          copiado={campoCopiado === "cedula"}
+                          onCopiar={() => copiarInfo(clienteFallback.cedula, "cedula")}
+                        />
+                        <CampoInfoCliente
+                          icon={Phone}
+                          label="Teléfono"
+                          valor={clienteFallback.celular}
+                          copiado={campoCopiado === "celular"}
+                          onCopiar={() => copiarInfo(clienteFallback.celular, "celular")}
+                        />
+                        <CampoInfoCliente
+                          icon={Mail}
+                          label="Correo"
+                          valor={clienteFallback.correo}
+                          copiado={campoCopiado === "correo"}
+                          onCopiar={() => copiarInfo(clienteFallback.correo, "correo")}
+                        />
+                        {clienteFallback.direccion && (
+                          <CampoInfoCliente
+                            icon={MapPin}
+                            label="Dirección"
+                            valor={clienteFallback.direccion}
+                            copiado={campoCopiado === "direccion"}
+                            onCopiar={() => copiarInfo(clienteFallback.direccion ?? "", "direccion")}
+                          />
+                        )}
+                      </div>
+
+                      {reservasDelClienteActivo.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-border/60">
+                          <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
+                            Reservas ({reservasDelClienteActivo.length})
+                          </p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {reservasDelClienteActivo.map((r) => (
+                              <div key={r.id_reserva} className="flex items-center justify-between gap-2 text-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => onVerReserva?.(r.id_reserva)}
+                                  disabled={!onVerReserva}
+                                  title={`${r.hotel_nombre || r.destino || "Reserva"} · #${r.id_reserva}`}
+                                  className={`text-left truncate text-foreground ${onVerReserva ? "hover:underline cursor-pointer" : ""}`}
+                                >
+                                  #{r.id_reserva} · {r.hotel_nombre || r.destino || "—"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    copiarInfo(
+                                      `Reserva #${r.id_reserva} · ${r.hotel_nombre || r.destino || ""} · ${formatFechaCorta(r.fecha_inicio)} a ${formatFechaCorta(r.fecha_fin)} · ${r.estado}`,
+                                      `reserva-${r.id_reserva}`,
+                                    )
+                                  }
+                                  className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  {campoCopiado === `reserva-${r.id_reserva}` ? (
+                                    <Check className="w-3 h-3 text-green-600" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => copiarInfo(textoInfoClienteCompleta, "todo")}
+                        className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-primary/10 text-primary rounded-lg py-1.5 hover:bg-primary/15 transition-colors"
+                      >
+                        {campoCopiado === "todo" ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {campoCopiado === "todo" ? "Copiado" : "Copiar toda la información"}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
@@ -405,17 +572,27 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
               {reservasDelClienteActivo.length > 0 && (
                 <div className="px-5 pt-2.5 flex items-center gap-2 flex-wrap border-t border-border/60">
                   <span className="text-[11px] text-muted-foreground">¿De qué reserva hablas? (opcional)</span>
+                  {reservasDelClienteActivo.length > 3 && (
+                    <input
+                      type="text"
+                      value={busquedaReserva}
+                      onChange={(e) => setBusquedaReserva(e.target.value)}
+                      placeholder="Buscar..."
+                      className="text-xs bg-muted/40 border border-border rounded-lg px-2 py-1 text-foreground outline-none focus:ring-2 focus:ring-primary/40 w-24"
+                    />
+                  )}
                   <select
                     value={idReservaSeleccionada ?? ""}
                     onChange={(e) => setIdReservaSeleccionada(e.target.value ? Number(e.target.value) : null)}
                     className="text-xs bg-muted/40 border border-border rounded-lg px-2 py-1 text-foreground outline-none focus:ring-2 focus:ring-primary/40 max-w-[220px]"
                   >
                     <option value="">Ninguna reserva en particular</option>
-                    {reservasDelClienteActivo.map((r) => (
+                    {reservasFiltradas.map((r) => (
                       <option key={r.id_reserva} value={r.id_reserva}>
                         {r.hotel_nombre || r.destino || `Reserva #${r.id_reserva}`} · #{r.id_reserva}
                       </option>
                     ))}
+                    {reservasFiltradas.length === 0 && <option value="">Sin resultados</option>}
                   </select>
                   {idReservaSeleccionada != null && (
                     <button
@@ -503,6 +680,35 @@ export default function ModuleMensajes({ reservas = [], clientes = [], clienteId
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function CampoInfoCliente({
+  icon: Icon,
+  label,
+  valor,
+  copiado,
+  onCopiar,
+}: {
+  icon: LucideIcon;
+  label: string;
+  valor: string;
+  copiado: boolean;
+  onCopiar: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+      <span className="text-muted-foreground flex-shrink-0">{label}:</span>
+      <span className="text-foreground truncate flex-1">{valor}</span>
+      <button
+        type="button"
+        onClick={onCopiar}
+        className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {copiado ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
+      </button>
     </div>
   );
 }

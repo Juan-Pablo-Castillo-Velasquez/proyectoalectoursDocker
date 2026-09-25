@@ -11,6 +11,12 @@ export interface ClienteResponse {
   ciudad: string;
   pais: string;
   fecha_nacimiento: string;
+  // El backend ya lo devuelve (Cliente.fecha_registro, ver ClienteResponse
+  // en cliente_schema.py) -- solo faltaba declararlo aquí. Lo usa Profile.tsx
+  // para decidir si la cuenta es "nueva" (creada después del corte en que se
+  // volvió obligatorio guardar un método de pago) o una cuenta previa, que
+  // nunca queda bloqueada retroactivamente.
+  fecha_registro?: string | null;
 }
 
 export interface MetodoPagoGuardadoAdminResponse {

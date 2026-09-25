@@ -256,7 +256,10 @@ class ReservaRepository:
         # joinedload evita N+1 al resolver Reserva.precio_total / .nombre_paquete
         # / .destino / .hotel_nombre / .fecha_ultima_actualizacion (propiedades
         # usadas por ReservaResponse) para cada reserva de la lista del admin
-        # — mismo criterio ya usado en get_by_cliente.
+        # — mismo criterio ya usado en get_by_cliente. Reserva.pagos va con
+        # selectinload (no joinedload) porque es otra colección uno-a-muchos:
+        # sumarla a los joinedload de arriba multiplicaría filas por cada
+        # combinación cruzada; selectinload la trae en una query aparte.
         return (
             db.query(Reserva)
             .options(
@@ -266,6 +269,7 @@ class ReservaRepository:
                 .joinedload(Habitacion.hotel),
                 joinedload(Reserva.reserva_servicios),
                 joinedload(Reserva.historial_reservas),
+                selectinload(Reserva.pagos).joinedload(Pago.metodo_pago),
             )
             .offset(skip)
             .limit(limit)
@@ -295,6 +299,10 @@ class ReservaRepository:
         # / Reserva.hotel_nombre (propiedades usadas por ReservaResponse) para
         # cada reserva del historial — incluye reserva_habitaciones porque una
         # reserva puede no tener paquete (reserva directa de habitación).
+        # selectinload(Reserva.pagos) es lo que permite que ReservaResponse.pagos
+        # (ver reserva_schema.py) venga poblado acá -- sin esto, TabFacturas.tsx
+        # en el perfil del cliente siempre se veía vacío aunque hubiera pagos
+        # confirmados con factura real, porque este endpoint nunca cargaba pagos.
         return (
             db.query(Reserva)
             .options(
@@ -302,6 +310,7 @@ class ReservaRepository:
                 joinedload(Reserva.reserva_habitaciones)
                 .joinedload(ReservaHabitacion.habitacion)
                 .joinedload(Habitacion.hotel),
+                selectinload(Reserva.pagos).joinedload(Pago.metodo_pago),
             )
             .filter(Reserva.id_cliente == cliente_id)
             .offset(skip)

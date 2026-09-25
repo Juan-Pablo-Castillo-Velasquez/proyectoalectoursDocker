@@ -128,6 +128,42 @@ class MetodoPagoResponse(BaseModel):
         from_attributes = True
 
 
+class PagoCreate(BaseModel):
+    id_reserva: int
+    id_metodo_pago: int
+    monto: float = Field(..., ge=0)
+    referencia: str | None = Field(None, max_length=100)
+
+
+class PagoUpdate(BaseModel):
+    monto: float | None = Field(None, ge=0)
+    referencia: str | None = None
+    estado: str | None = None
+
+    @field_validator("estado")
+    @classmethod
+    def validate_estado(cls, v):
+        if v and v not in ["pendiente", "procesando", "pagado", "rechazado", "cancelado"]:
+            raise ValueError("estado debe ser: pendiente, procesando, pagado, rechazado o cancelado")
+        return v
+
+
+class PagoResponse(BaseModel):
+    id_pago: int
+    id_reserva: int
+    id_metodo_pago: int
+    monto: float
+    fecha_pago: datetime
+    referencia: str | None
+    estado: str
+    numero_factura: str | None = None
+    comprobante_url: str | None = None
+    metodo_pago: MetodoPagoResponse | None = None
+
+    class Config:
+        from_attributes = True
+
+
 # ===================== NUEVO: Habitación dentro de una reserva =====================
 
 
@@ -218,42 +254,16 @@ class ReservaResponse(BaseModel):
     # siempre mandaba canal_origen=None, y el frontend lo interpretaba como "web"
     # para TODAS las filas sin importar el valor real en la base de datos.
     canal_origen: str | None = None
-
-    class Config:
-        from_attributes = True
-
-
-class PagoCreate(BaseModel):
-    id_reserva: int
-    id_metodo_pago: int
-    monto: float = Field(..., ge=0)
-    referencia: str | None = Field(None, max_length=100)
-
-
-class PagoUpdate(BaseModel):
-    monto: float | None = Field(None, ge=0)
-    referencia: str | None = None
-    estado: str | None = None
-
-    @field_validator("estado")
-    @classmethod
-    def validate_estado(cls, v):
-        if v and v not in ["pendiente", "procesando", "pagado", "rechazado", "cancelado"]:
-            raise ValueError("estado debe ser: pendiente, procesando, pagado, rechazado o cancelado")
-        return v
-
-
-class PagoResponse(BaseModel):
-    id_pago: int
-    id_reserva: int
-    id_metodo_pago: int
-    monto: float
-    fecha_pago: datetime
-    referencia: str | None
-    estado: str
-    numero_factura: str | None = None
-    comprobante_url: str | None = None
-    metodo_pago: MetodoPagoResponse | None = None
+    # BUG real corregido: ReservaResponse nunca declaraba `pagos`, aunque el
+    # modelo Reserva sí tiene la relación (Reserva.pagos) y PagoResponse ya
+    # incluye numero_factura/comprobante_url/metodo_pago. GET /reservas/cliente
+    # (el que usa TabFacturas.tsx en el perfil del cliente) siempre devolvía
+    # reserva.pagos == undefined en el frontend, así que el tab de Facturas
+    # se veía siempre vacío aunque el cliente tuviera pagos confirmados con
+    # factura real -- nunca fue un problema del componente, sino de este
+    # schema. Ver ReservaRepository.get_all/get_by_cliente para el eager
+    # load agregado (selectinload) que evita N+1 al resolver esto por fila.
+    pagos: list[PagoResponse] = []
 
     class Config:
         from_attributes = True
@@ -306,12 +316,11 @@ class PagarResponse(BaseModel):
 
 class ReservaDetailResponse(ReservaResponse):
     paquete: PaqueteResponse | None = None
-    pagos: list[PagoResponse] = []
     # OJO: el modelo SQLAlchemy llama a esta relación "reserva_habitaciones", por eso el alias.
     habitaciones: list[HabitacionReservaResponse] = Field(default=[], validation_alias="reserva_habitaciones")
     empleado: AsesorResponse | None = None
-    # canal_origen ya viene heredado de ReservaResponse (ver arriba) — se
-    # quitó la redeclaración duplicada que había acá.
+    # canal_origen y pagos ya vienen heredados de ReservaResponse (ver
+    # arriba) — se quitó la redeclaración duplicada que había acá.
 
     class Config:
         from_attributes = True

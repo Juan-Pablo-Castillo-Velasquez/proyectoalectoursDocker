@@ -2,6 +2,7 @@ import {
   Calendar,
   ChevronRight,
   Heart,
+  Lock,
   LogOut,
   Mail,
   MapPin,
@@ -35,6 +36,11 @@ interface Props {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
+  // Cuando es true (ver requiereMetodoPago en Profile.tsx), todas las
+  // pestañas salvo "metodos-pago" se muestran deshabilitadas -- el cliente
+  // debe guardar un método de pago antes de poder navegar al resto de su
+  // perfil.
+  bloqueado?: boolean;
 }
 
 export default function ProfileSidebar({
@@ -44,6 +50,7 @@ export default function ProfileSidebar({
   activeTab,
   setActiveTab,
   onLogout,
+  bloqueado = false,
 }: Props) {
   // Badge de mensajes no leídos junto al tab -- polling propio (18s),
   // mismo criterio autosuficiente que el badge equivalente de
@@ -211,22 +218,34 @@ export default function ProfileSidebar({
         )}
 
         {/* Menú de Pestañas con Navegación Corporativa */}
+        {bloqueado && (
+          <p className="text-[11px] text-center text-muted-foreground px-2 mb-2 leading-snug">
+            Guarda un método de pago para desbloquear el resto de tu perfil.
+          </p>
+        )}
         <nav className="space-y-0.5 mb-3 overflow-y-auto flex-1 min-h-0">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
+            const deshabilitado = bloqueado && tab.id !== "metodos-pago";
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3 py-1.5 min-h-[36px] rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() => {
+                  if (!deshabilitado) setActiveTab(tab.id);
+                }}
+                disabled={deshabilitado}
+                title={deshabilitado ? "Guarda un método de pago para desbloquear esta sección" : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-1.5 min-h-[36px] rounded-lg text-sm font-medium transition-all duration-200 ${
+                  deshabilitado
+                    ? "text-muted-foreground/40 cursor-not-allowed"
+                    : isActive
+                      ? "bg-primary text-primary-foreground shadow-sm cursor-pointer"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                 }`}
               >
                 <tab.icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left">{tab.label}</span>
-                {tab.id === "mensajes" && noLeidosMensajes > 0 && (
+                {tab.id === "mensajes" && noLeidosMensajes > 0 && !deshabilitado && (
                   <span
                     className={`min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex-shrink-0 flex items-center justify-center ${
                       isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-destructive text-destructive-foreground"
@@ -235,9 +254,13 @@ export default function ProfileSidebar({
                     {noLeidosMensajes > 99 ? "99+" : noLeidosMensajes}
                   </span>
                 )}
-                <ChevronRight
-                  className={`w-4 h-4 transition-transform duration-200 ${isActive ? "rotate-90 text-primary-foreground" : "text-muted-foreground/50"}`}
-                />
+                {deshabilitado ? (
+                  <Lock className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
+                ) : (
+                  <ChevronRight
+                    className={`w-4 h-4 transition-transform duration-200 ${isActive ? "rotate-90 text-primary-foreground" : "text-muted-foreground/50"}`}
+                  />
+                )}
               </button>
             );
           })}

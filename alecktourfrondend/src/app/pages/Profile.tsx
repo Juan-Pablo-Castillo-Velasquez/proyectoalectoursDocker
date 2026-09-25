@@ -1,3 +1,4 @@
+import { ShieldAlert } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -16,11 +17,24 @@ import { useAuth } from "../context/AuthContext";
 import { useTema } from "../context/TemaContext";
 import { ClienteResponse, clienteService } from "../services/cliente.service";
 import {
+  MetodoPagoGuardado,
+  metodoPagoGuardadoService,
+} from "../services/metodoPagoGuardado.service";
+import {
   PreferenciaResponse,
   preferenciasService,
 } from "../services/preferencias.service";
 import { ReservaResponse, reservaService } from "../services/reserva.service";
 import { usuarioService } from "../services/usuario.service";
+
+// Corte de "método de pago obligatorio": SOLO las cuentas cuyo
+// Cliente.fecha_registro sea posterior a este momento (cuando se
+// desplegó esta funcionalidad) quedan obligadas a guardar un método de
+// pago antes de poder usar su perfil. Las cuentas que ya existían antes
+// de este corte siguen exactamente igual que antes -- nunca se les exige
+// nada retroactivo. Ver el useMemo `esCuentaNueva` más abajo.
+const REQUIERE_METODO_PAGO_DESDE = new Date("2026-09-25T03:40:00Z").getTime();
+
 export default function Profile() {
   const { usuario, logout, isAuthenticated, updateUsuario } = useAuth();
   const navigate = useNavigate();
@@ -59,7 +73,33 @@ export default function Profile() {
     null,
   );
   const [clienteData, setClienteData] = useState<ClienteResponse | null>(null);
+  const [metodosGuardados, setMetodosGuardados] = useState<MetodoPagoGuardado[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Cuenta "nueva" = creada después del corte de arriba -- ver el comentario
+  // en REQUIERE_METODO_PAGO_DESDE. Solo esas quedan sujetas al bloqueo.
+  const esCuentaNueva =
+    !loading &&
+    !!clienteData?.fecha_registro &&
+    new Date(clienteData.fecha_registro).getTime() >= REQUIERE_METODO_PAGO_DESDE;
+  // Bloqueo real: cuenta nueva + todavía sin ningún método de pago guardado.
+  // Se recalcula solo -- apenas metodosGuardados pase a tener 1+ elemento
+  // (ver onMetodosChange en TabMetodosPago más abajo) esto se vuelve false
+  // y el perfil se desbloquea sin necesidad de recargar la página.
+  const requiereMetodoPago = esCuentaNueva && metodosGuardados.length === 0;
+  // Pestaña que se renderiza de verdad: mientras esté bloqueado, siempre es
+  // "metodos-pago" sin importar qué diga activeTab -- así no hay ni un
+  // frame donde se llegue a ver otra pestaña antes de redirigir.
+  const tabEfectiva = requiereMetodoPago ? "metodos-pago" : activeTab;
+  // Filtro para los clics del sidebar: mientras esté bloqueado, cualquier
+  // intento de ir a otra pestaña simplemente no hace nada (los botones ya
+  // se ven deshabilitados en ProfileSidebar). Un deep-link real que llegue
+  // por location.state (campana de notificaciones, etc.) NO pasa por acá,
+  // así que sigue funcionando apenas la cuenta se desbloquee.
+  const cambiarTabDesdeSidebar = (tab: string) => {
+    if (requiereMetodoPago && tab !== "metodos-pago") return;
+    setActiveTab(tab);
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -108,11 +148,13 @@ export default function Profile() {
       reservaService.getByCliente(usuario.id_cliente),
       clienteService.getById(usuario.id_cliente),
       preferenciasService.getByCliente(usuario.id_cliente).catch(() => null),
+      metodoPagoGuardadoService.getAll().catch(() => []),
     ])
-      .then(([res, cliente, prefs]) => {
+      .then(([res, cliente, prefs, metodos]) => {
         setReservas(res);
         setClienteData(cliente);
         setPreferencias(prefs);
+        setMetodosGuardados(metodos);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -158,16 +200,17 @@ export default function Profile() {
               usuario={usuario}
               clienteData={clienteData}
               reservas={reservas}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
+              activeTab={tabEfectiva}
+              setActiveTab={cambiarTabDesdeSidebar}
               onLogout={handleLogout}
+              bloqueado={requiereMetodoPago}
             />
           </aside>
 
           {/* Área de Contenido Dinámico */}
           <main className="lg:col-span-3 mt-4 lg:mt-6">
             <AnimatePresence mode="wait">
-              {activeTab === "reservas" && (
+              {tabEfectiva === "reservas" && (
                 <motion.div
                   key="reservas"
                   initial={{ opacity: 0, y: 10 }}
@@ -184,7 +227,7 @@ export default function Profile() {
                   />
                 </motion.div>
               )}
-              {activeTab === "favoritos" && (
+              {tabEfectiva === "favoritos" && (
                 <motion.div
                   key="favoritos"
                   initial={{ opacity: 0, y: 10 }}
@@ -195,7 +238,7 @@ export default function Profile() {
                   <TabFavoritos />
                 </motion.div>
               )}
-              {activeTab === "mensajes" && (
+              {tabEfectiva === "mensajes" && (
                 <motion.div
                   key="mensajes"
                   initial={{ opacity: 0, y: 10 }}
@@ -206,7 +249,7 @@ export default function Profile() {
                   <TabMensajes reservas={reservas} reservaIdInicial={reservaIdParaMensaje} />
                 </motion.div>
               )}
-              {activeTab === "facturas" && (
+              {tabEfectiva === "facturas" && (
                 <motion.div
                   key="facturas"
                   initial={{ opacity: 0, y: 10 }}
@@ -217,7 +260,7 @@ export default function Profile() {
                   <TabFacturas reservas={reservas} clienteData={clienteData} />
                 </motion.div>
               )}
-              {activeTab === "metodos-pago" && (
+              {tabEfectiva === "metodos-pago" && (
                 <motion.div
                   key="metodos-pago"
                   initial={{ opacity: 0, y: 10 }}
@@ -225,10 +268,29 @@ export default function Profile() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <TabMetodosPago />
+                  {requiereMetodoPago && (
+                    <div className="mb-6 flex items-start gap-3 bg-primary/10 border border-primary/25 rounded-2xl p-4 max-w-4xl">
+                      <ShieldAlert className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Un último paso antes de continuar
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Para gestionar tu perfil necesitamos que guardes al menos un método de
+                          pago. Es rápido y nunca almacenamos el número completo de tu tarjeta o
+                          cuenta -- solo un alias, los últimos 4 dígitos y tu propia clave de
+                          confirmación.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <TabMetodosPago
+                    obligatorio={requiereMetodoPago}
+                    onMetodosChange={setMetodosGuardados}
+                  />
                 </motion.div>
               )}
-              {activeTab === "preferencias" && (
+              {tabEfectiva === "preferencias" && (
                 <motion.div
                   key="preferencias"
                   initial={{ opacity: 0, y: 10 }}
@@ -242,7 +304,7 @@ export default function Profile() {
                   />
                 </motion.div>
               )}
-              {activeTab === "cuenta" && (
+              {tabEfectiva === "cuenta" && (
                 <motion.div
                   key="cuenta"
                   initial={{ opacity: 0, y: 10 }}

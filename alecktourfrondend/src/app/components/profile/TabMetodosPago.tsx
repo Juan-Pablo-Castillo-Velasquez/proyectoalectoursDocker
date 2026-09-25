@@ -12,7 +12,7 @@ import {
   Trash2,
   Wallet,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   MetodoPagoGuardado,
@@ -43,7 +43,19 @@ function labelMetodoPago(tipo: string) {
   return TIPOS_METODO_PAGO.find((t) => t.id === tipo)?.label ?? tipo;
 }
 
-export default function TabMetodosPago() {
+interface Props {
+  // true cuando este tab es un paso obligatorio (cuenta nueva sin ningún
+  // método de pago guardado todavía, ver requiereMetodoPago en Profile.tsx)
+  // en vez del uso normal/opcional de este tab.
+  obligatorio?: boolean;
+  // Le avisa al padre (Profile.tsx) cada vez que la lista local cambia --
+  // así el bloqueo del resto del perfil se levanta apenas se guarda el
+  // primer método, sin recargar la página. Puede pasarse directo el
+  // setState del padre (misma firma que Dispatch<SetStateAction<...>>).
+  onMetodosChange?: (metodos: MetodoPagoGuardado[]) => void;
+}
+
+export default function TabMetodosPago({ obligatorio = false, onMetodosChange }: Props) {
   const [metodosGuardados, setMetodosGuardados] = useState<MetodoPagoGuardado[]>([]);
   const [cargandoMetodos, setCargandoMetodos] = useState(true);
   const [mostrarFormMetodo, setMostrarFormMetodo] = useState(false);
@@ -66,6 +78,39 @@ export default function TabMetodosPago() {
       .catch(() => setMetodosGuardados([]))
       .finally(() => setCargandoMetodos(false));
   }, []);
+
+  // Reenvía cada cambio de la lista local al padre -- crear/editar/eliminar
+  // pasan todos por el mismo setMetodosGuardados de arriba, así que un solo
+  // efecto alcanza para mantener a Profile.tsx sincronizado sin duplicar
+  // los handlers de abajo. El guard de cargandoMetodos es importante: sin
+  // él, este efecto reportaría el [] inicial (antes de que el fetch de
+  // arriba resuelva) cada vez que este tab se vuelve a montar, pisando por
+  // un instante el metodosGuardados real que Profile.tsx ya tenía y
+  // haciendo parpadear el bloqueo para un cliente que ya había guardado un
+  // método y solo volvió a esta pestaña a revisarlo.
+  useEffect(() => {
+    if (cargandoMetodos) return;
+    onMetodosChange?.(metodosGuardados);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metodosGuardados, cargandoMetodos]);
+
+  // Con la lista ya cargada y todavía vacía, si este tab es obligatorio se
+  // abre el formulario de una vez -- evita el clic extra de "Agregar" en un
+  // flujo donde el cliente no tiene otra opción de todas formas.
+  useEffect(() => {
+    if (obligatorio && !cargandoMetodos && metodosGuardados.length === 0) {
+      setMostrarFormMetodo(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [obligatorio, cargandoMetodos, metodosGuardados.length]);
+
+  // Solo cuando es obligatorio Y todavía no hay ningún método guardado no
+  // tiene sentido dejar "Cancelar" -- no habría nada que conservar y de
+  // todas formas no puede salir de este tab hasta guardar uno.
+  const puedeCancelarFormulario = useMemo(
+    () => !(obligatorio && metodosGuardados.length === 0),
+    [obligatorio, metodosGuardados.length],
+  );
 
   const resetFormMetodo = () => {
     setEditandoMetodoId(null);
@@ -378,16 +423,18 @@ export default function TabMetodosPago() {
                 {guardandoMetodo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 {editandoMetodoId !== null ? "Guardar cambios" : "Guardar método"}
               </button>
-              <button
-                onClick={() => {
-                  setMostrarFormMetodo(false);
-                  resetFormMetodo();
-                }}
-                disabled={guardandoMetodo}
-                className="text-sm font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 px-4 py-2.5 rounded-full transition-colors"
-              >
-                Cancelar
-              </button>
+              {puedeCancelarFormulario && (
+                <button
+                  onClick={() => {
+                    setMostrarFormMetodo(false);
+                    resetFormMetodo();
+                  }}
+                  disabled={guardandoMetodo}
+                  className="text-sm font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 px-4 py-2.5 rounded-full transition-colors"
+                >
+                  Cancelar
+                </button>
+              )}
             </div>
           </div>
         )}
