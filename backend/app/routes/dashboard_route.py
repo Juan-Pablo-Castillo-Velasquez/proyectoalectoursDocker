@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.cache import get_cached, set_cached
 from app.core.database import get_db
-from app.core.security import require_admin, require_empleado
+from app.core.security import require_empleado
 from app.models.cliente_model import Cliente
 from app.models.hotel_model import Hotel
 from app.models.reserva_model import HistorialReserva, MetodoPago, Pago, Paquete, Reserva, SolicitudCancelacion

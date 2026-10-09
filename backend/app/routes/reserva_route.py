@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.cache import delete_pattern, get_cached, set_cached
 from app.core.database import get_db
-from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_admin, usuario_es_staff
+from app.core.deps import exigir_propietario_o_admin, get_current_usuario, usuario_es_staff
 from app.core.exceptions import (
     HabitacionNoDisponibleError,
     HabitacionNoEncontradaError,
@@ -36,6 +36,7 @@ from app.repositories.reserva_repository import (
     PaqueteRepository,
     ReservaRepository,
 )
+from app.schemas.hotel_schema import ImagenGaleriaResponse
 from app.schemas.reserva_detail import (
     ActividadRecienteItem,
     NotaInternaCreate,
@@ -43,7 +44,6 @@ from app.schemas.reserva_detail import (
     ReservaHistorialDetail,
     ReservaServicioDetail,
 )
-from app.schemas.hotel_schema import ImagenGaleriaResponse
 from app.schemas.reserva_schema import (
     MetodoPagoCreate,
     MetodoPagoResponse,
