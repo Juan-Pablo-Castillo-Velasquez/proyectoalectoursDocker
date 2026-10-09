@@ -341,6 +341,8 @@ erDiagram
 
 > El diagrama representa conceptualmente el dominio del sistema. La estructura definitiva debe mantenerse sincronizada con los modelos y migraciones actuales de la aplicación.
 
+El sistema completo tiene 41 tablas organizadas por dominio (usuarios y seguridad, hoteles, servicios, paquetes, reservas y pagos, entre otros). Cada una está explicada en [`docs/referencia-tecnica/tablas.md`](docs/referencia-tecnica/tablas.md).
+
 ---
 
 # Infraestructura Docker
@@ -753,6 +755,20 @@ Documentos principales:
 * [`CONTRIBUTING.md`](CONTRIBUTING.md)
 * [`SECURITY.md`](SECURITY.md)
 * [`db_schema.sql`](db_schema.sql)
+
+Referencia técnica (`docs/referencia-tecnica/`):
+
+* [`tablas.md`](docs/referencia-tecnica/tablas.md): para qué sirve cada tabla de la base de datos.
+* [`database-schema.md`](docs/referencia-tecnica/database-schema.md): esquema detallado, índices y migraciones.
+* [`architecture.md`](docs/referencia-tecnica/architecture.md): arquitectura del sistema.
+* [`api-endpoints.md`](docs/referencia-tecnica/api-endpoints.md): endpoints de la API.
+* [`design-system.md`](docs/referencia-tecnica/design-system.md): sistema de diseño.
+
+Otras guías:
+
+* [`docs/setup/con-docker.md`](docs/setup/con-docker.md) y [`docs/setup/sin-docker.md`](docs/setup/sin-docker.md): puesta en marcha.
+* [`docs/requisitos/`](docs/requisitos/): requisitos funcionales, no funcionales e historias de usuario.
+* [`docs/conceptos/`](docs/conceptos/): accesibilidad, OWASP Top 10 y patrones arquitectónicos.
 
 ---
 
