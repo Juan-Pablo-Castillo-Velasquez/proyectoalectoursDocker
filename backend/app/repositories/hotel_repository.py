@@ -223,9 +223,7 @@ class HotelRepository:
         pueda borrar una foto de OTRO hotel aunque alguien mande un
         id_hotel de la URL que no corresponda al id_imagen real."""
         return (
-            db.query(ImagenHotel)
-            .filter(ImagenHotel.id_imagen == id_imagen, ImagenHotel.id_hotel == hotel_id)
-            .first()
+            db.query(ImagenHotel).filter(ImagenHotel.id_imagen == id_imagen, ImagenHotel.id_hotel == hotel_id).first()
         )
 
     @staticmethod

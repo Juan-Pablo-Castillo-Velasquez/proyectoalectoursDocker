@@ -134,10 +134,10 @@ def admin_update_usuario(
         # depende de ningun estado del navegador: usa _u (el id del que
         # llama, sacado del propio JWT en require_permission, deps.py), asi
         # que es la unica fuente de verdad real.
-        if usuario_id == _u and 'admin' not in data.roles:
+        if usuario_id == _u and "admin" not in data.roles:
             raise HTTPException(
                 status_code=400,
-                detail='No puedes quitarte el rol de admin a ti mismo.',
+                detail="No puedes quitarte el rol de admin a ti mismo.",
             )
 
         roles_validos = (

@@ -263,7 +263,9 @@ async def subir_foto_galeria_hotel(
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         tamano_maximo_bytes=HOTEL_IMAGEN_TAMANO_MAXIMO_BYTES,
     )
-    url = guardar_imagen(contenido, extension, carpeta="hoteles-galeria", public_path_prefix=HOTEL_GALERIA_PUBLIC_PREFIX)
+    url = guardar_imagen(
+        contenido, extension, carpeta="hoteles-galeria", public_path_prefix=HOTEL_GALERIA_PUBLIC_PREFIX
+    )
     nueva = HotelRepository.add_imagen_galeria(db, hotel_id, url)
     delete_pattern(HOTELES_CACHE_PATTERN)
     return nueva

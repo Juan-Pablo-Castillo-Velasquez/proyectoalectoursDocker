@@ -369,7 +369,9 @@ async def subir_imagen_paquete(
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         tamano_maximo_bytes=PAQUETE_IMAGEN_TAMANO_MAXIMO_BYTES,
     )
-    nueva_url = guardar_imagen(contenido, extension, carpeta="paquetes", public_path_prefix=PAQUETE_IMAGEN_PUBLIC_PREFIX)
+    nueva_url = guardar_imagen(
+        contenido, extension, carpeta="paquetes", public_path_prefix=PAQUETE_IMAGEN_PUBLIC_PREFIX
+    )
     # Primero se guarda la foto nueva, y solo si eso funciona se borra la
     # anterior -- mismo orden que subir_imagen_hotel.
     borrar_imagen(paquete.imagen_url, carpeta="paquetes", public_path_prefix=PAQUETE_IMAGEN_PUBLIC_PREFIX)
@@ -397,7 +399,9 @@ async def subir_foto_galeria_paquete(
         mensaje_tipo="Formato de imagen no soportado. Usa JPG, PNG o WEBP.",
         tamano_maximo_bytes=PAQUETE_IMAGEN_TAMANO_MAXIMO_BYTES,
     )
-    url = guardar_imagen(contenido, extension, carpeta="paquetes-galeria", public_path_prefix=PAQUETE_GALERIA_PUBLIC_PREFIX)
+    url = guardar_imagen(
+        contenido, extension, carpeta="paquetes-galeria", public_path_prefix=PAQUETE_GALERIA_PUBLIC_PREFIX
+    )
     nueva = PaqueteRepository.add_imagen_galeria(db, paquete_id, url)
     delete_pattern(PAQUETES_CACHE_PATTERN)
     return nueva
